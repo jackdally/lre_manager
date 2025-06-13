@@ -4,6 +4,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { AppDataSource } from './config/database';
 import { programRouter } from './routes/program';
+import { ledgerRouter } from './routes/ledger';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -36,6 +37,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Routes
 app.use('/api/programs', programRouter);
+app.use('/api', ledgerRouter);
 
 // Initialize database connection
 AppDataSource.initialize()

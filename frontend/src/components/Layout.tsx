@@ -17,6 +17,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="text-xl">📁</span>
             Programs
           </Link>
+          <Link
+            to="/programs/3/ledger"
+            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base mt-2"
+          >
+            <span className="text-xl">📒</span>
+            Ledger
+          </Link>
         </nav>
       </aside>
       {/* Main content */}

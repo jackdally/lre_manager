@@ -2,6 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import Layout from './Layout';
+import LedgerTable from './LedgerTable';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  CartesianGrid,
+  ComposedChart
+} from 'recharts';
+import { addMonths, format } from 'date-fns';
 
 interface Program {
   id: number;
@@ -20,6 +35,15 @@ const ProgramDashboard: React.FC = () => {
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [summary, setSummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [fullSummary, setFullSummary] = useState<any[]>([]);
+  const [filledSummary, setFilledSummary] = useState<any[]>([]);
+  const [outOfWindowWarning, setOutOfWindowWarning] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProgram = async () => {
@@ -36,6 +60,92 @@ const ProgramDashboard: React.FC = () => {
     };
     if (id) fetchProgram();
   }, [id]);
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      if (!program || !program.id) return;
+      setSummaryLoading(true);
+      try {
+        const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary`, {
+          params: { month: selectedMonth },
+        });
+        setSummary(res.data);
+      } catch (err) {
+        setSummary(null);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+    fetchSummary();
+  }, [program, selectedMonth]);
+
+  useEffect(() => {
+    const fetchFullSummary = async () => {
+      if (!program || !program.id) return;
+      try {
+        const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary-full`);
+        setFullSummary(res.data);
+        console.log('Full Summary Data:', res.data);
+      } catch (err) {
+        setFullSummary([]);
+      }
+    };
+    fetchFullSummary();
+  }, [program]);
+
+  useEffect(() => {
+    if (!program || !program.startDate || !program.endDate) {
+      setFilledSummary(fullSummary);
+      setOutOfWindowWarning(null);
+      return;
+    }
+    if (!fullSummary || fullSummary.length === 0) {
+      setFilledSummary([]);
+      setOutOfWindowWarning(null);
+      return;
+    }
+    // Get program window
+    const startMonth = format(new Date(program.startDate), 'yyyy-MM');
+    const endMonth = format(new Date(program.endDate), 'yyyy-MM');
+    // Find min/max in ledger data
+    const monthsInData = fullSummary.map(d => d.month);
+    const minDataMonth = monthsInData.reduce((a, b) => (a < b ? a : b));
+    const maxDataMonth = monthsInData.reduce((a, b) => (a > b ? a : b));
+    // Check for out-of-window data
+    let warning = null;
+    if (minDataMonth < startMonth || maxDataMonth > endMonth) {
+      warning = `Warning: There are ledger entries outside the program window (${startMonth} to ${endMonth}).`;
+    }
+    setOutOfWindowWarning(warning);
+    // Fill missing months
+    const monthMap: Record<string, any> = {};
+    fullSummary.forEach(d => { monthMap[d.month] = d; });
+    const months = [];
+    let current = new Date(startMonth + '-01');
+    const end = new Date(endMonth + '-01');
+    let lastCumBaseline = 0, lastCumPlanned = 0, lastCumActual = 0;
+    while (current <= end) {
+      const monthStr = format(current, 'yyyy-MM');
+      if (monthMap[monthStr]) {
+        months.push(monthMap[monthStr]);
+        lastCumBaseline = monthMap[monthStr].cumBaseline;
+        lastCumPlanned = monthMap[monthStr].cumPlanned;
+        lastCumActual = monthMap[monthStr].cumActual;
+      } else {
+        months.push({
+          month: monthStr,
+          baseline: 0,
+          planned: 0,
+          actual: 0,
+          cumBaseline: lastCumBaseline,
+          cumPlanned: lastCumPlanned,
+          cumActual: lastCumActual,
+        });
+      }
+      current = addMonths(current, 1);
+    }
+    setFilledSummary(months);
+  }, [program, fullSummary]);
 
   return (
     <Layout>
@@ -105,12 +215,112 @@ const ProgramDashboard: React.FC = () => {
               </div>
             </div>
 
+            {/* Month Selector and Summary Metrics */}
+            <div className="flex flex-col md:flex-row md:items-end gap-6 mb-8">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Select Month</label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={e => setSelectedMonth(e.target.value)}
+                  className="input input-bordered"
+                />
+              </div>
+              {summaryLoading ? (
+                <div className="text-gray-500">Loading summary...</div>
+              ) : summary && (
+                <div className="flex flex-wrap gap-6 items-end">
+                  <div>
+                    <div className="text-xs text-gray-500">Actuals to Date</div>
+                    <div className="font-bold text-lg text-gray-900">${summary.actualsToDate?.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">ETC</div>
+                    <div className="font-bold text-lg text-gray-900">${summary.etc?.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">EAC</div>
+                    <div className="font-bold text-lg text-gray-900">${summary.eac?.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">VAC</div>
+                    <div className="font-bold text-lg text-gray-900">${summary.vac?.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Monthly Cash Flow</div>
+                    <div className="font-bold text-lg text-gray-900">${summary.monthlyCashFlow?.toLocaleString()}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Charts Section */}
+            {outOfWindowWarning && (
+              <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded border border-yellow-300 font-semibold">
+                {outOfWindowWarning}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
               <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
                 <div className="text-lg font-bold mb-2">Monthly Financials</div>
-                {/* Placeholder for chart */}
-                <div className="w-full h-48 bg-gray-100 rounded flex items-center justify-center text-gray-400">[Chart Placeholder]</div>
+                {/* Full project chart: clustered bars + cumulative lines */}
+                <div className="w-full h-72">
+                  {filledSummary && filledSummary.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={filledSummary} margin={{ top: 10, right: 40, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                        <YAxis
+                          yAxisId="left"
+                          tick={{ fontSize: 12 }}
+                          label={{ value: "Monthly ($)", angle: -90, position: "insideLeft" }}
+                          domain={['auto', 'auto']}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          tick={{ fontSize: 12 }}
+                          label={{ value: "Cumulative ($)", angle: 90, position: "insideRight" }}
+                          domain={[0, 'dataMax']}
+                        />
+                        <Tooltip />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="baseline" fill="#6366f1" name="Baseline" />
+                        <Bar yAxisId="left" dataKey="planned" fill="#3b82f6" name="Planned" />
+                        <Bar yAxisId="left" dataKey="actual" fill="#10b981" name="Actual" />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="cumBaseline"
+                          stroke="#6366f1"
+                          name="Cumulative Baseline"
+                          strokeWidth={2}
+                          dot={true}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="cumPlanned"
+                          stroke="#3b82f6"
+                          name="Cumulative Planned"
+                          strokeWidth={2}
+                          dot={true}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="cumActual"
+                          stroke="#10b981"
+                          name="Cumulative Actual"
+                          strokeWidth={2}
+                          dot={true}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">No data</div>
+                  )}
+                </div>
               </div>
               <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
                 <div className="text-lg font-bold mb-2">Category Breakdown</div>
@@ -122,8 +332,7 @@ const ProgramDashboard: React.FC = () => {
             {/* Ledger/Transactions Table Section */}
             <div className="bg-white rounded-xl shadow p-6">
               <div className="text-lg font-bold mb-4">Ledger / Transactions</div>
-              {/* Placeholder for table */}
-              <div className="w-full h-32 bg-gray-100 rounded flex items-center justify-center text-gray-400">[Ledger Table Placeholder]</div>
+              {program && program.id && <LedgerTable programId={program.id} />}
             </div>
           </>
         )}
