@@ -83,28 +83,112 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
     // Convert to YYYY-MM-DD strings
     const startStr = start.toISOString().slice(0, 10);
     const endStr = end.toISOString().slice(0, 10);
+
     // Fetch all entries for the program
     const entries = await ledgerRepo.find({
       where: {
-        program: { id: Number(programId) },
-        planned_date: Between(startStr, endStr),
+        program: { id: Number(programId) }
       },
       relations: ['program'],
     });
-    // Calculate summary metrics
-    const actualsToDate = entries.reduce((sum, e) => sum + (e.actual_amount || 0), 0);
-    const etc = entries.reduce((sum, e) => sum + (e.planned_amount || 0), 0);
+
+    // Fetch the program to get the total budget
+    const program = await programRepo.findOneBy({ id: Number(programId) });
+    if (!program) return res.status(404).json({ message: 'Program not found' });
+    const budget = program.totalBudget || 0;
+
+    // Project-wide totals (not filtered by date)
+    const project_baseline_total = entries.reduce((sum, e) => sum + (e.baseline_amount || 0), 0);
+    const project_planned_total = entries.reduce((sum, e) => sum + (e.planned_amount || 0), 0);
+
+    // Calculate summary metrics (filtered by date)
+    const actualsToDate = entries.reduce((sum, e) => {
+      if (!e.actual_date) return sum;
+      const actualDate = new Date(e.actual_date);
+      if (actualDate < end) { // Only include actuals up to the selected month
+        return sum + (e.actual_amount || 0);
+      }
+      return sum;
+    }, 0);
+    
+    // ETC (Estimate to Complete) = Sum of planned amounts for future months only
+    const etc = entries.reduce((sum, e) => {
+      if (!e.planned_date) return sum;
+      const plannedDate = new Date(e.planned_date);
+      if (plannedDate >= end) { // Only include future months
+        return sum + (e.planned_amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // EAC (Estimate at Completion) = Actuals to date + ETC
     const eac = actualsToDate + etc;
-    const vac = entries.reduce((sum, e) => sum + (e.baseline_amount || 0), 0) - eac;
-    // Monthly cash flow (sum of planned_amount per entry)
-    const monthlyCashFlow = entries.reduce((sum, e) => sum + (e.planned_amount || 0), 0);
-    // Graph data: [{ date, planned, actual }]
-    const graphData = entries.map(e => ({
-      date: e.planned_date,
-      planned: e.planned_amount,
-      actual: e.actual_amount,
-    }));
-    res.json({ actualsToDate, etc, eac, vac, monthlyCashFlow, graphData });
+
+    // Baseline and planned totals up to the selected month (filtered)
+    const baselineToDate = entries.reduce((sum, e) => {
+      if (!e.baseline_date) return sum;
+      const baselineDate = new Date(e.baseline_date);
+      if (baselineDate < end) {
+        return sum + (e.baseline_amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    const plannedToDate = entries.reduce((sum, e) => {
+      if (!e.planned_date) return sum;
+      const plannedDate = new Date(e.planned_date);
+      if (plannedDate < end) {
+        return sum + (e.planned_amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // VAC (Variance at Completion) = Budget - EAC
+    const vac = budget - eac;
+
+    // Monthly cash flow = Sum of planned amounts for the current month
+    const monthlyCashFlow = entries.reduce((sum, e) => {
+      if (!e.planned_date) return sum;
+      const plannedDate = new Date(e.planned_date);
+      if (plannedDate >= start && plannedDate < end) {
+        return sum + (e.planned_amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Schedule Variance (SV) = Actuals to Date - Baseline to Date
+    const scheduleVariance = actualsToDate - baselineToDate;
+
+    // Cost Variance (CV) = Planned to Date - Actuals to Date
+    const costVariance = plannedToDate - actualsToDate;
+
+    // Schedule Performance Index (SPI) = Actuals to Date / Baseline to Date
+    const schedulePerformanceIndex = baselineToDate !== 0 ? actualsToDate / baselineToDate : 0;
+
+    // Cost Performance Index (CPI) = Planned to Date / Actuals to Date
+    const costPerformanceIndex = actualsToDate !== 0 ? plannedToDate / actualsToDate : 0;
+
+    res.json({
+      actualsToDate,
+      etc,
+      eac,
+      vac,
+      monthlyCashFlow,
+      baselineToDate,
+      plannedToDate,
+      project_baseline_total,
+      project_planned_total,
+      budget,
+      scheduleVariance,
+      costVariance,
+      schedulePerformanceIndex,
+      costPerformanceIndex,
+      graphData: entries.map(e => ({
+        date: e.planned_date,
+        planned: e.planned_amount,
+        actual: e.actual_amount,
+      }))
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching summary', error: err });
   }
