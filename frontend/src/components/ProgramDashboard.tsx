@@ -483,14 +483,21 @@ const ProgramDashboard: React.FC = () => {
                     <div className="absolute left-0 mt-2 w-56 bg-white bg-opacity-95 border border-gray-200 rounded shadow-lg z-10 max-h-64 overflow-y-auto">
                       {(filledSummary as any[])
                         .filter(m => {
-                          // Only months within project window, inclusive, compare year and month only
                           if (!program || !program.startDate || !program.endDate) return true;
+                          // Debug log for start and end date
+                          console.log('program.startDate', program.startDate, 'program.endDate', program.endDate);
                           const [mYear, mMonth] = m.month.split('-').map(Number);
                           const [startYear, startMonth] = program.startDate.split('-').map(Number);
                           const [endYear, endMonth] = program.endDate.split('-').map(Number);
-                          const afterStart = (mYear > startYear) || (mYear === startYear && mMonth >= startMonth);
-                          const beforeEnd = (mYear < endYear) || (mYear === endYear && mMonth <= endMonth);
-                          return afterStart && beforeEnd;
+                          const afterOrAtStart = (mYear > startYear) || (mYear === startYear && mMonth >= startMonth);
+                          const beforeOrAtEnd = (mYear < endYear) || (mYear === endYear && mMonth <= endMonth);
+                          const now = new Date();
+                          const nowYear = now.getFullYear();
+                          const nowMonth = now.getMonth() + 1;
+                          const notFuture = (mYear < nowYear) || (mYear === nowYear && mMonth <= nowMonth);
+                          // Debug log
+                          console.log('Dropdown filter:', { mYear, mMonth, startYear, startMonth, endYear, endMonth, afterOrAtStart, beforeOrAtEnd, notFuture, m: m.month });
+                          return afterOrAtStart && beforeOrAtEnd && notFuture;
                         })
                         .map((m: any) => {
                           const [year, month] = m.month.split('-').map(Number);
