@@ -1,0 +1,43 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        push: true
+        tags: |
+          yourusername/lre_manager:latest
+          yourusername/lre_manager:${{ github.ref_name }}
+        cache-from: type=registry,ref=yourusername/lre_manager:buildcache
+        cache-to: type=registry,ref=yourusername/lre_manager:buildcache,mode=max
+
+    - name: Deploy to production
+      if: success()
+      run: |
+        echo "Deploying version ${{ github.ref_name }}"
+        # Add your deployment commands here
+        # For example:
+        # ssh ${{ secrets.SSH_HOST }} "docker pull yourusername/lre_manager:${{ github.ref_name }} && docker-compose up -d" 
