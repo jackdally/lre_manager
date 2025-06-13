@@ -49,6 +49,37 @@ const CustomLegend = () => (
   </div>
 );
 
+// Add LedgerEntry type for use in this file
+interface LedgerEntry {
+  id: string;
+  vendor_name: string;
+  expense_description: string;
+  wbs_category: string;
+  wbs_subcategory: string;
+  baseline_date: string;
+  baseline_amount: number;
+  planned_date: string;
+  planned_amount: number;
+  actual_date: string | null;
+  actual_amount: number | null;
+  notes: string | null;
+}
+
+// Add a helper for currency formatting with negative sign before dollar
+function formatCurrency(val: number | undefined | null) {
+  if (val == null) return '--';
+  const absVal = Math.abs(val);
+  const formatted = absVal.toLocaleString();
+  return (val < 0 ? '-' : '') + '$' + formatted;
+}
+
+// Helper for percent formatting with sign
+function formatPercent(val: number | undefined | null, showPlus = false) {
+  if (val == null || isNaN(val)) return '--';
+  const sign = val > 0 ? (showPlus ? '+' : '') : (val < 0 ? '-' : '');
+  return sign + Math.abs(val).toFixed(1) + '%';
+}
+
 const ProgramDashboard: React.FC = () => {
   const { id } = useParams();
   const [program, setProgram] = useState<Program | null>(null);
@@ -75,6 +106,9 @@ const ProgramDashboard: React.FC = () => {
   const [topRowSummary, setTopRowSummary] = useState<any>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
+  const [missingActuals, setMissingActuals] = useState<LedgerEntry[]>([]);
+  const [missingModalOpen, setMissingModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchProgram = async () => {
@@ -184,28 +218,32 @@ const ProgramDashboard: React.FC = () => {
     // Fill missing months
     const monthMap: Record<string, any> = {};
     filteredSummary.forEach(d => { monthMap[d.month] = d; });
+    // Build the full list of months for the chart
     const months: any[] = [];
-    // Robust month start/end logic
     const [startYear, startMonthNum] = startMonth.split('-').map(Number);
     let current = new Date(startYear, startMonthNum - 1, 1); // JS months are 0-based
     const [endYear, endMonthNum] = endMonth.split('-').map(Number);
     const end = new Date(endYear, endMonthNum, 1); // first day of month after endMonth
     let lastCumBaseline = 0, lastCumPlanned = 0, lastCumActual = 0;
-    // For cumEACCombined/cumActual
-    const selectedIdx = months.length > 0 ? months.findIndex((m: any) => m.month === selectedMonth) : -1;
-    let lastActuals = selectedIdx >= 0 && months[selectedIdx] ? months[selectedIdx].cumActual : 0;
-    let lastPlanned = selectedIdx >= 0 && months[selectedIdx] ? months[selectedIdx].cumPlanned : 0;
     let cumEACCombined = 0;
+    // First, collect all month strings for the chart
+    const allMonthStrs: string[] = [];
+    let tempCurrent = new Date(current);
+    while (tempCurrent < end) {
+      allMonthStrs.push(format(tempCurrent, 'yyyy-MM'));
+      tempCurrent = addMonths(tempCurrent, 1);
+    }
+    const selectedIdx = allMonthStrs.findIndex(m => m === selectedMonth);
+    let idx = 0;
     while (current < end) {
       const monthStr: string = format(current, 'yyyy-MM');
-      const idx: number = months.length;
       let cumActual: number | null;
       if (monthMap[monthStr]) {
         cumActual = idx <= selectedIdx ? monthMap[monthStr].cumActual : null;
         if (idx <= selectedIdx) {
           cumEACCombined = monthMap[monthStr].cumActual;
         } else {
-          cumEACCombined = lastActuals + (monthMap[monthStr].cumPlanned - lastPlanned);
+          cumEACCombined = cumEACCombined + (monthMap[monthStr].planned || 0);
         }
         months.push({ ...monthMap[monthStr], cumEACCombined, cumActual });
         lastCumBaseline = monthMap[monthStr].cumBaseline;
@@ -216,7 +254,7 @@ const ProgramDashboard: React.FC = () => {
         if (idx <= selectedIdx) {
           cumEACCombined = lastCumActual;
         } else {
-          cumEACCombined = lastActuals + (lastCumPlanned - lastPlanned);
+          cumEACCombined = cumEACCombined + 0; // No planned value for missing month
         }
         months.push({
           month: monthStr,
@@ -230,6 +268,7 @@ const ProgramDashboard: React.FC = () => {
         });
       }
       current = addMonths(current, 1);
+      idx++;
     }
     setFilledSummary(months);
     setOutOfWindowWarning(warning);
@@ -259,6 +298,41 @@ const ProgramDashboard: React.FC = () => {
     fetchTopRowSummary();
   }, [program, lastClosedMonth]);
 
+  // Fetch all ledger entries for the program
+  useEffect(() => {
+    const fetchLedgerEntries = async () => {
+      if (!program || !program.id) return;
+      try {
+        // Fetch all entries (no pagination)
+        const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger`, {
+          params: { page: 1, pageSize: 10000 }, // large page size to get all
+        });
+        setLedgerEntries(res.data.entries || []);
+      } catch (err) {
+        setLedgerEntries([]);
+      }
+    };
+    fetchLedgerEntries();
+  }, [program]);
+
+  // Compute missing actuals for selectedMonth
+  useEffect(() => {
+    if (!ledgerEntries || !selectedMonth) {
+      setMissingActuals([]);
+      return;
+    }
+    const cutoff = new Date(selectedMonth + '-31'); // last day of selected month
+    const missing = ledgerEntries.filter(entry => {
+      if (!entry.planned_date) return false;
+      const planned = new Date(entry.planned_date);
+      // Only consider planned dates in or before selectedMonth
+      if (planned > cutoff) return false;
+      // Missing if either actual_date or actual_amount is not set
+      return !entry.actual_date || entry.actual_amount == null;
+    });
+    setMissingActuals(missing);
+  }, [ledgerEntries, selectedMonth]);
+
   return (
     <Layout>
       <div>
@@ -268,6 +342,56 @@ const ProgramDashboard: React.FC = () => {
         {actualsMissing && (
           <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded border border-yellow-300 font-semibold text-center">
             Actuals for Latest Accounting Month not filled in yet
+          </div>
+        )}
+
+        {/* Actuals Missing Flag */}
+        {missingActuals.length > 0 && (
+          <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded border border-yellow-300 font-semibold text-center flex items-center justify-center gap-4">
+            <span>Actuals Missing: Some planned entries for the selected or previous months do not have actuals entered.</span>
+            <button
+              className="px-3 py-1 rounded bg-yellow-200 border border-yellow-400 text-yellow-900 font-semibold hover:bg-yellow-300"
+              onClick={() => setMissingModalOpen(true)}
+            >
+              View Missing Entries
+            </button>
+          </div>
+        )}
+        {/* Modal for missing actuals */}
+        {missingModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.3)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', borderRadius: 12, padding: 32, minWidth: 400, maxWidth: 600, boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontWeight: 700, fontSize: 18 }}>Missing Actuals Entries</span>
+                <button onClick={() => setMissingModalOpen(false)} style={{ fontSize: 20, background: 'none', border: 'none', cursor: 'pointer' }}>&times;</button>
+              </div>
+              <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                {missingActuals.length === 0 ? (
+                  <div className="text-gray-500">No missing entries.</div>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-2 py-2">Vendor</th>
+                        <th className="px-2 py-2">Description</th>
+                        <th className="px-2 py-2">Planned Date</th>
+                        <th className="px-2 py-2">Planned Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {missingActuals.map(entry => (
+                        <tr key={entry.id}>
+                          <td className="px-2 py-1">{entry.vendor_name}</td>
+                          <td className="px-2 py-1">{entry.expense_description}</td>
+                          <td className="px-2 py-1">{entry.planned_date}</td>
+                          <td className="px-2 py-1">${entry.planned_amount?.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -306,33 +430,34 @@ const ProgramDashboard: React.FC = () => {
               <div className="flex flex-col justify-center px-8 flex-1 max-w-2xl">
                 <div className="text-gray-600 text-sm line-clamp-3">{program.description}</div>
               </div>
-              {/* Financial Info (Budget, ETC, EAC, VAC) all the way right */}
+              {/* Financial Info (Budget, % Spent, VAC%) all the way right */}
               <div className="flex flex-row items-stretch min-w-[340px]">
-                {/* Budget and EAC grouped with horizontal divider */}
-                <div className="flex flex-col justify-center items-center px-6 border-l border-r border-gray-200">
-                  <div className="flex flex-col items-center w-32">
+                {/* Budget fills vertical space */}
+                <div className="flex flex-col justify-center items-center px-6 border-l border-r border-gray-200 flex-1">
+                  <div className="flex flex-col items-center w-32 justify-center h-full">
                     <div className="text-gray-400 text-sm mb-1 font-bold">Budget</div>
-                    <div className="font-bold text-3xl text-gray-900" style={{ position: 'relative', cursor: 'pointer' }}
-                      title={topRowSummary && program.totalBudget ? `% of Budget Spent: ${Math.round((topRowSummary.actualsToDate / program.totalBudget) * 100)}%` : ''}
-                    >
-                      ${program.totalBudget ? Math.round(program.totalBudget).toLocaleString() : '--'}
-                    </div>
-                  </div>
-                  <div className="w-full border-t border-gray-200 my-2"></div>
-                  <div className="flex flex-col items-center w-32">
-                    <div className="text-gray-400 text-sm mb-1 font-bold">EAC</div>
-                    <div className="font-bold text-3xl text-gray-900" style={{ position: 'relative', cursor: 'pointer' }}
-                      title={topRowSummary && topRowSummary.eac ? `% of EAC Spent: ${Math.round((topRowSummary.actualsToDate / topRowSummary.eac) * 100)}%` : ''}
-                    >
-                      {topRowSummary && topRowSummary.eac ? `$${Math.round(topRowSummary.eac).toLocaleString()}` : '--'}
+                    <div className="font-bold text-4xl text-gray-900" style={{ position: 'relative', cursor: 'pointer' }}>
+                      {program.totalBudget ? formatCurrency(program.totalBudget) : '--'}
                     </div>
                   </div>
                 </div>
-                {/* VAC with vertical divider */}
-                <div className="flex flex-col justify-center items-center px-6">
-                  <div className="text-gray-400 text-sm mb-1 font-bold">VAC</div>
-                  <div className={`font-bold text-3xl ${topRowSummary && topRowSummary.vac < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {topRowSummary && typeof topRowSummary.vac === 'number' ? `$${Math.round(topRowSummary.vac).toLocaleString()}` : '--'}
+                {/* % Spent and VAC% stacked */}
+                <div className="flex flex-col justify-center items-center px-6 flex-1">
+                  {/* % Spent */}
+                  <div className="flex flex-col items-center w-32 mb-2">
+                    <div className="text-gray-400 text-sm mb-1 font-bold">% Spent</div>
+                    <div className="font-bold text-2xl text-gray-900">
+                      {topRowSummary && topRowSummary.eac ?
+                        formatPercent((topRowSummary.actualsToDate / topRowSummary.eac) * 100) : '--'}
+                    </div>
+                  </div>
+                  {/* VAC% */}
+                  <div className="flex flex-col items-center w-32 mt-2">
+                    <div className="text-gray-400 text-sm mb-1 font-bold">VAC%</div>
+                    <div className={`font-bold text-2xl ${topRowSummary && topRowSummary.vac < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {topRowSummary && program.totalBudget ?
+                        formatPercent((topRowSummary.vac / program.totalBudget) * 100, true) : '--'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -350,7 +475,7 @@ const ProgramDashboard: React.FC = () => {
                 <div className="relative">
                   <button
                     className="px-4 py-1 rounded bg-white bg-opacity-60 border border-gray-300 text-sm text-gray-700 font-semibold hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-                    onClick={() => setDropdownOpen(true)}
+                    onClick={() => setDropdownOpen(o => !o)}
                   >
                     See previous reporting months
                   </button>
@@ -393,21 +518,29 @@ const ProgramDashboard: React.FC = () => {
             {/* Top Summary Metrics as Boxes */}
             {summary && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white rounded-xl shadow p-4">
-                  <div className="text-sm text-gray-500 mb-1">Actuals to Date</div>
-                  <div className="font-bold text-2xl text-gray-900">${summary.actualsToDate?.toLocaleString()}</div>
+                {/* Actuals to Date */}
+                <div className={`rounded-xl shadow p-4 transition-colors ${missingActuals.length > 0 ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white'}`}
+                  style={missingActuals.length > 0 ? { opacity: 0.6 } : {}}>
+                  <div className={`text-sm mb-1 ${missingActuals.length > 0 ? 'text-gray-400' : 'text-gray-500'}`}>{missingActuals.length > 0 ? <span style={{ fontSize: '1.5em', verticalAlign: 'middle' }}>⚠️</span> : ''} Actuals to Date</div>
+                  <div className={`font-bold text-2xl ${missingActuals.length > 0 ? 'text-gray-500' : 'text-gray-900'}`}>{formatCurrency(summary.actualsToDate)}</div>
                 </div>
-                <div className="bg-white rounded-xl shadow p-4">
-                  <div className="text-sm text-gray-500 mb-1">ETC (Future Planned)</div>
-                  <div className="font-bold text-2xl text-gray-900">${summary.etc?.toLocaleString()}</div>
+                {/* ETC (Future Planned) */}
+                <div className={`rounded-xl shadow p-4 transition-colors ${missingActuals.length > 0 ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white'}`}
+                  style={missingActuals.length > 0 ? { opacity: 0.6 } : {}}>
+                  <div className={`text-sm mb-1 ${missingActuals.length > 0 ? 'text-gray-400' : 'text-gray-500'}`}>{missingActuals.length > 0 ? <span style={{ fontSize: '1.5em', verticalAlign: 'middle' }}>⚠️</span> : ''} ETC (Future Planned)</div>
+                  <div className={`font-bold text-2xl ${missingActuals.length > 0 ? 'text-gray-500' : 'text-gray-900'}`}>{formatCurrency(summary.etc)}</div>
                 </div>
-                <div className="bg-white rounded-xl shadow p-4">
-                  <div className="text-sm text-gray-500 mb-1">EAC (Actuals + ETC)</div>
-                  <div className="font-bold text-2xl text-gray-900">${summary.eac?.toLocaleString()}</div>
+                {/* EAC (Actuals + ETC) */}
+                <div className={`rounded-xl shadow p-4 transition-colors ${missingActuals.length > 0 ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white'}`}
+                  style={missingActuals.length > 0 ? { opacity: 0.6 } : {}}>
+                  <div className={`text-sm mb-1 ${missingActuals.length > 0 ? 'text-gray-400' : 'text-gray-500'}`}>{missingActuals.length > 0 ? <span style={{ fontSize: '1.5em', verticalAlign: 'middle' }}>⚠️</span> : ''} EAC (Actuals + ETC)</div>
+                  <div className={`font-bold text-2xl ${missingActuals.length > 0 ? 'text-gray-500' : 'text-gray-900'}`}>{formatCurrency(summary.eac)}</div>
                 </div>
-                <div className="bg-white rounded-xl shadow p-4">
-                  <div className="text-sm text-gray-500 mb-1">VAC (Budget - EAC)</div>
-                  <div className={`font-bold text-2xl ${summary.vac < 0 ? 'text-red-600' : 'text-green-600'}`}>${summary.vac?.toLocaleString()}</div>
+                {/* VAC (Budget - EAC) */}
+                <div className={`rounded-xl shadow p-4 transition-colors ${missingActuals.length > 0 ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white'}`}
+                  style={missingActuals.length > 0 ? { opacity: 0.6 } : {}}>
+                  <div className={`text-sm mb-1 ${missingActuals.length > 0 ? 'text-gray-400' : 'text-gray-500'}`}>{missingActuals.length > 0 ? <span style={{ fontSize: '1.5em', verticalAlign: 'middle' }}>⚠️</span> : ''} VAC (Budget - EAC)</div>
+                  <div className={`font-bold text-2xl ${missingActuals.length > 0 ? 'text-gray-500' : summary.vac < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(summary.vac)}</div>
                 </div>
               </div>
             )}
@@ -415,24 +548,30 @@ const ProgramDashboard: React.FC = () => {
             {/* Additional Metrics Section */}
             {summary && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white rounded-xl shadow p-4">
-                  <div className="text-sm text-gray-500 mb-1">Schedule Variance (SV)</div>
+                {/* Schedule Variance (SV) */}
+                <div className={`rounded-xl shadow p-4 transition-colors ${missingActuals.length > 0 ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white'}`}
+                  style={missingActuals.length > 0 ? { opacity: 0.6 } : {}}>
+                  <div className={`text-sm mb-1 ${missingActuals.length > 0 ? 'text-gray-400' : 'text-gray-500'}`}>{missingActuals.length > 0 ? <span style={{ fontSize: '1.5em', verticalAlign: 'middle' }}>⚠️</span> : ''} Schedule Variance (SV)</div>
                   <div className="text-xs text-gray-400 mb-2">Actuals to Date - Baseline to Date</div>
-                  <div className={`font-semibold text-lg ${summary.scheduleVariance > 0 ? 'text-blue-600' : 'text-yellow-600'}`}>${summary.scheduleVariance?.toLocaleString()}</div>
+                  <div className={`font-semibold text-lg ${missingActuals.length > 0 ? 'text-gray-500' : summary.scheduleVariance > 0 ? 'text-blue-600' : 'text-yellow-600'}`}>{formatCurrency(summary.scheduleVariance)}</div>
                   <div className="text-xs text-gray-400 mt-1">SPI: {summary.schedulePerformanceIndex?.toFixed(2)}</div>
                 </div>
-                <div className="bg-white rounded-xl shadow p-4">
-                  <div className="text-sm text-gray-500 mb-1">Cost Variance (CV)</div>
+                {/* Cost Variance (CV) */}
+                <div className={`rounded-xl shadow p-4 transition-colors ${missingActuals.length > 0 ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white'}`}
+                  style={missingActuals.length > 0 ? { opacity: 0.6 } : {}}>
+                  <div className={`text-sm mb-1 ${missingActuals.length > 0 ? 'text-gray-400' : 'text-gray-500'}`}>{missingActuals.length > 0 ? <span style={{ fontSize: '1.5em', verticalAlign: 'middle' }}>⚠️</span> : ''} Cost Variance (CV)</div>
                   <div className="text-xs text-gray-400 mb-2">Planned to Date - Actuals to Date</div>
-                  <div className={`font-semibold text-lg ${summary.costVariance > 0 ? 'text-blue-600' : 'text-yellow-600'}`}>${summary.costVariance?.toLocaleString()}</div>
+                  <div className={`font-semibold text-lg ${missingActuals.length > 0 ? 'text-gray-500' : summary.costVariance > 0 ? 'text-blue-600' : 'text-yellow-600'}`}>{formatCurrency(summary.costVariance)}</div>
                   <div className="text-xs text-gray-400 mt-1">CPI: {summary.costPerformanceIndex?.toFixed(2)}</div>
                 </div>
+                {/* Project Baseline */}
                 <div className="bg-white rounded-xl shadow p-4">
                   <div className="text-sm text-gray-500 mb-1">Project Baseline</div>
                   <div className="text-xs text-gray-400 mb-2">All baseline amounts</div>
                   <div className="font-semibold text-lg text-gray-900">${summary.project_baseline_total?.toLocaleString()}</div>
                   <div className="text-xs text-gray-400 mt-1">Baseline to Date: ${summary.baselineToDate?.toLocaleString()}</div>
                 </div>
+                {/* Project Planned */}
                 <div className="bg-white rounded-xl shadow p-4">
                   <div className="text-sm text-gray-500 mb-1">Project Planned</div>
                   <div className="text-xs text-gray-400 mb-2">All planned amounts</div>
