@@ -14,7 +14,10 @@ import {
   Legend,
   ResponsiveContainer,
   CartesianGrid,
-  ComposedChart
+  ComposedChart,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import { addMonths, format, subMonths } from 'date-fns';
 
@@ -80,6 +83,47 @@ function formatPercent(val: number | undefined | null, showPlus = false) {
   return sign + Math.abs(val).toFixed(1) + '%';
 }
 
+const CATEGORY_COLORS = [
+  '#2563EB', '#F59E42', '#10B981', '#F43F5E', '#6366F1', '#FBBF24', '#14B8A6', '#A21CAF', '#E11D48', '#64748B'
+];
+
+// Custom background for planned bar, centered behind actual bar, using xAxis scale
+const PlannedBarBackground = (props: any) => {
+  const { x, y, height, index, payload, xAxis } = props;
+  const planned = payload.planned;
+  let plannedWidth = 0;
+  if (xAxis && xAxis.scale && typeof xAxis.scale === 'function') {
+    plannedWidth = xAxis.scale(planned) - xAxis.scale(0);
+  } else {
+    plannedWidth = planned;
+  }
+  return (
+    <rect
+      x={x}
+      y={y - 6}
+      width={plannedWidth}
+      height={height + 12}
+      fill="#E5E7EB"
+      rx={8}
+      ry={8}
+    />
+  );
+};
+
+// Custom tooltip for bullet chart
+const BulletChartTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  const actual = payload.find((p: any) => p.dataKey === 'actual')?.value;
+  const planned = payload[0]?.payload?.planned;
+  return (
+    <div style={{ background: 'white', border: '1px solid #ccc', borderRadius: 6, padding: 12 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ color: '#2563EB', fontWeight: 500 }}>Actual: ${actual?.toLocaleString()}</div>
+      <div style={{ color: '#6B7280', fontWeight: 500 }}>Planned: ${planned?.toLocaleString()}</div>
+    </div>
+  );
+};
+
 const ProgramDashboard: React.FC = () => {
   const { id } = useParams();
   const [program, setProgram] = useState<Program | null>(null);
@@ -109,6 +153,7 @@ const ProgramDashboard: React.FC = () => {
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [missingActuals, setMissingActuals] = useState<LedgerEntry[]>([]);
   const [missingModalOpen, setMissingModalOpen] = useState(false);
+  const [categoryChartType, setCategoryChartType] = useState<'bullet' | 'donut'>('bullet');
 
   useEffect(() => {
     const fetchProgram = async () => {
@@ -333,6 +378,30 @@ const ProgramDashboard: React.FC = () => {
     setMissingActuals(missing);
   }, [ledgerEntries, selectedMonth]);
 
+  // Aggregate per-category planned and actuals for the selected month
+  const categoryData = React.useMemo(() => {
+    if (!ledgerEntries || ledgerEntries.length === 0) return [];
+    const cutoff = new Date(selectedMonth + '-31');
+    const map: Record<string, { category: string, planned: number, actual: number }> = {};
+    ledgerEntries.forEach(entry => {
+      if (!entry.wbs_category) return;
+      if (!map[entry.wbs_category]) {
+        map[entry.wbs_category] = { category: entry.wbs_category, planned: 0, actual: 0 };
+      }
+      // Planned: sum all planned amounts regardless of date
+      map[entry.wbs_category].planned += Number(entry.planned_amount) || 0;
+      // Actual: only sum if actual_date is on or before the selected month
+      if (entry.actual_date && new Date(entry.actual_date) <= cutoff) {
+        map[entry.wbs_category].actual += Number(entry.actual_amount) || 0;
+      }
+    });
+    // Sort alphabetically by category name
+    return Object.values(map).sort((a, b) => a.category.localeCompare(b.category));
+  }, [ledgerEntries, selectedMonth]);
+
+  // For donut chart: percent of total actuals by category
+  const totalActuals = categoryData.reduce((sum, c) => sum + c.actual, 0);
+
   return (
     <Layout>
       <div>
@@ -431,20 +500,20 @@ const ProgramDashboard: React.FC = () => {
                 <div className="text-gray-600 text-sm line-clamp-3">{program.description}</div>
               </div>
               {/* Financial Info (Budget, % Spent, VAC%) all the way right */}
-              <div className="flex flex-row items-stretch min-w-[340px]">
+              <div className="flex flex-row items-stretch min-w-[340px] ml-auto">
                 {/* Budget fills vertical space */}
-                <div className="flex flex-col justify-center items-center px-6 border-l border-r border-gray-200 flex-1">
-                  <div className="flex flex-col items-center w-32 justify-center h-full">
+                <div className="flex flex-col justify-center items-center px-6 border-l border-r border-gray-200">
+                  <div className="flex flex-col items-center justify-center h-full">
                     <div className="text-gray-400 text-sm mb-1 font-bold">Budget</div>
-                    <div className="font-bold text-4xl text-gray-900" style={{ position: 'relative', cursor: 'pointer' }}>
+                    <div className="font-bold text-4xl text-gray-900 whitespace-nowrap" style={{ position: 'relative', cursor: 'pointer' }}>
                       {program.totalBudget ? formatCurrency(program.totalBudget) : '--'}
                     </div>
                   </div>
                 </div>
                 {/* % Spent and VAC% stacked */}
-                <div className="flex flex-col justify-center items-center px-6 flex-1">
+                <div className="flex flex-col justify-center items-center px-6">
                   {/* % Spent */}
-                  <div className="flex flex-col items-center w-32 mb-2">
+                  <div className="flex flex-col items-center mb-2">
                     <div className="text-gray-400 text-sm mb-1 font-bold">% Spent</div>
                     <div className="font-bold text-2xl text-gray-900">
                       {topRowSummary && topRowSummary.eac ?
@@ -452,7 +521,7 @@ const ProgramDashboard: React.FC = () => {
                     </div>
                   </div>
                   {/* VAC% */}
-                  <div className="flex flex-col items-center w-32 mt-2">
+                  <div className="flex flex-col items-center mt-2">
                     <div className="text-gray-400 text-sm mb-1 font-bold">VAC%</div>
                     <div className={`font-bold text-2xl ${topRowSummary && topRowSummary.vac < 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {topRowSummary && program.totalBudget ?
@@ -783,9 +852,78 @@ const ProgramDashboard: React.FC = () => {
                 )}
               </div>
               <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-                <div className="text-lg font-bold mb-2">Category Breakdown</div>
-                {/* Placeholder for chart */}
-                <div className="w-full h-48 bg-gray-100 rounded flex items-center justify-center text-gray-400">[Chart Placeholder]</div>
+                <div className="flex w-full justify-between items-center mb-2">
+                  <div className="text-lg font-bold">Category Breakdown</div>
+                  <button
+                    className="px-3 py-1 rounded bg-blue-100 border border-blue-300 text-blue-900 font-semibold hover:bg-blue-200 text-sm"
+                    onClick={() => setCategoryChartType(type => type === 'bullet' ? 'donut' : 'bullet')}
+                  >
+                    {categoryChartType === 'bullet' ? 'Show Donut Chart' : 'Show Bullet Chart'}
+                  </button>
+                </div>
+                <div className="w-full h-72">
+                  {categoryData.length === 0 ? (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">No data</div>
+                  ) : categoryChartType === 'bullet' ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        layout="vertical"
+                        data={categoryData}
+                        margin={{ left: 40, right: 40, top: 20, bottom: 20 }}
+                        barGap={-20}
+                        barCategoryGap="20%"
+                      >
+                        <XAxis type="number" />
+                        <YAxis type="category" dataKey="category" width={120} />
+                        <Tooltip content={<BulletChartTooltip />} />
+                        <Bar
+                          dataKey="planned"
+                          barSize={30}
+                          fill="#E5E7EB"
+                          radius={[0, 0, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                        <Bar
+                          dataKey="actual"
+                          barSize={14}
+                          fill="#2563EB"
+                          radius={[8, 8, 8, 8]}
+                          label={{ position: 'right', formatter: (v: number) => v > 0 ? `$${v.toLocaleString()}` : '' }}
+                          isAnimationActive={false}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          dataKey="actual"
+                          nameKey="category"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={90}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          isAnimationActive={false}
+                        >
+                          {categoryData.map((entry, idx) => (
+                            <Cell key={`cell-${idx}`} fill={CATEGORY_COLORS[idx % CATEGORY_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number, name: string) => [`$${value.toLocaleString()}`, 'Actual']}
+                          labelFormatter={(name: string) => {
+                            const cat = categoryData.find(c => c.category === name);
+                            if (!cat) return name;
+                            const planned = cat.planned;
+                            return `${name} (Planned: $${planned.toLocaleString()})`;
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
               </div>
             </div>
 
