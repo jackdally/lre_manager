@@ -28,4 +28,7 @@ export class Program {
 
   @Column()
   type!: 'Annual' | 'Period of Performance';
+
+  @Column({ type: 'varchar', nullable: true })
+  program_manager!: string | null;
 } 

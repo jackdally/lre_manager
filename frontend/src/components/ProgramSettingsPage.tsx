@@ -67,6 +67,12 @@ const ProgramSettingsPage: React.FC = () => {
     }
   };
 
+  // Helper to format currency with no decimal points
+  const formatCurrency = (val: number | string | undefined | null) => {
+    if (val == null || val === '') return '';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(val));
+  };
+
   // WBS Handlers
   // Category
   const handleWbsCategoryChange = (catIdx: number, value: string) => {
@@ -247,9 +253,31 @@ const ProgramSettingsPage: React.FC = () => {
                   <label className="form-label">Description</label>
                   <textarea name="description" className="input-field" rows={3} value={programForm.description || ''} onChange={handleProgramChange} />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="form-label">Budget</label>
-                  <input name="totalBudget" type="number" className="input-field" value={programForm.totalBudget || ''} onChange={handleProgramChange} />
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Budget</label>
+                  <input
+                    name="totalBudget"
+                    type="number"
+                    className="input-field"
+                    value={programForm.totalBudget || ''}
+                    onChange={handleProgramChange}
+                    onBlur={e => {
+                      // Format as integer on blur
+                      const val = e.target.value;
+                      if (val) setProgramForm((prev: any) => ({ ...prev, totalBudget: Math.round(Number(val)) }));
+                    }}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">{formatCurrency(programForm.totalBudget)}</div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Program Manager</label>
+                  <input
+                    type="text"
+                    name="program_manager"
+                    value={programForm.program_manager || ''}
+                    onChange={handleProgramChange}
+                    className="input-field"
+                  />
                 </div>
               </div>
               <button className="btn-primary mt-6" onClick={handleSaveProgram} disabled={savingInfo}>{savingInfo ? 'Saving...' : 'Save Program Info'}</button>

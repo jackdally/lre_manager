@@ -31,6 +31,7 @@ interface Program {
   endDate: string | null;
   totalBudget: number;
   type: 'Annual' | 'Period of Performance';
+  program_manager?: string;
 }
 
 // Custom legend for bars and lines
@@ -555,6 +556,7 @@ const ProgramDashboard: React.FC = () => {
                 <div className="mt-1">
                   <span className={`px-3 py-1 rounded text-xs font-medium ${program.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>{program.status}</span>
                 </div>
+                <div className="text-xs text-gray-500 mt-2">Program Manager: {program.program_manager || '--'}</div>
               </div>
               {/* Type and Dates */}
               <div className="flex flex-col justify-center items-start min-w-[180px] px-8">

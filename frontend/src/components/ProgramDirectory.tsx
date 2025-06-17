@@ -14,6 +14,7 @@ interface Program {
   endDate: string | null;
   totalBudget: number;
   type: 'Annual' | 'Period of Performance';
+  program_manager?: string | null;
 }
 
 const TOMORROW_LOGO = '/tomorrow-logo.png';
@@ -348,6 +349,7 @@ const ProgramDirectory: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Budget</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program Manager</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
@@ -366,6 +368,7 @@ const ProgramDirectory: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(program.startDate)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(program.endDate)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(program.totalBudget)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{program.program_manager || '--'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 relative">
                       <button
                         className="p-2 rounded-full hover:bg-gray-100 focus:outline-none"
@@ -451,8 +454,16 @@ const ProgramDirectory: React.FC = () => {
                     <div className="flex flex-col items-end text-right flex-1">
                       <span className="font-semibold text-primary-700 text-sm leading-tight">{program.code}</span>
                       <span className="font-bold text-base leading-tight mt-0.5">{program.name}</span>
+                      {program.program_manager && (
+                        <span className="text-xs text-gray-600 mt-0.5">Program Manager: {program.program_manager}</span>
+                      )}
                       <span className={`px-2 py-0.5 mt-1 rounded text-xs font-medium ${program.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>{program.status}</span>
                     </div>
+                  </div>
+                  {/* Program Manager above Budget, separated by a horizontal bar */}
+                  <div className="w-full flex flex-col items-center border-t pt-2 mb-2">
+                    <span className="text-xs text-gray-400">Program Manager</span>
+                    <span className="font-semibold text-gray-700">{program.program_manager || '--'}</span>
                   </div>
                   {/* Budget center middle */}
                   <div className="flex-1 flex flex-col justify-center items-center my-2">
@@ -618,6 +629,16 @@ const ProgramDirectory: React.FC = () => {
                     required
                   />
                 </div>
+                <div>
+                  <label className="form-label">Program Manager</label>
+                  <input
+                    type="text"
+                    name="program_manager"
+                    value={newProgram.program_manager || ''}
+                    onChange={handleInputChange}
+                    className="input-field"
+                  />
+                </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
@@ -665,6 +686,7 @@ const ProgramDirectory: React.FC = () => {
                   <div className="mb-2"><span className="font-semibold">Budget:</span> {formatCurrency(cardModalProgram.totalBudget)}</div>
                   <div className="mb-2"><span className="font-semibold">Start Date:</span> {formatDate(cardModalProgram.startDate)}</div>
                   <div className="mb-2"><span className="font-semibold">End Date:</span> {formatDate(cardModalProgram.endDate)}</div>
+                  <div className="mb-2"><span className="font-semibold">Program Manager:</span> {cardModalProgram.program_manager || '--'}</div>
                 </div>
                 <div>
                   <div className="mb-2"><span className="font-semibold">Description:</span></div>
