@@ -35,7 +35,7 @@ export function calculateSPI(entries: LedgerEntry[], date: Date = new Date()): n
   return actual !== 0 ? planned / actual : 0;
 }
 
-export async function importLedgerFromFile(filePath: string, ext: string): Promise<any> {
+export async function importLedgerFromFile(filePath: string, ext: string, programId: string): Promise<any> {
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
@@ -45,17 +45,21 @@ export async function importLedgerFromFile(filePath: string, ext: string): Promi
   let inserted = 0;
   let failed = 0;
   const errors: any[] = [];
+
+  // Find program
+  const program = await programRepo.findOneBy({ id: programId });
+  if (!program) {
+    return { error: 'Program not found' };
+  }
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     try {
       // Required fields
-      const required = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory', 'program_code'];
+      const required = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory'];
       for (const f of required) {
         if (!row[f]) throw new Error(`Missing required field: ${f}`);
       }
-      // Find program
-      const program = await programRepo.findOneBy({ code: row.program_code });
-      if (!program) throw new Error(`Program not found: ${row.program_code}`);
       // Create entry
       const entry = ledgerRepo.create({
         vendor_name: row.vendor_name,

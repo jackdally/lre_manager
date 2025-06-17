@@ -7,6 +7,7 @@ import { programRouter } from './routes/program';
 import { ledgerRouter } from './routes/ledger';
 import { wbsRouter } from './routes/wbs';
 import * as XLSX from 'xlsx';
+import { Express } from 'express';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -68,10 +69,32 @@ app.get('/api/ledger/template', (req, res) => {
   res.send(buffer);
 });
 
+// Debug: Print all registered routes
+function printRoutes(app: Express) {
+  const routes: any[] = [];
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) { // routes registered directly on the app
+      routes.push(middleware.route);
+    } else if (middleware.name === 'router') { // router middleware 
+      middleware.handle.stack.forEach((handler: any) => {
+        let route;
+        route = handler.route;
+        route && routes.push(route);
+      });
+    }
+  });
+  console.log('Registered routes:');
+  routes.forEach(route => {
+    const methods = Object.keys(route.methods).join(', ').toUpperCase();
+    console.log(`${methods} ${route.path}`);
+  });
+}
+
 // Initialize database connection
 AppDataSource.initialize()
   .then(() => {
     console.log('Database connection established');
+    printRoutes(app); // Print all routes after DB is ready
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });

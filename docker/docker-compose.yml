@@ -5,14 +5,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.frontend
+    image: lre_manager_take2-frontend
+    container_name: lre_manager_take2-frontend-1
     ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - REACT_APP_API_URL=http://localhost:4000
-    volumes:
-      - ../frontend:/app
-      - /app/node_modules
+      - "80:80"
     depends_on:
       - backend
 
@@ -20,6 +16,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.backend
+    image: lre_manager_take2-backend
+    container_name: lre_manager_take2-backend-1
     ports:
       - "4000:4000"
     environment:
@@ -40,13 +38,14 @@ services:
       - db
 
   db:
-    image: postgres:14-alpine
+    image: postgres:15-alpine
+    container_name: lre_manager_take2-db-1
     ports:
       - "5432:5432"
     environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=lre_manager
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lre_manager
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

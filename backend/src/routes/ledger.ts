@@ -270,7 +270,7 @@ router.get('/:programId/ledger/summary-full', async (req, res) => {
 });
 
 // Import ledger entries from Excel or CSV
-router.post('/import/ledger', upload.single('file'), async (req: Request & { file?: any }, res) => {
+router.post('/:programId/import/ledger', upload.single('file'), async (req: Request & { file?: any }, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -279,7 +279,7 @@ router.post('/import/ledger', upload.single('file'), async (req: Request & { fil
     if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
       return res.status(400).json({ error: 'Unsupported file type' });
     }
-    const result = await importLedgerFromFile(req.file.path, ext);
+    const result = await importLedgerFromFile(req.file.path, ext, req.params.programId);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Import failed' });

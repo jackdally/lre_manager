@@ -66,11 +66,11 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
     try {
       let res;
       if (showAll) {
-        res = await axios.get(`http://localhost:4000/api/programs/${programId}/ledger`, {
+        res = await axios.get(`/api/programs/${programId}/ledger`, {
           params: { page: 1, pageSize: 10000, search },
         });
       } else {
-        res = await axios.get(`http://localhost:4000/api/programs/${programId}/ledger`, {
+        res = await axios.get(`/api/programs/${programId}/ledger`, {
           params: { page, pageSize: PAGE_SIZE, search },
         });
       }
@@ -121,7 +121,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
       return;
     }
     try {
-      await axios.put(`http://localhost:4000/api/programs/${programId}/ledger/${rowId}`, { [field]: newValue });
+      await axios.put(`/api/programs/${programId}/ledger/${rowId}`, { [field]: newValue });
       setEditingCell(null);
       setCellEditValue('');
       fetchEntries();
@@ -173,7 +173,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
     const newEntry = entries.find(e => e.id === newRowId);
     if (!newEntry) return;
     try {
-      await axios.post(`http://localhost:4000/api/programs/${programId}/ledger`, { ...newEntry, id: undefined });
+      await axios.post(`/api/programs/${programId}/ledger`, { ...newEntry, id: undefined });
       setNewRowId(null);
       fetchEntries();
       if (onChange) onChange();
@@ -226,7 +226,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
       }
       // else: skip field
     });
-    await Promise.all(selectedRows.map(id => axios.put(`http://localhost:4000/api/programs/${programId}/ledger/${id}`, payload)));
+    await Promise.all(selectedRows.map(id => axios.put(`/api/programs/${programId}/ledger/${id}`, payload)));
     setShowBulkEditModal(false);
     setSelectedRows([]);
     fetchEntries();
@@ -236,7 +236,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
   // Bulk delete
   const handleBulkDelete = () => setShowBulkDeleteModal(true);
   const handleBulkDeleteConfirm = async () => {
-    await Promise.all(selectedRows.map(id => axios.delete(`http://localhost:4000/api/programs/${programId}/ledger/${id}`)));
+    await Promise.all(selectedRows.map(id => axios.delete(`/api/programs/${programId}/ledger/${id}`)));
     setShowBulkDeleteModal(false);
     setSelectedRows([]);
     fetchEntries();
@@ -263,7 +263,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
   // Popover save handler
   const handlePopoverSave = async () => {
     if (!popover.rowId) return;
-    await axios.put(`http://localhost:4000/api/programs/${programId}/ledger/${popover.rowId}`, {
+    await axios.put(`/api/programs/${programId}/ledger/${popover.rowId}`, {
       invoice_link_text: popoverText,
       invoice_link_url: popoverUrl,
     });

@@ -40,7 +40,7 @@ const ProgramDirectory: React.FC = () => {
 
   const fetchPrograms = async () => {
     try {
-      const response = await axios.get('http://localhost:4000/api/programs');
+      const response = await axios.get('/api/programs');
       setPrograms(response.data);
     } catch (error) {
       console.error('Error fetching programs:', error);
@@ -92,9 +92,9 @@ const ProgramDirectory: React.FC = () => {
     setLoading(true);
     try {
       if (editMode && editProgramId !== null) {
-        await axios.put(`http://localhost:4000/api/programs/${editProgramId}`, newProgram);
+        await axios.put(`/api/programs/${editProgramId}`, newProgram);
       } else {
-        await axios.post('http://localhost:4000/api/programs', newProgram);
+        await axios.post('/api/programs', newProgram);
       }
       await fetchPrograms();
       setOpenDialog(false);
@@ -123,7 +123,7 @@ const ProgramDirectory: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`http://localhost:4000/api/programs/${id}`);
+      await axios.delete(`/api/programs/${id}`);
       await fetchPrograms();
       setDeleteConfirmId(null);
     } catch (error) {

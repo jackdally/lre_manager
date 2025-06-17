@@ -9,18 +9,25 @@ const LedgerPage: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [importing, setImporting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   if (!id) return <div>Missing program ID</div>;
   const programId = id;
 
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setSelectedFile(file);
+    setImportResult(null);
+  };
+
+  const handleImport = async () => {
+    if (!selectedFile) return;
     setImporting(true);
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', selectedFile);
+    formData.append('programId', programId);
     try {
-      const res = await axios.post('/api/import/ledger', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await axios.post(`/api/programs/${programId}/import/ledger`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setImportResult(res.data);
     } catch (err: any) {
       setImportResult({ error: err?.message || 'Import failed' });
@@ -47,17 +54,16 @@ const LedgerPage: React.FC = () => {
                 <h4 className="font-semibold mb-2">Required Format:</h4>
                 <ul className="list-disc pl-5 space-y-1 text-sm">
                   <li>File must be in Excel (.xlsx, .xls) or CSV format</li>
-                  <li>Required columns: program_code, vendor_name, expense_description, wbs_category, wbs_subcategory</li>
+                  <li>Required columns: vendor_name, expense_description, wbs_category, wbs_subcategory</li>
                   <li>Optional columns: baseline_date, baseline_amount, planned_date, planned_amount, actual_date, actual_amount, notes</li>
                   <li>Dates must be in YYYY-MM-DD format</li>
                   <li>Amounts must be numeric values</li>
-                  <li>Program code must match an existing program in the system</li>
                 </ul>
               </div>
 
               <div className="mb-6">
                 <a 
-                  href="http://localhost:4000/api/ledger/template" 
+                  href="/api/ledger/template" 
                   className="text-blue-600 hover:text-blue-800 underline flex items-center gap-2"
                   download
                 >
@@ -72,7 +78,7 @@ const LedgerPage: React.FC = () => {
                 <input 
                   type="file" 
                   accept=".xlsx,.xls,.csv" 
-                  onChange={handleImportFile} 
+                  onChange={handleFileChange} 
                   disabled={importing}
                   className="block w-full text-sm text-gray-500
                     file:mr-4 file:py-2 file:px-4
@@ -108,10 +114,18 @@ const LedgerPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="mt-6 flex justify-end">
+              <div className="flex gap-2 mt-2">
                 <button 
                   className="btn btn-primary" 
-                  onClick={() => setShowImportModal(false)}
+                  onClick={handleImport} 
+                  disabled={!selectedFile || importing}
+                >
+                  {importing ? 'Importing...' : 'Import'}
+                </button>
+                <button 
+                  className="btn btn-ghost" 
+                  onClick={() => { setShowImportModal(false); setSelectedFile(null); setImportResult(null); }}
+                  disabled={importing}
                 >
                   Close
                 </button>

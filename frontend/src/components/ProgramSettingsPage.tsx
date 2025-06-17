@@ -33,11 +33,11 @@ const ProgramSettingsPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const progRes = await axios.get(`http://localhost:4000/api/programs/${id}`);
+        const progRes = await axios.get(`/api/programs/${id}`);
         setProgram(progRes.data);
         setProgramForm({ ...progRes.data });
         // Fetch WBS from backend
-        const wbsRes = await axios.get(`http://localhost:4000/api/programs/${id}/wbs`);
+        const wbsRes = await axios.get(`/api/programs/${id}/wbs`);
         setWbsList(wbsRes.data);
         setWbsEdit(JSON.parse(JSON.stringify(wbsRes.data)));
       } catch (err: any) {
@@ -58,7 +58,7 @@ const ProgramSettingsPage: React.FC = () => {
     setSavingInfo(true);
     setError(null);
     try {
-      await axios.put(`http://localhost:4000/api/programs/${id}`, programForm);
+      await axios.put(`/api/programs/${id}`, programForm);
       setProgram({ ...program, ...programForm });
     } catch (err: any) {
       setError('Failed to save program info.');
@@ -76,7 +76,7 @@ const ProgramSettingsPage: React.FC = () => {
     setSavingWBS(true);
     setWbsError(null);
     try {
-      const res = await axios.post(`http://localhost:4000/api/programs/${id}/wbs/categories`, { name: '' });
+      const res = await axios.post(`/api/programs/${id}/wbs/categories`, { name: '' });
       setWbsList(list => [...list, { ...res.data, subcategories: [] }]);
       setWbsEdit(edit => [...edit, { ...res.data, subcategories: [] }]);
     } catch (err: any) {
@@ -91,7 +91,7 @@ const ProgramSettingsPage: React.FC = () => {
     setSavingWBS(true);
     setWbsError(null);
     try {
-      await axios.delete(`http://localhost:4000/api/programs/wbs/categories/${cat.id}`);
+      await axios.delete(`/api/programs/wbs/categories/${cat.id}`);
       setWbsList(list => list.filter((_, i) => i !== catIdx));
       setWbsEdit(edit => edit.filter((_, i) => i !== catIdx));
     } catch (err: any) {
@@ -106,7 +106,7 @@ const ProgramSettingsPage: React.FC = () => {
     setSavingWBS(true);
     setWbsError(null);
     try {
-      await axios.put(`http://localhost:4000/api/programs/wbs/categories/${cat.id}`, { name: cat.name });
+      await axios.put(`/api/programs/wbs/categories/${cat.id}`, { name: cat.name });
       // Update local state
       setWbsList(list => list.map((w, i) => i === catIdx ? { ...w, name: cat.name } : w));
     } catch (err: any) {
@@ -129,7 +129,7 @@ const ProgramSettingsPage: React.FC = () => {
     setSavingWBS(true);
     setWbsError(null);
     try {
-      const res = await axios.post(`http://localhost:4000/api/programs/wbs/categories/${cat.id}/subcategories`, { name: '' });
+      const res = await axios.post(`/api/programs/wbs/categories/${cat.id}/subcategories`, { name: '' });
       setWbsList(list => list.map((w, i) => i === catIdx ? { ...w, subcategories: [...w.subcategories, res.data] } : w));
       setWbsEdit(edit => edit.map((w, i) => i === catIdx ? { ...w, subcategories: [...w.subcategories, res.data] } : w));
     } catch (err: any) {
@@ -144,7 +144,7 @@ const ProgramSettingsPage: React.FC = () => {
     setSavingWBS(true);
     setWbsError(null);
     try {
-      await axios.delete(`http://localhost:4000/api/programs/wbs/subcategories/${sub.id}`);
+      await axios.delete(`/api/programs/wbs/subcategories/${sub.id}`);
       setWbsList(list => list.map((w, i) => i === catIdx ? { ...w, subcategories: w.subcategories.filter((_, j) => j !== subIdx) } : w));
       setWbsEdit(edit => edit.map((w, i) => i === catIdx ? { ...w, subcategories: w.subcategories.filter((_, j) => j !== subIdx) } : w));
     } catch (err: any) {
@@ -159,7 +159,7 @@ const ProgramSettingsPage: React.FC = () => {
     setSavingWBS(true);
     setWbsError(null);
     try {
-      await axios.put(`http://localhost:4000/api/programs/wbs/subcategories/${sub.id}`, { name: sub.name });
+      await axios.put(`/api/programs/wbs/subcategories/${sub.id}`, { name: sub.name });
       setWbsList(list => list.map((w, i) => i === catIdx ? {
         ...w,
         subcategories: w.subcategories.map((s, j) => j === subIdx ? { ...s, name: sub.name } : s)
@@ -180,12 +180,12 @@ const ProgramSettingsPage: React.FC = () => {
       // Save all categories
       for (const cat of wbsEdit) {
         if (cat.id) {
-          await axios.put(`http://localhost:4000/api/programs/wbs/categories/${cat.id}`, { name: cat.name });
+          await axios.put(`/api/programs/wbs/categories/${cat.id}`, { name: cat.name });
         }
         // Save all subcategories for this category
         for (const sub of cat.subcategories) {
           if (sub.id) {
-            await axios.put(`http://localhost:4000/api/programs/wbs/subcategories/${sub.id}`, { name: sub.name });
+            await axios.put(`/api/programs/wbs/subcategories/${sub.id}`, { name: sub.name });
           }
         }
       }

@@ -211,7 +211,7 @@ const ProgramDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`http://localhost:4000/api/programs/${id}`);
+        const response = await axios.get(`/api/programs/${id}`);
         setProgram(response.data);
       } catch (err: any) {
         setError('Failed to load program.');
@@ -225,7 +225,7 @@ const ProgramDashboard: React.FC = () => {
   const fetchSummary = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary`, {
+      const res = await axios.get(`/api/programs/${program.id}/ledger/summary`, {
         params: { month: selectedMonth },
       });
       setSummary(res.data);
@@ -237,7 +237,7 @@ const ProgramDashboard: React.FC = () => {
   const fetchFullSummary = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary-full`);
+      const res = await axios.get(`/api/programs/${program.id}/ledger/summary-full`);
       setFullSummary(res.data);
     } catch (err) {
       setFullSummary([]);
@@ -247,7 +247,7 @@ const ProgramDashboard: React.FC = () => {
   const fetchTopRowSummary = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary`, {
+      const res = await axios.get(`/api/programs/${program.id}/ledger/summary`, {
         params: { month: selectedMonth },
       });
       setTopRowSummary(res.data);
@@ -259,7 +259,7 @@ const ProgramDashboard: React.FC = () => {
   const fetchLedgerEntries = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger`, {
+      const res = await axios.get(`/api/programs/${program.id}/ledger`, {
         params: { page: 1, pageSize: 10000 }
       });
       setLedgerEntries(res.data.entries);
