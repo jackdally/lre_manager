@@ -314,4 +314,32 @@ router.get('/template', async (req, res) => {
   res.send(buffer);
 });
 
+// Download import template
+router.get('/import/template', (req, res) => {
+  // Update the template columns to include invoice_link_text and invoice_link_url
+  const columns = [
+    'vendor_name',
+    'expense_description',
+    'wbs_category',
+    'wbs_subcategory',
+    'baseline_date',
+    'baseline_amount',
+    'planned_date',
+    'planned_amount',
+    'actual_date',
+    'actual_amount',
+    'notes',
+    'invoice_link_text',
+    'invoice_link_url'
+  ];
+  // Create a worksheet with just the headers
+  const ws = XLSX.utils.aoa_to_sheet([columns]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'LedgerTemplate');
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Disposition', 'attachment; filename="ledger_template.xlsx"');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buffer);
+});
+
 export const ledgerRouter = router; 

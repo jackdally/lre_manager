@@ -123,3 +123,8 @@ For additional help:
 - Open an issue on GitHub
 - Check existing issues for similar problems
 - Review the [FAQ](FAQ.md) (coming soon)
+
+## Additional Information
+
+- **Required columns:** `vendor_name`, `expense_description`, `wbs_category`, `wbs_subcategory`
+- **Optional columns:** `baseline_date`, `baseline_amount`, `planned_date`, `planned_amount`, `actual_date`, `actual_amount`, `notes`, `invoice_link_text`, `invoice_link_url`

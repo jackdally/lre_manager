@@ -299,4 +299,5 @@ docker-compose -f docker/docker-compose.yml restart backend
 
 ## Available Scripts
 
-// ... rest of existing content ... 
+- **Required columns:** `vendor_name`, `expense_description`, `wbs_category`, `wbs_subcategory`
+- **Optional columns:** `baseline_date`, `baseline_amount`, `planned_date`, `planned_amount`, `actual_date`, `actual_amount`, `notes`, `invoice_link_text`, `invoice_link_url`

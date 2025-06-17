@@ -138,4 +138,9 @@ For additional help:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-> **Note:** If you change backend TypeScript files, always run `npm run build` in the backend directory and restart the backend container to see your changes take effect. 
+> **Note:** If you change backend TypeScript files, always run `npm run build` in the backend directory and restart the backend container to see your changes take effect.
+
+## Import Template and Process
+
+- **Required columns:** `vendor_name`, `expense_description`, `wbs_category`, `wbs_subcategory`
+- **Optional columns:** `baseline_date`, `baseline_amount`, `planned_date`, `planned_amount`, `actual_date`, `actual_amount`, `notes`, `invoice_link_text`, `invoice_link_url` 
