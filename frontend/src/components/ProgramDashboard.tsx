@@ -176,6 +176,23 @@ const CustomYAxisLabel = ({ viewBox, axis }: any) => {
   );
 };
 
+// Helper to format ISO or YYYY-MM-DD as MM/DD/YYYY
+const formatDate = (dateStr: string | null | undefined) => {
+  if (!dateStr) return 'N/A';
+  // Extract only the date part if it's an ISO string
+  const datePart = dateStr.split('T')[0];
+  const [y, m, d] = datePart.split('-');
+  return `${m}/${d}/${y}`;
+};
+
+// Helper to get YYYY-MM from ISO or YYYY-MM-DD string
+const getYearMonth = (dateStr: string | null | undefined) => {
+  if (!dateStr) return '';
+  const datePart = dateStr.split('T')[0];
+  const [y, m] = datePart.split('-');
+  return `${y}-${m}`;
+};
+
 const ProgramDashboard: React.FC = () => {
   const { id } = useParams();
   const [program, setProgram] = useState<Program | null>(null);
@@ -304,8 +321,8 @@ const ProgramDashboard: React.FC = () => {
     // Get program window
     let startMonth: string, endMonth: string;
     if (program.type === 'Period of Performance') {
-      startMonth = format(new Date(program.startDate), 'yyyy-MM');
-      endMonth = format(new Date(program.endDate), 'yyyy-MM');
+      startMonth = getYearMonth(program.startDate);
+      endMonth = getYearMonth(program.endDate);
     } else {
       // For Annual programs, use the selected year
       const selectedYear = selectedMonth.split('-')[0];
@@ -410,22 +427,21 @@ const ProgramDashboard: React.FC = () => {
     setOutOfWindowWarning(warning);
   }, [program, fullSummary, selectedMonth]);
 
-  // Check if actuals for the latest accounting month are missing
-  const latestMonthData = filledSummary.find(m => m.month === selectedMonth);
-  const actualsMissing = !latestMonthData || !latestMonthData.actual || latestMonthData.actual === 0;
-
   // Compute missing actuals for selectedMonth
   useEffect(() => {
     if (!ledgerEntries || !selectedMonth) {
       setMissingActuals([]);
       return;
     }
-    const cutoff = new Date(selectedMonth + '-31'); // last day of selected month
+    const [year, month] = selectedMonth.split('-').map(Number);
+    // JS months are 0-based, so month-1
+    const lastDay = new Date(year, month, 0); // 0th day of next month = last day of this month
+    // Format lastDay as YYYY-MM-DD string
+    const lastDayStr = lastDay.toISOString().slice(0, 10);
     const missing = ledgerEntries.filter(entry => {
       if (!entry.planned_date) return false;
-      const planned = new Date(entry.planned_date);
-      // Only consider planned dates in or before selectedMonth
-      if (planned > cutoff) return false;
+      // Compare planned_date and lastDayStr as strings
+      if (entry.planned_date > lastDayStr) return false;
       // Missing if either actual_date or actual_amount is not set
       return !entry.actual_date || entry.actual_amount == null;
     });
@@ -469,12 +485,6 @@ const ProgramDashboard: React.FC = () => {
       <div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Program Dashboard</h1>
         <p className="text-gray-500 mb-8">Dashboard for Program ID: <span className="font-mono">{id}</span></p>
-
-        {actualsMissing && (
-          <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded border border-yellow-300 font-semibold text-center">
-            Actuals for Latest Accounting Month not filled in yet
-          </div>
-        )}
 
         {/* Actuals Missing Flag */}
         {missingActuals.length > 0 && (
@@ -552,7 +562,7 @@ const ProgramDashboard: React.FC = () => {
                 <div className="font-semibold text-gray-700 mb-2">{program.type}</div>
                 <div className="text-xs text-gray-400 mb-1">Dates</div>
                 {program.type === 'Period of Performance' ? (
-                  <div className="text-sm text-gray-700">{program.startDate ? new Date(program.startDate).toLocaleDateString() : 'N/A'} - {program.endDate ? new Date(program.endDate).toLocaleDateString() : 'N/A'}</div>
+                  <div className="text-sm text-gray-700">{formatDate(program.startDate)} - {formatDate(program.endDate)}</div>
                 ) : (
                   <div className="text-sm text-gray-700">N/A</div>
                 )}
@@ -626,7 +636,11 @@ const ProgramDashboard: React.FC = () => {
                           const notFuture = (mYear < nowYear) || (mYear === nowYear && mMonth <= nowMonth);
                           return afterOrAtStart && beforeOrAtEnd && notFuture;
                         })
-                        .map((m: any) => {
+                        .sort((a, b) => {
+                          // Sort in descending order (most recent first)
+                          return b.month.localeCompare(a.month);
+                        })
+                        .map(m => {
                           const [year, month] = m.month.split('-').map(Number);
                           const label = new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
                           return (
@@ -762,7 +776,17 @@ const ProgramDashboard: React.FC = () => {
                             dataKey="month" 
                             type="category"
                             interval={0}
-                            tick={({ x, y, payload }) => {
+                            tick={(props) => {
+                              const { x, y, payload, index } = props;
+                              // Show all if <=12, every 3rd if <=36, every 6th if more
+                              const total = filledSummary.length;
+                              let show = true;
+                              if (total > 36) {
+                                show = index % 6 === 0;
+                              } else if (total > 12) {
+                                show = index % 3 === 0;
+                              }
+                              if (!show) return <g />;
                               const [year, month] = payload.value.split('-').map(Number);
                               const date = new Date(year, month - 1, 1);
                               const label = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });

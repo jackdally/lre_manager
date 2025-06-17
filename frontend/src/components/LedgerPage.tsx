@@ -10,6 +10,7 @@ const LedgerPage: React.FC = () => {
   const [importResult, setImportResult] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
 
   if (!id) return <div>Missing program ID</div>;
   const programId = id;
@@ -43,8 +44,27 @@ const LedgerPage: React.FC = () => {
           <h1 className="text-2xl font-bold">Ledger Page</h1>
           <button className="btn btn-primary" onClick={() => setShowImportModal(true)}>Import</button>
         </div>
-        <p>This is the Ledger page. (Content goes here.)</p>
-        <LedgerTable programId={programId} showAll />
+        <div className="flex gap-4 mb-6">
+          <button
+            className={`btn px-4 py-2 rounded-md ${filterType === 'all' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
+            onClick={() => setFilterType('all')}
+          >
+            Show All
+          </button>
+          <button
+            className={`btn px-4 py-2 rounded-md ${filterType === 'currentMonthPlanned' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
+            onClick={() => setFilterType('currentMonthPlanned')}
+          >
+            Show Current Month Planned Expenses
+          </button>
+          <button
+            className={`btn px-4 py-2 rounded-md ${filterType === 'emptyActuals' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
+            onClick={() => setFilterType('emptyActuals')}
+          >
+            Show Empty Actuals
+          </button>
+        </div>
+        <LedgerTable programId={programId} showAll filterType={filterType} />
         {showImportModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
             <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">

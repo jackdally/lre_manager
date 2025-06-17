@@ -23,6 +23,7 @@ interface LedgerTableProps {
   programId: string;
   showAll?: boolean;
   onChange?: () => void;
+  filterType?: 'all' | 'currentMonthPlanned' | 'emptyActuals';
 }
 
 const PAGE_SIZE = 10;
@@ -35,7 +36,7 @@ function formatCurrency(val: number | undefined | null) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(val));
 }
 
-const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange }) => {
+const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange, filterType = 'all' }) => {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -236,7 +237,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
   // Bulk delete
   const handleBulkDelete = () => setShowBulkDeleteModal(true);
   const handleBulkDeleteConfirm = async () => {
-    await Promise.all(selectedRows.map(id => axios.delete(`/api/programs/${programId}/ledger/${id}`)));
+    await Promise.all(selectedRows.map(id => axios.delete(`/api/programs/ledger/${id}`)));
     setShowBulkDeleteModal(false);
     setSelectedRows([]);
     fetchEntries();
@@ -281,6 +282,18 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
       handlePopoverClose();
     }
   };
+
+  // Filter entries based on filterType
+  let filteredEntries = entries;
+  if (filterType === 'currentMonthPlanned') {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const currentMonthStr = `${year}-${month}`;
+    filteredEntries = entries.filter(e => e.planned_date && e.planned_date.startsWith(currentMonthStr));
+  } else if (filterType === 'emptyActuals') {
+    filteredEntries = entries.filter(e => !e.actual_date || e.actual_amount == null);
+  }
 
   return (
     <div className="bg-white rounded-xl shadow p-4">
@@ -524,7 +537,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange 
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry, idx) => (
+            {filteredEntries.map((entry, idx) => (
               <tr key={entry.id} className={entry.id === newRowId ? 'bg-blue-50' : ''}>
                 <td className="px-2 py-1"><input type="checkbox" checked={selectedRows.includes(entry.id)} onChange={() => handleSelectRow(entry.id)} /></td>
                 {/* WBS Category (dropdown) */}
