@@ -1,7 +1,13 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
+  // Extract program id from URL if present
+  const match = location.pathname.match(/\/programs\/([a-f0-9-]+)/i);
+  const programId = match ? match[1] : null;
+  const insideProgram = Boolean(programId);
+
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* Sidebar */}
@@ -10,20 +16,62 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           Navigation
         </div>
         <nav className="flex-1 py-4 px-2">
-          <Link
-            to="/"
-            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base bg-[#232b3b]"
-          >
-            <span className="text-xl">📁</span>
-            Programs
-          </Link>
-          <Link
-            to="/programs/3/ledger"
-            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base mt-2"
-          >
-            <span className="text-xl">📒</span>
-            Ledger
-          </Link>
+          {!insideProgram ? (
+            <Link
+              to="/"
+              className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base bg-[#232b3b]"
+            >
+              <span className="text-xl">📁</span>
+              Programs
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/"
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base bg-[#232b3b]"
+              >
+                <span className="text-xl">⬅️</span>
+                Go Back to Program Selection
+              </Link>
+              <Link
+                to={`/programs/${programId}/dashboard`}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base mt-2"
+              >
+                <span className="text-xl">🏠</span>
+                Program Home
+              </Link>
+              <Link
+                to={`/programs/${programId}/ledger`}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base mt-2"
+              >
+                <span className="text-xl">📒</span>
+                Ledger
+              </Link>
+              <Link
+                to={`/programs/${programId}/boe`}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base mt-2"
+              >
+                <span className="text-xl">📊</span>
+                BOE
+              </Link>
+              <Link
+                to={`/programs/${programId}/risks`}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base mt-2"
+              >
+                <span className="text-xl">⚠️</span>
+                Risks & Opportunities
+              </Link>
+              {insideProgram && (
+                <Link
+                  to={`/programs/${programId}/settings`}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base mt-2"
+                >
+                  <span className="text-xl">⚙️</span>
+                  Program Settings
+                </Link>
+              )}
+            </>
+          )}
         </nav>
       </aside>
       {/* Main content */}

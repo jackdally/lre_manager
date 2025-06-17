@@ -1,22 +1,27 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { AppDataSource } from '../config/database';
 import { LedgerEntry } from '../entities/LedgerEntry';
 import { Program } from '../entities/Program';
 import { Between, Like } from 'typeorm';
+import multer from 'multer';
+import path from 'path';
+import { importLedgerFromFile } from '../services/ledger';
+import * as XLSX from 'xlsx';
 
 const router = Router();
 const ledgerRepo = AppDataSource.getRepository(LedgerEntry);
 const programRepo = AppDataSource.getRepository(Program);
+const upload = multer({ dest: '/tmp' });
 
 // List ledger entries for a program (with pagination/filter)
-router.get('/programs/:programId/ledger', async (req, res) => {
+router.get('/:programId/ledger', async (req, res) => {
   const { programId } = req.params;
   const { page = 1, pageSize = 20, search = '' } = req.query;
   const skip = (Number(page) - 1) * Number(pageSize);
   try {
     const [entries, total] = await ledgerRepo.findAndCount({
       where: {
-        program: { id: Number(programId) },
+        program: { id: programId },
         vendor_name: Like(`%${search}%`),
       },
       order: { baseline_date: 'ASC' },
@@ -31,30 +36,42 @@ router.get('/programs/:programId/ledger', async (req, res) => {
 });
 
 // Create ledger entry
-router.post('/programs/:programId/ledger', async (req, res) => {
+router.post('/:programId/ledger', async (req, res) => {
   const { programId } = req.params;
   try {
-    const program = await programRepo.findOneBy({ id: Number(programId) });
+    const requiredFields = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory'];
+    const missingFields = requiredFields.filter(field => req.body[field] === undefined || req.body[field] === null || req.body[field] === '');
+    if (missingFields.length > 0) {
+      return res.status(400).json({ message: 'Missing required fields', missingFields });
+    }
+    const program = await programRepo.findOneBy({ id: programId });
     if (!program) return res.status(404).json({ message: 'Program not found' });
     const entry = ledgerRepo.create({ ...req.body, program });
     const saved = await ledgerRepo.save(entry);
     res.status(201).json(saved);
   } catch (err) {
-    res.status(500).json({ message: 'Error creating ledger entry', error: err });
+    res.status(500).json({ message: 'Error creating ledger entry', error: err instanceof Error ? err.message : err });
   }
 });
 
-// Update ledger entry
-router.put('/ledger/:id', async (req, res) => {
-  const { id } = req.params;
+// Update ledger entry (RESTful, scoped to program)
+router.put('/:programId/ledger/:id', async (req, res) => {
+  const { programId, id } = req.params;
   try {
-    const entry = await ledgerRepo.findOneBy({ id });
-    if (!entry) return res.status(404).json({ message: 'Ledger entry not found' });
+    // Convert empty string dates to null
+    ['baseline_date', 'planned_date', 'actual_date'].forEach(field => {
+      if (req.body[field] === '') req.body[field] = null;
+    });
+    const entry = await ledgerRepo.findOne({
+      where: { id, program: { id: programId } },
+      relations: ['program'],
+    });
+    if (!entry) return res.status(404).json({ message: 'Ledger entry not found for this program' });
     ledgerRepo.merge(entry, req.body);
     const saved = await ledgerRepo.save(entry);
     res.json(saved);
   } catch (err) {
-    res.status(500).json({ message: 'Error updating ledger entry', error: err });
+    res.status(500).json({ message: 'Error updating ledger entry', error: err instanceof Error ? err.message : err });
   }
 });
 
@@ -72,7 +89,7 @@ router.delete('/ledger/:id', async (req, res) => {
 });
 
 // Summary endpoint for a selected month
-router.get('/programs/:programId/ledger/summary', async (req, res) => {
+router.get('/:programId/ledger/summary', async (req, res) => {
   const { programId } = req.params;
   const { month } = req.query; // format: YYYY-MM
   if (!month) return res.status(400).json({ message: 'Month is required' });
@@ -80,6 +97,7 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
     const start = new Date(`${month}-01`);
     const end = new Date(start);
     end.setMonth(end.getMonth() + 1);
+    end.setDate(end.getDate() - 1); // last day of selected month
     // Convert to YYYY-MM-DD strings
     const startStr = start.toISOString().slice(0, 10);
     const endStr = end.toISOString().slice(0, 10);
@@ -87,13 +105,13 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
     // Fetch all entries for the program
     const entries = await ledgerRepo.find({
       where: {
-        program: { id: Number(programId) }
+        program: { id: programId }
       },
       relations: ['program'],
     });
 
     // Fetch the program to get the total budget
-    const program = await programRepo.findOneBy({ id: Number(programId) });
+    const program = await programRepo.findOneBy({ id: programId });
     if (!program) return res.status(404).json({ message: 'Program not found' });
     const budget = program.totalBudget || 0;
 
@@ -105,7 +123,7 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
     const actualsToDate = entries.reduce((sum, e) => {
       if (!e.actual_date) return sum;
       const actualDate = new Date(e.actual_date);
-      if (actualDate < end) { // Only include actuals up to the selected month
+      if (actualDate <= end) { // Include actuals up to and including the selected month
         return sum + (e.actual_amount || 0);
       }
       return sum;
@@ -115,7 +133,7 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
     const etc = entries.reduce((sum, e) => {
       if (!e.planned_date) return sum;
       const plannedDate = new Date(e.planned_date);
-      if (plannedDate >= end) { // Only include future months
+      if (plannedDate > end) { // Only include future months strictly after the selected month
         return sum + (e.planned_amount || 0);
       }
       return sum;
@@ -128,7 +146,7 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
     const baselineToDate = entries.reduce((sum, e) => {
       if (!e.baseline_date) return sum;
       const baselineDate = new Date(e.baseline_date);
-      if (baselineDate < end) {
+      if (baselineDate <= end) {
         return sum + (e.baseline_amount || 0);
       }
       return sum;
@@ -137,7 +155,7 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
     const plannedToDate = entries.reduce((sum, e) => {
       if (!e.planned_date) return sum;
       const plannedDate = new Date(e.planned_date);
-      if (plannedDate < end) {
+      if (plannedDate <= end) {
         return sum + (e.planned_amount || 0);
       }
       return sum;
@@ -161,6 +179,9 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
 
     // Cost Variance (CV) = Planned to Date - Actuals to Date
     const costVariance = plannedToDate - actualsToDate;
+
+    // Debug log for CV investigation
+    console.log(`[CV DEBUG] Month: ${month}, plannedToDate: ${plannedToDate}, actualsToDate: ${actualsToDate}, costVariance: ${costVariance}`);
 
     // Schedule Performance Index (SPI) = Actuals to Date / Baseline to Date
     const schedulePerformanceIndex = baselineToDate !== 0 ? actualsToDate / baselineToDate : 0;
@@ -195,38 +216,48 @@ router.get('/programs/:programId/ledger/summary', async (req, res) => {
 });
 
 // Full project summary endpoint for clustered/cumulative chart
-router.get('/programs/:programId/ledger/summary-full', async (req, res) => {
+router.get('/:programId/ledger/summary-full', async (req, res) => {
   const { programId } = req.params;
   try {
     const entries = await ledgerRepo.find({
-      where: { program: { id: Number(programId) } },
+      where: { program: { id: programId } },
       relations: ['program'],
     });
-    // Group by month (YYYY-MM)
-    const monthMap: Record<string, { baseline: number; planned: number; actual: number }> = {};
+    // Group by month (YYYY-MM) for each type
+    const baselineMap: Record<string, number> = {};
+    const plannedMap: Record<string, number> = {};
+    const actualMap: Record<string, number> = {};
     entries.forEach(e => {
-      // Use planned_date for grouping; fallback to baseline_date if missing
-      const date = e.planned_date || e.baseline_date;
-      if (!date) return;
-      const month = date.slice(0, 7); // YYYY-MM
-      if (!monthMap[month]) monthMap[month] = { baseline: 0, planned: 0, actual: 0 };
-      monthMap[month].baseline += e.baseline_amount || 0;
-      monthMap[month].planned += e.planned_amount || 0;
-      monthMap[month].actual += e.actual_amount || 0;
+      if (e.baseline_date && e.baseline_amount != null) {
+        const month = e.baseline_date.slice(0, 7);
+        baselineMap[month] = (baselineMap[month] || 0) + (e.baseline_amount || 0);
+      }
+      if (e.planned_date && e.planned_amount != null) {
+        const month = e.planned_date.slice(0, 7);
+        plannedMap[month] = (plannedMap[month] || 0) + (e.planned_amount || 0);
+      }
+      if (e.actual_date && e.actual_amount != null) {
+        const month = e.actual_date.slice(0, 7);
+        actualMap[month] = (actualMap[month] || 0) + (e.actual_amount || 0);
+      }
     });
-    // Sort months ascending
-    const months = Object.keys(monthMap).sort();
+    // Collect all months present in any map
+    const allMonths = Array.from(new Set([
+      ...Object.keys(baselineMap),
+      ...Object.keys(plannedMap),
+      ...Object.keys(actualMap),
+    ])).sort();
     // Build cumulative totals
     let cumBaseline = 0, cumPlanned = 0, cumActual = 0;
-    const result = months.map(month => {
-      cumBaseline += monthMap[month].baseline;
-      cumPlanned += monthMap[month].planned;
-      cumActual += monthMap[month].actual;
+    const result = allMonths.map(month => {
+      cumBaseline += baselineMap[month] || 0;
+      cumPlanned += plannedMap[month] || 0;
+      cumActual += actualMap[month] || 0;
       return {
         month,
-        baseline: monthMap[month].baseline,
-        planned: monthMap[month].planned,
-        actual: monthMap[month].actual,
+        baseline: baselineMap[month] || 0,
+        planned: plannedMap[month] || 0,
+        actual: actualMap[month] || 0,
         cumBaseline,
         cumPlanned,
         cumActual,
@@ -236,6 +267,49 @@ router.get('/programs/:programId/ledger/summary-full', async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Error fetching full summary', error: err });
   }
+});
+
+// Import ledger entries from Excel or CSV
+router.post('/import/ledger', upload.single('file'), async (req: Request & { file?: any }, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
+      return res.status(400).json({ error: 'Unsupported file type' });
+    }
+    const result = await importLedgerFromFile(req.file.path, ext);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Import failed' });
+  }
+});
+
+// Download ledger template (Excel)
+router.get('/template', async (req, res) => {
+  // Define all possible columns for the ledger
+  const headers = [
+    'vendor_name',
+    'expense_description',
+    'wbs_category',
+    'wbs_subcategory',
+    'baseline_date',
+    'baseline_amount',
+    'planned_date',
+    'planned_amount',
+    'actual_date',
+    'actual_amount',
+    'notes',
+  ];
+  // Create a worksheet with just the headers
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'LedgerTemplate');
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Disposition', 'attachment; filename="ledger_template.xlsx"');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buffer);
 });
 
 export const ledgerRouter = router; 

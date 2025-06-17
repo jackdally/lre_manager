@@ -9,8 +9,13 @@
     "test": "cd frontend && npm test && cd ../backend && npm test"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@types/node": "^24.0.3",
+    "pg": "^8.16.0",
+    "typeorm": "^0.3.24"
   }
 }

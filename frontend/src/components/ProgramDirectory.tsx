@@ -4,7 +4,7 @@ import Layout from './Layout';
 import { useNavigate } from 'react-router-dom';
 
 interface Program {
-  id: number;
+  id: string;
   code: string;
   name: string;
   description: string;
@@ -22,18 +22,18 @@ const ProgramDirectory: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [editProgramId, setEditProgramId] = useState<number | null>(null);
+  const [editProgramId, setEditProgramId] = useState<string | null>(null);
   const [newProgram, setNewProgram] = useState<Partial<Program>>({
     type: 'Annual',
     status: 'Active',
   });
   const [status, setStatus] = useState('All Status');
   const [loading, setLoading] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState<number | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [cardModalProgram, setCardModalProgram] = useState<Program | null>(null);
-  const [spinningCardId, setSpinningCardId] = useState<number | null>(null);
+  const [spinningCardId, setSpinningCardId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'name' | 'code' | 'budget' | 'status'>('name');
   const [sortAsc, setSortAsc] = useState(true);
   const navigate = useNavigate();
@@ -121,7 +121,7 @@ const ProgramDirectory: React.FC = () => {
     setDropdownOpen(null);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await axios.delete(`http://localhost:4000/api/programs/${id}`);
       await fetchPrograms();

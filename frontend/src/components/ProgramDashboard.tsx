@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import Layout from './Layout';
@@ -22,7 +22,7 @@ import {
 import { addMonths, format, subMonths } from 'date-fns';
 
 interface Program {
-  id: number;
+  id: string;
   code: string;
   name: string;
   description: string;
@@ -47,7 +47,7 @@ const CustomLegend = () => (
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 18, height: 0, borderTop: '3.75px solid #4B5563', display: 'inline-block' }}></span>Cumulative Baseline</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 18, height: 0, borderTop: '3px dashed #D97706', display: 'inline-block' }}></span>Cumulative Planned</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 18, height: 0, borderTop: '3.75px solid #2563EB', display: 'inline-block' }}></span>Cumulative Actual</span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 18, height: 0, borderTop: '2.5px dashed #16A34A', display: 'inline-block' }}></span>Cumulative EAC Combined</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 18, height: 0, borderTop: '2.5px dashed #16A34A', display: 'inline-block' }}></span>Cumulative Projected</span>
     </div>
   </div>
 );
@@ -72,8 +72,8 @@ interface LedgerEntry {
 function formatCurrency(val: number | undefined | null) {
   if (val == null) return '--';
   const absVal = Math.abs(val);
-  const formatted = absVal.toLocaleString();
-  return (val < 0 ? '-' : '') + '$' + formatted;
+  const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(absVal);
+  return (val < 0 ? '-' : '') + formatted;
 }
 
 // Helper for percent formatting with sign
@@ -118,9 +118,61 @@ const BulletChartTooltip = ({ active, payload, label }: any) => {
   return (
     <div style={{ background: 'white', border: '1px solid #ccc', borderRadius: 6, padding: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ color: '#2563EB', fontWeight: 500 }}>Actual: ${actual?.toLocaleString()}</div>
-      <div style={{ color: '#6B7280', fontWeight: 500 }}>Planned: ${planned?.toLocaleString()}</div>
+      <div style={{ color: '#2563EB', fontWeight: 500 }}>Actual: {formatCurrency(actual)}</div>
+      <div style={{ color: '#6B7280', fontWeight: 500 }}>Planned: {formatCurrency(planned)}</div>
     </div>
+  );
+};
+
+// Custom tooltip for main chart
+const MainChartTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0]?.payload || {};
+  const baseline = data.baseline;
+  const planned = data.planned;
+  const actual = data.actual;
+  const cumBaseline = data.cumBaseline;
+  const cumPlanned = data.cumPlanned;
+  const cumActual = data.cumActual;
+  const cumProjected = data.cumEACCombined;
+  return (
+    <div style={{ background: 'white', border: '1px solid #ccc', borderRadius: 8, padding: 16, minWidth: 220 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ color: '#9CA3AF' }}>Baseline : {formatCurrency(baseline)}</div>
+      <div style={{ color: '#F59E42' }}>Planned : {formatCurrency(planned)}</div>
+      <div style={{ color: '#93C5FD' }}>Actual : {formatCurrency(actual)}</div>
+      <div style={{ height: 8 }} />
+      <div style={{ color: '#4B5563' }}>Cumulative Baseline : {formatCurrency(cumBaseline)}</div>
+      <div style={{ color: '#D97706' }}>Cumulative Planned : {formatCurrency(cumPlanned)}</div>
+      {cumActual != null ? (
+        <div style={{ color: '#2563EB', fontWeight: 600 }}>Cumulative Actual : {formatCurrency(cumActual)}</div>
+      ) : cumProjected != null ? (
+        <div style={{ color: '#16A34A', fontWeight: 600 }}>Cumulative Projected : {formatCurrency(cumProjected)}</div>
+      ) : null}
+    </div>
+  );
+};
+
+const CustomYAxisLabel = ({ viewBox, axis }: any) => {
+  const { y, height, x, width } = viewBox;
+  const label = axis === 'left' ? 'Monthly ($)' : 'Cumulative ($)';
+  // For left axis, use a fixed x position; for right, to the right
+  const xPos = axis === 'left' ? 24 : x + width + 48;
+  const yPos = y + height / 2;
+  const rotation = axis === 'left' ? -90 : 90;
+  return (
+    <text
+      x={xPos}
+      y={yPos}
+      textAnchor="middle"
+      fontSize={16}
+      fontWeight={600}
+      fill="#6B7280"
+      transform={`rotate(${rotation},${xPos},${yPos})`}
+      style={{ pointerEvents: 'none' }}
+    >
+      {label}
+    </text>
   );
 };
 
@@ -143,7 +195,6 @@ const ProgramDashboard: React.FC = () => {
   };
   const [selectedMonth, setSelectedMonth] = useState(getPrevUtcMonth);
   const [summary, setSummary] = useState<any>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
   const [fullSummary, setFullSummary] = useState<any[]>([]);
   const [filledSummary, setFilledSummary] = useState<any[]>([]);
   const [outOfWindowWarning, setOutOfWindowWarning] = useState<string | null>(null);
@@ -171,36 +222,58 @@ const ProgramDashboard: React.FC = () => {
     if (id) fetchProgram();
   }, [id]);
 
-  useEffect(() => {
-    const fetchSummary = async () => {
-      if (!program || !program.id) return;
-      setSummaryLoading(true);
-      try {
-        const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary`, {
-          params: { month: selectedMonth },
-        });
-        setSummary(res.data);
-      } catch (err) {
-        setSummary(null);
-      } finally {
-        setSummaryLoading(false);
-      }
-    };
-    fetchSummary();
+  const fetchSummary = useCallback(async () => {
+    if (!program || !program.id) return;
+    try {
+      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary`, {
+        params: { month: selectedMonth },
+      });
+      setSummary(res.data);
+    } catch (err) {
+      setSummary(null);
+    }
   }, [program, selectedMonth]);
 
-  useEffect(() => {
-    const fetchFullSummary = async () => {
-      if (!program || !program.id) return;
-      try {
-        const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary-full`);
-        setFullSummary(res.data);
-      } catch (err) {
-        setFullSummary([]);
-      }
-    };
-    fetchFullSummary();
+  const fetchFullSummary = useCallback(async () => {
+    if (!program || !program.id) return;
+    try {
+      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary-full`);
+      setFullSummary(res.data);
+    } catch (err) {
+      setFullSummary([]);
+    }
   }, [program]);
+
+  const fetchTopRowSummary = useCallback(async () => {
+    if (!program || !program.id) return;
+    try {
+      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary`, {
+        params: { month: selectedMonth },
+      });
+      setTopRowSummary(res.data);
+    } catch (err) {
+      setTopRowSummary(null);
+    }
+  }, [program, selectedMonth]);
+
+  const fetchLedgerEntries = useCallback(async () => {
+    if (!program || !program.id) return;
+    try {
+      const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger`, {
+        params: { page: 1, pageSize: 10000 }
+      });
+      setLedgerEntries(res.data.entries);
+    } catch (err) {
+      setLedgerEntries([]);
+    }
+  }, [program]);
+
+  useEffect(() => {
+    fetchSummary();
+    fetchFullSummary();
+    fetchTopRowSummary();
+    fetchLedgerEntries();
+  }, [fetchSummary, fetchFullSummary, fetchTopRowSummary, fetchLedgerEntries]);
 
   useEffect(() => {
     if (!program || !program.startDate || !program.endDate) {
@@ -270,7 +343,9 @@ const ProgramDashboard: React.FC = () => {
     const [endYear, endMonthNum] = endMonth.split('-').map(Number);
     const end = new Date(endYear, endMonthNum, 1); // first day of month after endMonth
     let lastCumBaseline = 0, lastCumPlanned = 0, lastCumActual = 0;
-    let cumEACCombined = 0;
+    let idx = 0;
+    let lastActualsForEAC = 0;
+    let eacProjection = 0;
     // First, collect all month strings for the chart
     const allMonthStrs: string[] = [];
     let tempCurrent = new Date(current);
@@ -279,27 +354,43 @@ const ProgramDashboard: React.FC = () => {
       tempCurrent = addMonths(tempCurrent, 1);
     }
     const selectedIdx = allMonthStrs.findIndex(m => m === selectedMonth);
-    let idx = 0;
     while (current < end) {
       const monthStr: string = format(current, 'yyyy-MM');
-      let cumActual: number | null;
+      let cumActual: number | null = null;
+      let cumEACCombinedLocal: number | null = null;
       if (monthMap[monthStr]) {
-        cumActual = idx <= selectedIdx ? monthMap[monthStr].cumActual : null;
-        if (idx <= selectedIdx) {
-          cumEACCombined = monthMap[monthStr].cumActual;
+        if (idx < selectedIdx) {
+          cumActual = monthMap[monthStr].cumActual;
+          cumEACCombinedLocal = null;
+          lastActualsForEAC = monthMap[monthStr].cumActual;
+        } else if (idx === selectedIdx) {
+          cumActual = monthMap[monthStr].cumActual;
+          cumEACCombinedLocal = monthMap[monthStr].cumActual;
+          lastActualsForEAC = monthMap[monthStr].cumActual;
+          eacProjection = monthMap[monthStr].cumActual;
         } else {
-          cumEACCombined = cumEACCombined + (monthMap[monthStr].planned || 0);
+          cumActual = null;
+          eacProjection += monthMap[monthStr].planned || 0;
+          cumEACCombinedLocal = eacProjection;
         }
-        months.push({ ...monthMap[monthStr], cumEACCombined, cumActual });
+        months.push({ ...monthMap[monthStr], cumEACCombined: cumEACCombinedLocal, cumActual });
         lastCumBaseline = monthMap[monthStr].cumBaseline;
         lastCumPlanned = monthMap[monthStr].cumPlanned;
         lastCumActual = monthMap[monthStr].cumActual;
       } else {
-        cumActual = idx <= selectedIdx ? lastCumActual : null;
-        if (idx <= selectedIdx) {
-          cumEACCombined = lastCumActual;
+        if (idx < selectedIdx) {
+          cumActual = lastCumActual;
+          cumEACCombinedLocal = null;
+          lastActualsForEAC = lastCumActual;
+        } else if (idx === selectedIdx) {
+          cumActual = lastCumActual;
+          cumEACCombinedLocal = lastCumActual;
+          lastActualsForEAC = lastCumActual;
+          eacProjection = lastCumActual;
         } else {
-          cumEACCombined = cumEACCombined + 0; // No planned value for missing month
+          cumActual = null;
+          eacProjection += 0;
+          cumEACCombinedLocal = eacProjection;
         }
         months.push({
           month: monthStr,
@@ -308,8 +399,8 @@ const ProgramDashboard: React.FC = () => {
           actual: 0,
           cumBaseline: lastCumBaseline,
           cumPlanned: lastCumPlanned,
-          cumActual: lastCumActual,
-          cumEACCombined,
+          cumActual,
+          cumEACCombined: cumEACCombinedLocal,
         });
       }
       current = addMonths(current, 1);
@@ -319,46 +410,9 @@ const ProgramDashboard: React.FC = () => {
     setOutOfWindowWarning(warning);
   }, [program, fullSummary, selectedMonth]);
 
-  // Find the most recently closed accounting month (last full month before today)
-  const now = new Date();
-  const lastClosedMonth = format(subMonths(now, 1), 'yyyy-MM');
-
   // Check if actuals for the latest accounting month are missing
-  const latestMonthData = filledSummary.find(m => m.month === lastClosedMonth);
+  const latestMonthData = filledSummary.find(m => m.month === selectedMonth);
   const actualsMissing = !latestMonthData || !latestMonthData.actual || latestMonthData.actual === 0;
-
-  // Fetch summary for the last closed month for the top row
-  useEffect(() => {
-    const fetchTopRowSummary = async () => {
-      if (!program || !program.id) return;
-      try {
-        const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger/summary`, {
-          params: { month: lastClosedMonth },
-        });
-        setTopRowSummary(res.data);
-      } catch (err) {
-        setTopRowSummary(null);
-      }
-    };
-    fetchTopRowSummary();
-  }, [program, lastClosedMonth]);
-
-  // Fetch all ledger entries for the program
-  useEffect(() => {
-    const fetchLedgerEntries = async () => {
-      if (!program || !program.id) return;
-      try {
-        // Fetch all entries (no pagination)
-        const res = await axios.get(`http://localhost:4000/api/programs/${program.id}/ledger`, {
-          params: { page: 1, pageSize: 10000 }, // large page size to get all
-        });
-        setLedgerEntries(res.data.entries || []);
-      } catch (err) {
-        setLedgerEntries([]);
-      }
-    };
-    fetchLedgerEntries();
-  }, [program]);
 
   // Compute missing actuals for selectedMonth
   useEffect(() => {
@@ -401,6 +455,14 @@ const ProgramDashboard: React.FC = () => {
 
   // For donut chart: percent of total actuals by category
   const totalActuals = categoryData.reduce((sum, c) => sum + c.actual, 0);
+
+  // 1. Define a function to refresh all relevant data:
+  const refreshAll = () => {
+    fetchSummary();
+    fetchFullSummary();
+    fetchTopRowSummary();
+    fetchLedgerEntries();
+  };
 
   return (
     <Layout>
@@ -453,7 +515,7 @@ const ProgramDashboard: React.FC = () => {
                           <td className="px-2 py-1">{entry.vendor_name}</td>
                           <td className="px-2 py-1">{entry.expense_description}</td>
                           <td className="px-2 py-1">{entry.planned_date}</td>
-                          <td className="px-2 py-1">${entry.planned_amount?.toLocaleString()}</td>
+                          <td className="px-2 py-1">{formatCurrency(entry.planned_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -553,8 +615,6 @@ const ProgramDashboard: React.FC = () => {
                       {(filledSummary as any[])
                         .filter(m => {
                           if (!program || !program.startDate || !program.endDate) return true;
-                          // Debug log for start and end date
-                          console.log('program.startDate', program.startDate, 'program.endDate', program.endDate);
                           const [mYear, mMonth] = m.month.split('-').map(Number);
                           const [startYear, startMonth] = program.startDate.split('-').map(Number);
                           const [endYear, endMonth] = program.endDate.split('-').map(Number);
@@ -564,8 +624,6 @@ const ProgramDashboard: React.FC = () => {
                           const nowYear = now.getFullYear();
                           const nowMonth = now.getMonth() + 1;
                           const notFuture = (mYear < nowYear) || (mYear === nowYear && mMonth <= nowMonth);
-                          // Debug log
-                          console.log('Dropdown filter:', { mYear, mMonth, startYear, startMonth, endYear, endMonth, afterOrAtStart, beforeOrAtEnd, notFuture, m: m.month });
                           return afterOrAtStart && beforeOrAtEnd && notFuture;
                         })
                         .map((m: any) => {
@@ -644,15 +702,15 @@ const ProgramDashboard: React.FC = () => {
                 <div className="bg-white rounded-xl shadow p-4">
                   <div className="text-sm text-gray-500 mb-1">Project Baseline</div>
                   <div className="text-xs text-gray-400 mb-2">All baseline amounts</div>
-                  <div className="font-semibold text-lg text-gray-900">${summary.project_baseline_total?.toLocaleString()}</div>
-                  <div className="text-xs text-gray-400 mt-1">Baseline to Date: ${summary.baselineToDate?.toLocaleString()}</div>
+                  <div className="font-semibold text-lg text-gray-900 text-right">{formatCurrency(summary.project_baseline_total)}</div>
+                  <div className="text-xs text-gray-400 mt-1">Baseline to Date: {formatCurrency(summary.baselineToDate)}</div>
                 </div>
                 {/* Project Planned */}
                 <div className="bg-white rounded-xl shadow p-4">
                   <div className="text-sm text-gray-500 mb-1">Project Planned</div>
                   <div className="text-xs text-gray-400 mb-2">All planned amounts</div>
-                  <div className="font-semibold text-lg text-gray-900">${summary.project_planned_total?.toLocaleString()}</div>
-                  <div className="text-xs text-gray-400 mt-1">Planned to Date: ${summary.plannedToDate?.toLocaleString()}</div>
+                  <div className="font-semibold text-lg text-gray-900 text-right">{formatCurrency(summary.project_planned_total)}</div>
+                  <div className="text-xs text-gray-400 mt-1">Planned to Date: {formatCurrency(summary.plannedToDate)}</div>
                 </div>
               </div>
             )}
@@ -727,14 +785,7 @@ const ProgramDashboard: React.FC = () => {
                             yAxisId="left"
                             tick={{ fontSize: 12 }}
                             tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
-                            label={{
-                              value: 'Monthly ($)',
-                              angle: -90,
-                              position: 'insideLeft',
-                              offset: 10,
-                              fontSize: 14,
-                              fill: '#6B7280'
-                            }}
+                            label={(props: any) => <CustomYAxisLabel {...props} axis="left" />}
                             domain={['auto', 'auto']}
                           />
                           <YAxis
@@ -742,27 +793,10 @@ const ProgramDashboard: React.FC = () => {
                             orientation="right"
                             tick={{ fontSize: 12 }}
                             tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
-                            label={{
-                              value: 'Cumulative ($)',
-                              angle: 90,
-                              position: 'insideRight',
-                              offset: 10,
-                              fontSize: 14,
-                              fill: '#6B7280'
-                            }}
+                            label={(props: any) => <CustomYAxisLabel {...props} axis="right" />}
                             domain={[0, 'dataMax']}
                           />
-                          <Tooltip 
-                            formatter={(value: number, name: string) => [
-                              `$${value?.toLocaleString()}`,
-                              name
-                            ]}
-                            labelFormatter={(label) => {
-                              const [year, month] = label.split('-').map(Number);
-                              const date = new Date(year, month - 1, 1);
-                              return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-                            }}
-                          />
+                          <Tooltip content={<MainChartTooltip />} />
                           <Bar 
                             yAxisId="left" 
                             dataKey="baseline" 
@@ -810,7 +844,7 @@ const ProgramDashboard: React.FC = () => {
                             type="monotone"
                             dataKey="cumEACCombined"
                             stroke="#16A34A"
-                            name="Cumulative EAC Combined"
+                            name="Cumulative Projected"
                             strokeWidth={2.5}
                             strokeDasharray="6 4"
                             dot={false}
@@ -930,7 +964,7 @@ const ProgramDashboard: React.FC = () => {
             {/* Ledger/Transactions Table Section */}
             <div className="bg-white rounded-xl shadow p-6">
               <div className="text-lg font-bold mb-4">Ledger / Transactions</div>
-              {program && program.id && <LedgerTable programId={program.id} />}
+              {program && program.id && <LedgerTable programId={program.id} onChange={refreshAll} />}
             </div>
           </>
         )}

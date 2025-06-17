@@ -5,6 +5,11 @@ import { Program } from '../entities/Program';
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
 
+// Add UUID validation helper
+function isValidUUID(str: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+}
+
 /**
  * @swagger
  * /api/programs:
@@ -116,8 +121,11 @@ router.post('/', async (req, res) => {
  *           type: integer
  */
 router.get('/:id', async (req, res) => {
+  if (!isValidUUID(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid program ID format' });
+  }
   try {
-    const program = await programRepository.findOneBy({ id: parseInt(req.params.id) });
+    const program = await programRepository.findOneBy({ id: req.params.id });
     if (!program) {
       return res.status(404).json({ message: 'Program not found' });
     }
@@ -140,8 +148,11 @@ router.get('/:id', async (req, res) => {
  *           type: integer
  */
 router.put('/:id', async (req, res) => {
+  if (!isValidUUID(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid program ID format' });
+  }
   try {
-    const program = await programRepository.findOneBy({ id: parseInt(req.params.id) });
+    const program = await programRepository.findOneBy({ id: req.params.id });
     if (!program) {
       return res.status(404).json({ message: 'Program not found' });
     }
@@ -166,8 +177,11 @@ router.put('/:id', async (req, res) => {
  *           type: integer
  */
 router.delete('/:id', async (req, res) => {
+  if (!isValidUUID(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid program ID format' });
+  }
   try {
-    const program = await programRepository.findOneBy({ id: parseInt(req.params.id) });
+    const program = await programRepository.findOneBy({ id: req.params.id });
     if (!program) {
       return res.status(404).json({ message: 'Program not found' });
     }
