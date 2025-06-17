@@ -159,6 +159,7 @@ Options:
 4. Some scripts may require specific environment variables to be set
 5. Use the `--help` option to see available options for each script
 6. For destructive operations, scripts will ask for confirmation unless `--force` is used
+7. **Backend TypeScript changes:** After editing backend TypeScript files, always run `npm run build` in the backend directory and restart the backend container to apply your changes.
 
 ## Adding New Scripts
 
@@ -192,6 +193,13 @@ When adding new scripts:
 
 ### Daily Development
 ```bash
+# If you make changes to backend TypeScript code:
+cd backend
+npm run build
+cd ..
+# Then restart the backend container:
+docker-compose -f docker/docker-compose.yml restart backend
+
 # Start your development session
 ./manage-containers.sh -s
 

@@ -78,6 +78,13 @@
 4. **Start the development environment:**
    - With Docker (recommended):
      ```bash
+     # If you make changes to backend TypeScript code:
+     cd backend
+     npm run build
+     cd ..
+     # Then restart the backend container:
+     docker-compose -f docker/docker-compose.yml restart backend
+     # Start the environment (if not already running):
      docker-compose -f docker/docker-compose.yml up
      ```
    - Or run frontend and backend separately:
@@ -129,4 +136,6 @@ For additional help:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+> **Note:** If you change backend TypeScript files, always run `npm run build` in the backend directory and restart the backend container to see your changes take effect. 

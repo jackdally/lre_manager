@@ -42,6 +42,14 @@ cp frontend/.env.example frontend/.env
 
 4. Start the development environment:
 ```bash
+# If you make changes to backend TypeScript code, run:
+cd backend
+npm run build
+cd ..
+# Then restart the backend container:
+docker-compose -f docker/docker-compose.yml restart backend
+
+# Start the environment (if not already running):
 docker-compose -f docker/docker-compose.yml up
 ```
 
@@ -97,6 +105,11 @@ If you see port conflict errors:
 - Restart containers: `docker-compose -f docker/docker-compose.yml down && docker-compose -f docker/docker-compose.yml up`
 - Check logs: `docker-compose -f docker/docker-compose.yml logs [service_name]`
 - Rebuild specific service: `docker-compose -f docker/docker-compose.yml build [service_name]`
+
+### Backend TypeScript Changes Not Reflected
+- If you change backend TypeScript files, you must run `npm run build` in the backend directory to update the compiled code in `dist/`.
+- Then restart the backend container: `docker-compose -f docker/docker-compose.yml restart backend`
+- If you skip this, your changes will not take effect.
 
 ## Next Steps
 
