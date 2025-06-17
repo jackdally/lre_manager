@@ -301,6 +301,8 @@ router.get('/template', async (req, res) => {
     'actual_date',
     'actual_amount',
     'notes',
+    'invoice_link_text',
+    'invoice_link_url',
   ];
   // Create a worksheet with just the headers
   const ws = XLSX.utils.aoa_to_sheet([headers]);

@@ -1,8 +1,4 @@
 import { DataSource } from 'typeorm';
-import { Program } from '../entities/Program';
-import { LedgerEntry } from '../entities/LedgerEntry';
-import { WbsCategory } from '../entities/WbsCategory';
-import { WbsSubcategory } from '../entities/WbsSubcategory';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -13,7 +9,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'lre_manager',
   synchronize: process.env.NODE_ENV === 'development',
   logging: process.env.NODE_ENV === 'development',
-  entities: [Program, LedgerEntry, WbsCategory, WbsSubcategory],
-  migrations: [],
-  subscribers: [],
+  entities: [__dirname + '/../entities/*.{ts,js}'],
+  migrations: [__dirname + '/../migrations/*.{ts,js}'],
+  subscribers: [__dirname + '/../subscribers/*.{ts,js}'],
 }); 

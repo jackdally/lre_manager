@@ -56,6 +56,8 @@ app.get('/api/ledger/template', (req, res) => {
     'actual_date',
     'actual_amount',
     'notes',
+    'invoice_link_text',
+    'invoice_link_url',
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers]);
   const wb = XLSX.utils.book_new();

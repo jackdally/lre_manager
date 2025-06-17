@@ -2,99 +2,111 @@
 
 ## Prerequisites
 
-- Node.js (v16 or higher)
+- Node.js (v18 or later)
+- npm (v8 or later)
 - Docker and Docker Compose
 - Git
+- PostgreSQL (if running without Docker)
 
-## Installation
+## Development Setup
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/lre_manager.git
-   cd lre_manager
-   ```
-
-2. Run the setup script:
-   ```bash
-   ./scripts/setup.sh
-   ```
-
-3. Configure environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-## Development Environment
-
-### Starting the Application
-
-1. Start all services:
-   ```bash
-   docker-compose up
-   ```
-
-2. Access the applications:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:3001
-
-### Development Workflow
-
-1. Frontend Development:
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-2. Backend Development:
-   ```bash
-   cd backend
-   npm run dev
-   ```
-
-## Database Setup
-
-The application uses PostgreSQL. The database is automatically configured when using Docker Compose.
-
-To manually set up the database:
-
-1. Create the database:
-   ```bash
-   createdb lre_manager
-   ```
-
-2. Run migrations:
-   ```bash
-   cd backend
-   npm run migrate
-   ```
-
-## Testing
-
-Run the test suite:
 ```bash
-./scripts/test.sh
+git clone https://github.com/yourusername/lre_manager.git
+cd lre_manager
+```
+
+2. Install dependencies:
+```bash
+# Install backend dependencies
+cd backend
+npm install
+cd ..
+
+# Install frontend dependencies
+cd frontend
+npm install
+cd ..
+```
+
+3. Set up environment variables:
+```bash
+# Backend
+cp backend/.env.example backend/.env
+# Edit backend/.env with your configuration
+
+# Frontend
+cp frontend/.env.example frontend/.env
+# Edit frontend/.env with your configuration
+```
+
+4. Start the development environment:
+```bash
+docker-compose -f docker/docker-compose.yml up
+```
+
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:4000
+- Database: localhost:5432
+
+## Environment Variables
+
+### Backend Environment Variables
+```env
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=lre_manager
+
+# JWT
+JWT_SECRET=your_secret_key
+JWT_EXPIRATION=24h
+
+# Logging
+LOG_LEVEL=debug
+
+# CORS
+FRONTEND_URL=http://localhost:3000
+```
+
+### Frontend Environment Variables
+```env
+# API
+REACT_APP_API_URL=http://localhost:4000
+
+# Environment
+NODE_ENV=development
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Database Issues
+- Try rebuilding containers: `docker-compose -f docker/docker-compose.yml build --no-cache`
+- Check container logs: `docker-compose -f docker/docker-compose.yml logs`
 
-1. **Port Conflicts**
-   - Ensure ports 3000 and 3001 are available
-   - Check for running instances of the application
+### Port Conflicts
+If you see port conflict errors:
+1. Check if any services are using the required ports (3000, 4000, 5432)
+2. Stop conflicting services
+3. Or modify the ports in `docker/docker-compose.yml`
 
-2. **Database Connection**
-   - Verify PostgreSQL is running
-   - Check database credentials in .env
+### Container Issues
+- Restart containers: `docker-compose -f docker/docker-compose.yml down && docker-compose -f docker/docker-compose.yml up`
+- Check logs: `docker-compose -f docker/docker-compose.yml logs [service_name]`
+- Rebuild specific service: `docker-compose -f docker/docker-compose.yml build [service_name]`
 
-3. **Docker Issues**
-   - Ensure Docker daemon is running
-   - Try rebuilding containers: `docker-compose build`
+## Next Steps
+
+- Review the [API Documentation](API.md)
+- Check the [Testing Guide](TESTING.md)
+- Read the [Contributing Guidelines](CONTRIBUTING.md)
 
 ## Support
 
 For additional help:
-- Check the [API Documentation](API.md)
-- Review the [Contributing Guidelines](CONTRIBUTING.md)
 - Open an issue on GitHub
+- Check existing issues for similar problems
+- Review the [FAQ](FAQ.md) (coming soon)

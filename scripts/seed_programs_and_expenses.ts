@@ -1,6 +1,6 @@
 // To run: npm install typeorm @types/node
 // Then: npx ts-node scripts/seed_programs_and_expenses.ts
-// You can override DB connection with POSTGRES_* environment variables
+// You can override DB connection with DB_* environment variables
 import { createConnection } from 'typeorm';
 import { Program } from '../backend/src/entities/Program';
 import { LedgerEntry } from '../backend/src/entities/LedgerEntry';
@@ -22,11 +22,11 @@ const subcategories = ['Engineering', 'Supplies', 'Flights', 'Machinery'];
 async function seed() {
   const connection = await createConnection({
     type: 'postgres',
-    host: process.env.POSTGRES_HOST || 'localhost',
-    port: parseInt(process.env.POSTGRES_PORT || '5432'),
-    username: process.env.POSTGRES_USER || 'postgres',
-    password: process.env.POSTGRES_PASSWORD || 'postgres',
-    database: process.env.POSTGRES_DB || 'lre_manager',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_NAME || 'lre_manager',
     entities: [Program, LedgerEntry, WbsCategory, WbsSubcategory],
     synchronize: false,
     logging: false,

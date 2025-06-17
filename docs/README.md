@@ -1,4 +1,4 @@
-# LRE Manager
+# LRE Manager Documentation
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/jackdally/lre_manager/actions)
@@ -6,7 +6,24 @@
 [![Pull Requests](https://img.shields.io/github/issues-pr/jackdally/lre_manager.svg)](https://github.com/jackdally/lre_manager/pulls)
 [![Last Commit](https://img.shields.io/github/last-commit/jackdally/lre_manager.svg)](https://github.com/jackdally/lre_manager/commits)
 
-A full-stack web application for managing program budgets and financial tracking. Built with React, Tailwind CSS, Node.js, Express, and PostgreSQL.
+## Documentation Index
+
+### Getting Started
+- [Setup Guide](SETUP.md) - Detailed setup instructions
+- [Architecture Overview](ARCHITECTURE.md) - System design and components
+- [FAQ](FAQ.md) - Frequently asked questions
+
+### Development
+- [API Documentation](API.md) - API endpoints and specifications
+- [API Examples](API_EXAMPLES.md) - Practical API usage examples
+- [Testing Guide](TESTING.md) - Testing procedures and guidelines
+
+### Security & Compliance
+- [Risk Register](RISK_REGISTER.md) - Known security risks and mitigations
+
+### Contributing
+- [Contributing Guidelines](CONTRIBUTING.md) - How to contribute to the project
+- [Code of Conduct](CODE_OF_CONDUCT.md) - Community standards and guidelines
 
 ## Features
 
@@ -40,13 +57,19 @@ A full-stack web application for managing program budgets and financial tracking
 
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
-   cd lre_manager_take2
+   git clone https://github.com/yourusername/lre_manager.git
+   cd lre_manager
    ```
 
 2. **Install dependencies:**
    ```bash
-   cd frontend && npm install && cd ../backend && npm install && cd ..
+   # Install backend dependencies
+   cd backend && npm install
+   cd ..
+
+   # Install frontend dependencies
+   cd frontend && npm install
+   cd ..
    ```
 
 3. **Configure environment variables:**
@@ -55,7 +78,7 @@ A full-stack web application for managing program budgets and financial tracking
 4. **Start the development environment:**
    - With Docker (recommended):
      ```bash
-     docker-compose up
+     docker-compose -f docker/docker-compose.yml up
      ```
    - Or run frontend and backend separately:
      ```bash
@@ -71,10 +94,21 @@ The application will be available at:
 
 ## Project Structure
 
-- `frontend/` — React + Tailwind CSS UI
-- `backend/` — Node.js/Express API (TypeScript, TypeORM)
-- `.env.example` — Example environment config
-- `docker-compose.yml` — Multi-service orchestration
+```
+lre_manager/
+├── backend/           # Backend API server
+├── frontend/         # React frontend application
+├── docker/          # Docker configuration files
+├── scripts/         # Utility scripts
+└── docs/           # Documentation
+```
+
+## Key Files
+
+- `docker/docker-compose.yml` — Multi-service orchestration
+- `docker/Dockerfile.frontend` — Frontend container configuration
+- `docker/Dockerfile.backend` — Backend container configuration
+- `docker/Dockerfile.db` — Database container configuration
 
 ## UI Overview
 
@@ -86,17 +120,12 @@ The application will be available at:
   - Summary bar with logo, program info, type, dates, and financials
   - Placeholders for charts and ledger/transactions
 
-## API Documentation
+## Support
 
-The API documentation is available at [http://localhost:4000/api-docs](http://localhost:4000/api-docs) when running the application.
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+For additional help:
+- Check the [FAQ](FAQ.md)
+- Open an issue on GitHub
+- Contact the maintainers
 
 ## License
 

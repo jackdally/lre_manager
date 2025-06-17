@@ -1,5 +1,74 @@
 #!/bin/bash
 
+# Exit on error
+set -e
+
+# Print usage information
+usage() {
+    echo "Usage: $0 [options]"
+    echo "Options:"
+    echo "  -h, --help           Show this help message"
+    echo "  -a, --annual ID      Generate transactions for Annual Program (ID required)"
+    echo "  -p, --pop ID         Generate transactions for POP Program (ID required)"
+    echo "  -n, --number NUM     Number of transactions to generate (default: 40)"
+    echo "  -u, --url URL        API URL (default: http://localhost:4000)"
+    echo "  -v, --verbose        Show detailed output"
+    exit 1
+}
+
+# Parse command line arguments
+ANNUAL_ID=""
+POP_ID=""
+NUM_TRANSACTIONS=40
+API_URL="http://localhost:4000"
+VERBOSE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            ;;
+        -a|--annual)
+            ANNUAL_ID="$2"
+            shift 2
+            ;;
+        -p|--pop)
+            POP_ID="$2"
+            shift 2
+            ;;
+        -n|--number)
+            NUM_TRANSACTIONS="$2"
+            shift 2
+            ;;
+        -u|--url)
+            API_URL="$2"
+            shift 2
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            ;;
+    esac
+done
+
+# Check if at least one program ID is provided
+if [ -z "$ANNUAL_ID" ] && [ -z "$POP_ID" ]; then
+    echo "Error: At least one program ID must be provided"
+    usage
+fi
+
+# Function to check if API is available
+check_api() {
+    if ! curl -s "$API_URL/health" > /dev/null; then
+        echo "Error: API is not available at $API_URL"
+        exit 1
+    fi
+}
+
 # Function to generate a random date between start and end dates
 random_date() {
     local start=$1
@@ -43,6 +112,8 @@ VENDORS=(
 generate_transaction() {
     local program_id=$1
     local is_annual=$2
+    local transaction_num=$3
+    local total=$4
     
     # Select random category and subcategory
     local categories=("${!WBS_CATEGORIES[@]}")
@@ -90,21 +161,50 @@ generate_transaction() {
     }"
     
     # Send POST request
-    curl -X POST http://localhost:4000/api/programs/$program_id/ledger \
+    if [ "$VERBOSE" = true ]; then
+        echo "Creating transaction $transaction_num/$total for Program $program_id..."
+    fi
+    
+    if ! curl -s -X POST "$API_URL/api/programs/$program_id/ledger" \
         -H "Content-Type: application/json" \
-        -d "$json"
+        -d "$json" > /dev/null; then
+        echo "Error: Failed to create transaction $transaction_num for Program $program_id"
+        return 1
+    fi
+    
+    if [ "$VERBOSE" = true ]; then
+        echo "Successfully created transaction $transaction_num/$total for Program $program_id"
+    fi
 }
 
-# Generate transactions for Annual Program (ID: 1)
-echo "Generating transactions for Annual Program..."
-for i in {1..40}; do
-    generate_transaction 1 true
-    echo "Created transaction $i for Annual Program"
-done
+# Main execution
+echo "Starting transaction generation..."
 
-# Generate transactions for POP Program (ID: 2)
-echo "Generating transactions for POP Program..."
-for i in {1..40}; do
-    generate_transaction 2 false
-    echo "Created transaction $i for POP Program"
-done 
+# Check if API is available
+check_api
+
+# Generate transactions for Annual Program if ID provided
+if [ -n "$ANNUAL_ID" ]; then
+    echo "Generating $NUM_TRANSACTIONS transactions for Annual Program (ID: $ANNUAL_ID)..."
+    for i in $(seq 1 $NUM_TRANSACTIONS); do
+        if ! generate_transaction "$ANNUAL_ID" true "$i" "$NUM_TRANSACTIONS"; then
+            echo "Error: Failed to generate transactions for Annual Program"
+            exit 1
+        fi
+    done
+    echo "Successfully generated $NUM_TRANSACTIONS transactions for Annual Program"
+fi
+
+# Generate transactions for POP Program if ID provided
+if [ -n "$POP_ID" ]; then
+    echo "Generating $NUM_TRANSACTIONS transactions for POP Program (ID: $POP_ID)..."
+    for i in $(seq 1 $NUM_TRANSACTIONS); do
+        if ! generate_transaction "$POP_ID" false "$i" "$NUM_TRANSACTIONS"; then
+            echo "Error: Failed to generate transactions for POP Program"
+            exit 1
+        fi
+    done
+    echo "Successfully generated $NUM_TRANSACTIONS transactions for POP Program"
+fi
+
+echo "Transaction generation completed successfully!" 

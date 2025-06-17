@@ -1,10 +1,10 @@
 module.exports = {
   database: {
-    host: process.env.POSTGRES_HOST || 'localhost',
-    port: parseInt(process.env.POSTGRES_PORT || '5432'),
-    username: process.env.POSTGRES_USER || 'lre_manager',
-    password: process.env.POSTGRES_PASSWORD || 'development',
-    database: process.env.POSTGRES_DB || 'lre_manager',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_NAME || 'lre_manager',
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'development_secret',

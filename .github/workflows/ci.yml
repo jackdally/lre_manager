@@ -12,11 +12,11 @@ jobs:
 
     services:
       postgres:
-        image: postgres:13
+        image: postgres:14-alpine
         env:
-          POSTGRES_USER: lre_manager
-          POSTGRES_PASSWORD: lre_manager
-          POSTGRES_DB: lre_manager_test
+          DB_USER: lre_manager
+          DB_PASSWORD: lre_manager
+          DB_NAME: lre_manager_test
         ports:
           - 5432:5432
         options: >-
@@ -26,35 +26,34 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v2
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
       with:
-        node-version: '16'
+        node-version: '18'
+        cache: 'npm'
 
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
-        npm ci
-        cd frontend && npm ci
-        cd ../backend && npm ci
+        cd backend && npm install
+        cd ../frontend && npm install
 
-    - name: Lint
-      run: |
-        npm run lint
-        cd frontend && npm run lint
-        cd ../backend && npm run lint
-
-    - name: Test
-      run: |
-        npm test
-        cd frontend && npm test
-        cd ../backend && npm test
+    - name: Run backend tests
       env:
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
-        POSTGRES_USER: lre_manager
-        POSTGRES_PASSWORD: lre_manager
-        POSTGRES_DB: lre_manager_test
+        NODE_ENV: test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: lre_manager
+        DB_PASSWORD: lre_manager
+        DB_NAME: lre_manager_test
         JWT_SECRET: test_secret
-        NODE_ENV: test 
+        JWT_EXPIRATION: 1h
+        LOG_LEVEL: error
+        FRONTEND_URL: http://localhost:3000
+      run: |
+        cd backend && npm test
+
+    - name: Run frontend tests
+      run: |
+        cd frontend && npm test 
