@@ -262,6 +262,8 @@ const ProgramDashboard: React.FC = () => {
   const [missingModalOpen, setMissingModalOpen] = useState(false);
   const [categoryChartType, setCategoryChartType] = useState<'bullet' | 'donut'>('bullet');
   const chartRef = useRef<HTMLDivElement>(null);
+  const [fullScreenOpen, setFullScreenOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(280); // 17.5rem = 280px
 
   useEffect(() => {
     const fetchProgram = async () => {
@@ -535,6 +537,24 @@ const ProgramDashboard: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    // Listen for sidebar open/close events by checking the sidebar element's width
+    const sidebar = document.getElementById('main-sidebar');
+    if (!sidebar) return;
+    const updateSidebarWidth = () => {
+      const width = sidebar.getBoundingClientRect().width;
+      setSidebarWidth(width);
+    };
+    updateSidebarWidth();
+    const resizeObserver = new window.ResizeObserver(updateSidebarWidth);
+    resizeObserver.observe(sidebar);
+    window.addEventListener('resize', updateSidebarWidth);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateSidebarWidth);
+    };
+  }, []);
+
   return (
     <Layout>
       <div>
@@ -794,8 +814,8 @@ const ProgramDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
               <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
                 <div className="text-lg font-bold mb-2">Monthly Financials</div>
-                {/* Export as PNG Button */}
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                {/* Export as PNG and Full Screen Buttons */}
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 8 }}>
                   <button
                     onClick={handleExportPng}
                     style={{
@@ -812,6 +832,23 @@ const ProgramDashboard: React.FC = () => {
                     }}
                   >
                     Export as PNG
+                  </button>
+                  <button
+                    onClick={() => setFullScreenOpen(true)}
+                    style={{
+                      background: '#3B82F6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 5,
+                      padding: '3px 10px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      opacity: 0.85,
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                    }}
+                  >
+                    Full Screen
                   </button>
                 </div>
                 {/* Legend Details Button */}
@@ -967,6 +1004,208 @@ const ProgramDashboard: React.FC = () => {
                     <div className="w-full h-full flex items-center justify-center text-gray-400">No data</div>
                   )}
                 </div>
+                {/* Full Screen Modal */}
+                {fullScreenOpen && (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: sidebarWidth,
+                      width: `calc(100vw - ${sidebarWidth}px)` ,
+                      height: '100vh',
+                      background: 'rgba(0,0,0,0.35)',
+                      zIndex: 2000,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 32,
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: 'white',
+                        borderRadius: 16,
+                        padding: 32,
+                        minWidth: 900,
+                        minHeight: 600,
+                        maxWidth: '90vw',
+                        maxHeight: '90vh',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+                        position: 'relative',
+                        width: '100%',
+                        height: '90vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
+                      {/* Modal Header: Export left, Close right */}
+                      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <button
+                          onClick={handleExportPng}
+                          style={{
+                            background: '#3B82F6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 5,
+                            padding: '3px 10px',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            opacity: 0.85,
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                            marginRight: 8
+                          }}
+                        >
+                          Export as PNG
+                        </button>
+                        <button
+                          onClick={() => setFullScreenOpen(false)}
+                          style={{
+                            fontSize: 28,
+                            background: 'none',
+                            border: 'none',
+                            color: '#6B7280',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            zIndex: 10,
+                            marginLeft: 8
+                          }}
+                          aria-label="Close Full Screen"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      <div style={{ flex: 1, width: '100%', height: '100%' }}>
+                        {filledSummary && filledSummary.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart 
+                              data={filledSummary} 
+                              margin={{ top: 20, right: 60, left: 40, bottom: 40 }}
+                              barCategoryGap="10%"
+                              barGap={0}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis 
+                                dataKey="month" 
+                                type="category"
+                                interval={0}
+                                tick={(props) => {
+                                  const { x, y, payload, index } = props;
+                                  // Show all if <=12, every 3rd if <=36, every 6th if more
+                                  const total = filledSummary.length;
+                                  let show = true;
+                                  if (total > 36) {
+                                    show = index % 6 === 0;
+                                  } else if (total > 12) {
+                                    show = index % 3 === 0;
+                                  }
+                                  if (!show) return <g />;
+                                  const [year, month] = payload.value.split('-').map(Number);
+                                  const date = new Date(year, month - 1, 1);
+                                  const label = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                                  return (
+                                    <text x={x} y={y + 12} textAnchor="middle" fontSize={12}>
+                                      {label}
+                                    </text>
+                                  );
+                                }}
+                                padding={{ left: 0, right: 0 }}
+                                label={{
+                                  value: 'Month',
+                                  position: 'insideBottom',
+                                  offset: -8,
+                                  fontSize: 14,
+                                  fill: '#6B7280'
+                                }}
+                              />
+                              <YAxis
+                                yAxisId="left"
+                                tick={{ fontSize: 12 }}
+                                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                                label={(props: any) => <CustomYAxisLabel {...props} axis="left" />}
+                                domain={['auto', 'auto']}
+                              />
+                              <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                tick={{ fontSize: 12 }}
+                                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                                label={(props: any) => <CustomYAxisLabel {...props} axis="right" />}
+                                domain={[0, 'dataMax']}
+                              />
+                              <Tooltip content={<MainChartTooltip />} />
+                              <Bar 
+                                yAxisId="left" 
+                                dataKey="baseline" 
+                                fill="#9CA3AF" 
+                                name="Baseline"
+                                opacity={0.6}
+                              />
+                              <Bar 
+                                yAxisId="left" 
+                                dataKey="planned" 
+                                fill="#FCD34D" 
+                                name="Planned"
+                                opacity={0.6}
+                              />
+                              <Bar 
+                                yAxisId="left" 
+                                dataKey="actual" 
+                                fill="#93C5FD" 
+                                name="Actual"
+                                opacity={0.6}
+                              />
+                              <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="cumBaseline"
+                                stroke="#4B5563"
+                                name="Cumulative Baseline"
+                                strokeWidth={3.75}
+                                dot={{ r: 4 }}
+                                activeDot={{ r: 6 }}
+                              />
+                              <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="cumPlanned"
+                                stroke="#D97706"
+                                name="Cumulative Planned"
+                                strokeWidth={3}
+                                strokeDasharray="6 4"
+                                dot={{ r: 4 }}
+                                activeDot={{ r: 6 }}
+                              />
+                              <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="cumEACCombined"
+                                stroke="#16A34A"
+                                name="Cumulative Projected"
+                                strokeWidth={2.5}
+                                strokeDasharray="6 4"
+                                dot={false}
+                                isAnimationActive={false}
+                              />
+                              <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="cumActual"
+                                stroke="#2563EB"
+                                name="Cumulative Actual"
+                                strokeWidth={3.75}
+                                dot={{ r: 4 }}
+                                activeDot={{ r: 6 }}
+                              />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">No data</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Legend Modal */}
                 {legendOpen && (
                   <div style={{
