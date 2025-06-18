@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import Layout from './Layout';
@@ -20,6 +20,7 @@ import {
   Cell
 } from 'recharts';
 import { addMonths, format, subMonths } from 'date-fns';
+import html2canvas from 'html2canvas';
 
 interface Program {
   id: string;
@@ -194,6 +195,43 @@ const getYearMonth = (dateStr: string | null | undefined) => {
   return `${y}-${m}`;
 };
 
+// --- Types for API responses ---
+interface SummaryType {
+  actualsToDate: number;
+  etc: number;
+  eac: number;
+  vac: number;
+  scheduleVariance: number;
+  schedulePerformanceIndex: number;
+  costVariance: number;
+  costPerformanceIndex: number;
+  project_baseline_total: number;
+  baselineToDate: number;
+  project_planned_total: number;
+  plannedToDate: number;
+}
+
+interface FullSummaryType {
+  month: string;
+  baseline: number;
+  planned: number;
+  actual: number;
+  cumBaseline: number;
+  cumPlanned: number;
+  cumActual: number;
+  cumEACCombined: number;
+}
+
+interface TopRowSummaryType {
+  actualsToDate: number;
+  eac: number;
+  vac: number;
+}
+
+interface LedgerEntriesResponse {
+  entries: LedgerEntry[];
+}
+
 const ProgramDashboard: React.FC = () => {
   const { id } = useParams();
   const [program, setProgram] = useState<Program | null>(null);
@@ -212,24 +250,25 @@ const ProgramDashboard: React.FC = () => {
     return `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`;
   };
   const [selectedMonth, setSelectedMonth] = useState(getPrevUtcMonth);
-  const [summary, setSummary] = useState<any>(null);
-  const [fullSummary, setFullSummary] = useState<any[]>([]);
+  const [summary, setSummary] = useState<SummaryType | null>(null);
+  const [fullSummary, setFullSummary] = useState<FullSummaryType[]>([]);
   const [filledSummary, setFilledSummary] = useState<any[]>([]);
   const [outOfWindowWarning, setOutOfWindowWarning] = useState<string | null>(null);
-  const [topRowSummary, setTopRowSummary] = useState<any>(null);
+  const [topRowSummary, setTopRowSummary] = useState<TopRowSummaryType | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [missingActuals, setMissingActuals] = useState<LedgerEntry[]>([]);
   const [missingModalOpen, setMissingModalOpen] = useState(false);
   const [categoryChartType, setCategoryChartType] = useState<'bullet' | 'donut'>('bullet');
+  const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchProgram = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`/api/programs/${id}`);
+        const response = await axios.get<Program>(`/api/programs/${id}`);
         setProgram(response.data);
       } catch (err: any) {
         setError('Failed to load program.');
@@ -243,7 +282,7 @@ const ProgramDashboard: React.FC = () => {
   const fetchSummary = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`/api/programs/${program.id}/ledger/summary`, {
+      const res = await axios.get<SummaryType>(`/api/programs/${program.id}/ledger/summary`, {
         params: { month: selectedMonth },
       });
       setSummary(res.data);
@@ -255,8 +294,8 @@ const ProgramDashboard: React.FC = () => {
   const fetchFullSummary = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`/api/programs/${program.id}/ledger/summary-full`);
-      setFullSummary(res.data);
+      const res = await axios.get<FullSummaryType[]>(`/api/programs/${program.id}/ledger/summary-full`);
+      setFullSummary(res.data as FullSummaryType[]);
     } catch (err) {
       setFullSummary([]);
     }
@@ -265,7 +304,7 @@ const ProgramDashboard: React.FC = () => {
   const fetchTopRowSummary = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`/api/programs/${program.id}/ledger/summary`, {
+      const res = await axios.get<TopRowSummaryType>(`/api/programs/${program.id}/ledger/summary`, {
         params: { month: selectedMonth },
       });
       setTopRowSummary(res.data);
@@ -277,10 +316,10 @@ const ProgramDashboard: React.FC = () => {
   const fetchLedgerEntries = useCallback(async () => {
     if (!program || !program.id) return;
     try {
-      const res = await axios.get(`/api/programs/${program.id}/ledger`, {
+      const res = await axios.get<LedgerEntriesResponse>(`/api/programs/${program.id}/ledger`, {
         params: { page: 1, pageSize: 10000 }
       });
-      setLedgerEntries(res.data.entries);
+      setLedgerEntries((res.data as LedgerEntriesResponse).entries);
     } catch (err) {
       setLedgerEntries([]);
     }
@@ -479,6 +518,21 @@ const ProgramDashboard: React.FC = () => {
     fetchFullSummary();
     fetchTopRowSummary();
     fetchLedgerEntries();
+  };
+
+  // Export chart as PNG
+  const handleExportPng = async () => {
+    if (chartRef.current && program && program.code && selectedMonth) {
+      const canvas = await html2canvas(chartRef.current, { background: '#fff', useCORS: true });
+      const link = document.createElement('a');
+      // Format month as 'MMM yyyy'
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const date = new Date(year, month - 1, 1);
+      const monthLabel = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+      link.download = `${program.code} - ${monthLabel} Monthly Financials.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
   };
 
   return (
@@ -740,6 +794,26 @@ const ProgramDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
               <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
                 <div className="text-lg font-bold mb-2">Monthly Financials</div>
+                {/* Export as PNG Button */}
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                  <button
+                    onClick={handleExportPng}
+                    style={{
+                      background: '#3B82F6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 5,
+                      padding: '3px 10px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      opacity: 0.85,
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                    }}
+                  >
+                    Export as PNG
+                  </button>
+                </div>
                 {/* Legend Details Button */}
                 <div style={{ width: '100%', position: 'relative', minHeight: 32 }}>
                   <button
@@ -763,7 +837,7 @@ const ProgramDashboard: React.FC = () => {
                   </button>
                 </div>
                 {/* Full project chart: clustered bars + cumulative lines */}
-                <div className="w-full h-72">
+                <div ref={chartRef} className="w-full h-72">
                   {filledSummary && filledSummary.length > 0 ? (
                     <>
                       <ResponsiveContainer width="100%" height="100%">
