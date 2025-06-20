@@ -59,7 +59,7 @@ const ProgramDirectory: React.FC = () => {
   const fetchPrograms = async () => {
     try {
       const response = await axios.get('/api/programs');
-      setPrograms(response.data);
+      setPrograms(response.data as Program[]);
     } catch (error) {
       console.error('Error fetching programs:', error);
     }
@@ -142,8 +142,8 @@ const ProgramDirectory: React.FC = () => {
             axios.get(`/api/programs/${program.id}/ledger/summary-full`),
             axios.get(`/api/programs/${program.id}/ledger`, { params: { page: 1, pageSize: 10000 } })
           ]);
-          const summaryFull = summaryFullRes.data;
-          const ledgerEntries = ledgerRes.data.entries;
+          const summaryFull = summaryFullRes.data as any[];
+          const ledgerEntries = (ledgerRes.data as { entries: any[] }).entries;
           // Go through months in reverse order, find last month with no missing actuals
           let lastCompleteMonth = null;
           for (let i = summaryFull.length - 1; i >= 0; i--) {
@@ -156,7 +156,7 @@ const ProgramDirectory: React.FC = () => {
           if (lastCompleteMonth) {
             // Fetch the summary for that month
             const summaryRes = await axios.get(`/api/programs/${program.id}/ledger/summary`, { params: { month: lastCompleteMonth } });
-            summaryResults[program.id] = { ...summaryRes.data, month: lastCompleteMonth };
+            summaryResults[program.id] = { ...(summaryRes.data as object), month: lastCompleteMonth };
           } else {
             summaryResults[program.id] = null;
           }

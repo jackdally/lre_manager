@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from './Layout';
 import LedgerTable from './LedgerTable';
@@ -11,6 +11,22 @@ const LedgerPage: React.FC = () => {
   const [importing, setImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
+  
+  // New filter states for dropdown filters
+  const [vendorFilter, setVendorFilter] = useState<string>('');
+  const [wbsCategoryFilter, setWbsCategoryFilter] = useState<string>('');
+  const [wbsSubcategoryFilter, setWbsSubcategoryFilter] = useState<string>('');
+  
+  // Dropdown options state
+  const [dropdownOptions, setDropdownOptions] = useState<{
+    vendors: string[];
+    categories: string[];
+    subcategories: string[];
+  }>({ vendors: [], categories: [], subcategories: [] });
+
+  const handleOptionsUpdate = useCallback((options: { vendors: string[], categories: string[], subcategories: string[] }) => {
+    setDropdownOptions(options);
+  }, []);
 
   if (!id) return <div>Missing program ID</div>;
   const programId = id;
@@ -44,27 +60,88 @@ const LedgerPage: React.FC = () => {
           <h1 className="text-2xl font-bold">Ledger Page</h1>
           <button className="btn btn-primary" onClick={() => setShowImportModal(true)}>Import</button>
         </div>
-        <div className="flex gap-4 mb-6">
-          <button
-            className={`btn px-4 py-2 rounded-md ${filterType === 'all' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
-            onClick={() => setFilterType('all')}
-          >
-            Show All
-          </button>
-          <button
-            className={`btn px-4 py-2 rounded-md ${filterType === 'currentMonthPlanned' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
-            onClick={() => setFilterType('currentMonthPlanned')}
-          >
-            Show Current Month Planned Expenses
-          </button>
-          <button
-            className={`btn px-4 py-2 rounded-md ${filterType === 'emptyActuals' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
-            onClick={() => setFilterType('emptyActuals')}
-          >
-            Show Empty Actuals
-          </button>
+        
+        {/* Quick Filters Section */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3 text-gray-800">Quick Filters</h2>
+          <div className="flex gap-4">
+            <button
+              className={`btn px-4 py-2 rounded-md ${filterType === 'all' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
+              onClick={() => setFilterType('all')}
+            >
+              Show All
+            </button>
+            <button
+              className={`btn px-4 py-2 rounded-md ${filterType === 'currentMonthPlanned' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
+              onClick={() => setFilterType('currentMonthPlanned')}
+            >
+              Show Current Month Planned Expenses
+            </button>
+            <button
+              className={`btn px-4 py-2 rounded-md ${filterType === 'emptyActuals' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
+              onClick={() => setFilterType('emptyActuals')}
+            >
+              Show Empty Actuals
+            </button>
+          </div>
         </div>
-        <LedgerTable programId={programId} showAll filterType={filterType} />
+
+        {/* All Filters Section */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3 text-gray-800">All Filters</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
+              <select
+                value={vendorFilter}
+                onChange={(e) => setVendorFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Vendors</option>
+                {dropdownOptions.vendors.map(vendor => (
+                  <option key={vendor} value={vendor}>{vendor}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">WBS Category</label>
+              <select
+                value={wbsCategoryFilter}
+                onChange={(e) => setWbsCategoryFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Categories</option>
+                {dropdownOptions.categories.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">WBS Subcategory</label>
+              <select
+                value={wbsSubcategoryFilter}
+                onChange={(e) => setWbsSubcategoryFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Subcategories</option>
+                {dropdownOptions.subcategories.map(subcategory => (
+                  <option key={subcategory} value={subcategory}>{subcategory}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <LedgerTable 
+          programId={programId} 
+          showAll 
+          filterType={filterType}
+          vendorFilter={vendorFilter}
+          wbsCategoryFilter={wbsCategoryFilter}
+          wbsSubcategoryFilter={wbsSubcategoryFilter}
+          onOptionsUpdate={handleOptionsUpdate}
+        />
+        
         {showImportModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
             <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">

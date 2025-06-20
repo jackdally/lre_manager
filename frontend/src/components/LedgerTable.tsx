@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 
 export interface LedgerEntry {
@@ -24,6 +24,10 @@ interface LedgerTableProps {
   showAll?: boolean;
   onChange?: () => void;
   filterType?: 'all' | 'currentMonthPlanned' | 'emptyActuals';
+  vendorFilter?: string;
+  wbsCategoryFilter?: string;
+  wbsSubcategoryFilter?: string;
+  onOptionsUpdate?: (options: { vendors: string[], categories: string[], subcategories: string[] }) => void;
 }
 
 const PAGE_SIZE = 10;
@@ -36,7 +40,7 @@ function formatCurrency(val: number | undefined | null) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(val));
 }
 
-const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange, filterType = 'all' }) => {
+const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange, filterType = 'all', vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter, onOptionsUpdate }) => {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -58,10 +62,13 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
   const [popoverText, setPopoverText] = useState('');
   const [popoverUrl, setPopoverUrl] = useState('');
 
-  // For dropdowns
-  const vendorOptions = Array.from(new Set(entries.map(e => e.vendor_name).filter(Boolean)));
-  const wbsCategoryOptions = Array.from(new Set(entries.map(e => e.wbs_category).filter(Boolean)));
-  const wbsSubcategoryOptions = Array.from(new Set(entries.map(e => e.wbs_subcategory).filter(Boolean)));
+  // Ref to track previous options to prevent unnecessary updates
+  const prevOptionsRef = useRef<{ vendors: string[], categories: string[], subcategories: string[] } | null>(null);
+
+  // For dropdowns - memoize to prevent unnecessary recalculations
+  const vendorOptions = useMemo(() => Array.from(new Set(entries.map(e => e.vendor_name).filter(Boolean))), [entries]);
+  const wbsCategoryOptions = useMemo(() => Array.from(new Set(entries.map(e => e.wbs_category).filter(Boolean))), [entries]);
+  const wbsSubcategoryOptions = useMemo(() => Array.from(new Set(entries.map(e => e.wbs_subcategory).filter(Boolean))), [entries]);
 
   const fetchEntries = useCallback(async () => {
     try {
@@ -75,12 +82,36 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
           params: { page, pageSize: PAGE_SIZE, search },
         });
       }
-      setEntries(res.data.entries);
-      setTotal(res.data.total);
+      const data = res.data as { entries: LedgerEntry[], total: number };
+      setEntries(data.entries);
+      setTotal(data.total);
+      
+      // Only call onOptionsUpdate if it exists and we have entries
+      if (onOptionsUpdate && data.entries.length > 0) {
+        const newVendors = Array.from(new Set(data.entries.map((e: LedgerEntry) => e.vendor_name).filter(Boolean)));
+        const newCategories = Array.from(new Set(data.entries.map((e: LedgerEntry) => e.wbs_category).filter(Boolean)));
+        const newSubcategories = Array.from(new Set(data.entries.map((e: LedgerEntry) => e.wbs_subcategory).filter(Boolean)));
+        
+        const newOptions = {
+          vendors: newVendors,
+          categories: newCategories,
+          subcategories: newSubcategories,
+        };
+        
+        // Only update if options have actually changed
+        const prevOptions = prevOptionsRef.current;
+        if (!prevOptions || 
+            JSON.stringify(prevOptions.vendors) !== JSON.stringify(newOptions.vendors) ||
+            JSON.stringify(prevOptions.categories) !== JSON.stringify(newOptions.categories) ||
+            JSON.stringify(prevOptions.subcategories) !== JSON.stringify(newOptions.subcategories)) {
+          prevOptionsRef.current = newOptions;
+          onOptionsUpdate(newOptions);
+        }
+      }
     } catch (err) {
       // handle error
     }
-  }, [programId, page, search, showAll]);
+  }, [programId, page, search, showAll, onOptionsUpdate]);
 
   useEffect(() => {
     fetchEntries();
@@ -283,8 +314,10 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     }
   };
 
-  // Filter entries based on filterType
+  // Filter entries based on filterType and dropdown filters
   let filteredEntries = entries;
+  
+  // Apply filterType filters first
   if (filterType === 'currentMonthPlanned') {
     const now = new Date();
     const year = now.getFullYear();
@@ -293,6 +326,17 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     filteredEntries = entries.filter(e => e.planned_date && e.planned_date.startsWith(currentMonthStr));
   } else if (filterType === 'emptyActuals') {
     filteredEntries = entries.filter(e => !e.actual_date || e.actual_amount == null);
+  }
+  
+  // Apply dropdown filters
+  if (vendorFilter) {
+    filteredEntries = filteredEntries.filter(e => e.vendor_name === vendorFilter);
+  }
+  if (wbsCategoryFilter) {
+    filteredEntries = filteredEntries.filter(e => e.wbs_category === wbsCategoryFilter);
+  }
+  if (wbsSubcategoryFilter) {
+    filteredEntries = filteredEntries.filter(e => e.wbs_subcategory === wbsSubcategoryFilter);
   }
 
   return (

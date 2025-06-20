@@ -35,11 +35,11 @@ const ProgramSettingsPage: React.FC = () => {
       try {
         const progRes = await axios.get(`/api/programs/${id}`);
         setProgram(progRes.data);
-        setProgramForm({ ...progRes.data });
+        setProgramForm({ ...(progRes.data as object) });
         // Fetch WBS from backend
         const wbsRes = await axios.get(`/api/programs/${id}/wbs`);
-        setWbsList(wbsRes.data);
-        setWbsEdit(JSON.parse(JSON.stringify(wbsRes.data)));
+        setWbsList(wbsRes.data as WbsCategory[]);
+        setWbsEdit(JSON.parse(JSON.stringify(wbsRes.data)) as WbsCategory[]);
       } catch (err: any) {
         setError('Failed to load program or WBS data.');
       } finally {
@@ -83,8 +83,8 @@ const ProgramSettingsPage: React.FC = () => {
     setWbsError(null);
     try {
       const res = await axios.post(`/api/programs/${id}/wbs/categories`, { name: '' });
-      setWbsList(list => [...list, { ...res.data, subcategories: [] }]);
-      setWbsEdit(edit => [...edit, { ...res.data, subcategories: [] }]);
+      setWbsList(list => [...list, { ...(res.data as WbsCategory), subcategories: [] }]);
+      setWbsEdit(edit => [...edit, { ...(res.data as WbsCategory), subcategories: [] }]);
     } catch (err: any) {
       setWbsError('Failed to add category.');
     } finally {
@@ -136,8 +136,8 @@ const ProgramSettingsPage: React.FC = () => {
     setWbsError(null);
     try {
       const res = await axios.post(`/api/programs/wbs/categories/${cat.id}/subcategories`, { name: '' });
-      setWbsList(list => list.map((w, i) => i === catIdx ? { ...w, subcategories: [...w.subcategories, res.data] } : w));
-      setWbsEdit(edit => edit.map((w, i) => i === catIdx ? { ...w, subcategories: [...w.subcategories, res.data] } : w));
+      setWbsList(list => list.map((w, i) => i === catIdx ? { ...w, subcategories: [...w.subcategories, res.data as WbsSubcategory] } : w));
+      setWbsEdit(edit => edit.map((w, i) => i === catIdx ? { ...w, subcategories: [...w.subcategories, res.data as WbsSubcategory] } : w));
     } catch (err: any) {
       setWbsError('Failed to add subcategory.');
     } finally {
