@@ -1,0 +1,450 @@
+import { Router, Request } from 'express';
+import { ImportService, ImportConfig } from '../services/importService';
+import { AppDataSource } from '../config/database';
+import { ImportConfig as ImportConfigEntity } from '../entities/ImportConfig';
+import multer from 'multer';
+import path from 'path';
+import * as fs from 'fs';
+
+const router = Router();
+const importService = new ImportService();
+const importConfigRepo = AppDataSource.getRepository(ImportConfigEntity);
+const upload = multer({ dest: '/tmp' });
+
+// Upload and process NetSuite file
+router.post('/:programId/upload', upload.single('file'), async (req: Request & { file?: any }, res) => {
+  try {
+    const { programId } = req.params;
+    const { description, config } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
+      return res.status(400).json({ error: 'Unsupported file type. Please upload Excel or CSV files.' });
+    }
+
+    // Parse config from request body
+    const importConfig: ImportConfig = JSON.parse(config);
+
+    // Create import session
+    const session = await importService.createImportSession(
+      req.file.path,
+      req.file.originalname,
+      description || 'NetSuite Actuals Upload',
+      programId,
+      importConfig
+    );
+
+    // Process the file
+    const result = await importService.processNetSuiteFile(session.id);
+
+    res.json({
+      sessionId: session.id,
+      ...result
+    });
+
+  } catch (error: any) {
+    console.error('Import error:', error);
+    res.status(500).json({ 
+      error: error.message || 'Import failed',
+      details: error.stack 
+    });
+  }
+});
+
+// Get import sessions for a program
+router.get('/:programId/sessions', async (req, res) => {
+  try {
+    const { programId } = req.params;
+    const sessions = await importService.getImportSessions(programId);
+    res.json(sessions);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch import sessions' });
+  }
+});
+
+// Get import session details
+router.get('/session/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await importService.getImportSession(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Import session not found' });
+    }
+
+    res.json(session);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch import session' });
+  }
+});
+
+// Get transactions for an import session
+router.get('/session/:sessionId/transactions', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const transactions = await importService.getImportTransactions(sessionId);
+    res.json(transactions);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch transactions' });
+  }
+});
+
+// Confirm a match between transaction and ledger entry
+router.post('/transaction/:transactionId/confirm-match', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { ledgerEntryId } = req.body;
+
+    console.log('[CONFIRM MATCH] Received request:', { transactionId, ledgerEntryId });
+
+    if (!ledgerEntryId) {
+      console.log('[CONFIRM MATCH] Error: Ledger entry ID is required');
+      return res.status(400).json({ error: 'Ledger entry ID is required' });
+    }
+
+    await importService.confirmMatch(transactionId, ledgerEntryId);
+    console.log('[CONFIRM MATCH] Successfully confirmed match');
+    res.json({ message: 'Match confirmed successfully' });
+  } catch (error: any) {
+    console.error('[CONFIRM MATCH] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to confirm match' });
+  }
+});
+
+// Add unmatched transaction to ledger as unplanned expense
+router.post('/transaction/:transactionId/add-to-ledger', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { wbsCategory, wbsSubcategory } = req.body;
+
+    if (!wbsCategory || !wbsSubcategory) {
+      return res.status(400).json({ error: 'WBS category and subcategory are required' });
+    }
+
+    await importService.addUnmatchedToLedger(transactionId, wbsCategory, wbsSubcategory);
+    res.json({ message: 'Transaction added to ledger successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to add transaction to ledger' });
+  }
+});
+
+// Save import configuration
+router.post('/:programId/config', async (req, res) => {
+  try {
+    const { programId } = req.params;
+    const { name, description, columnMapping, isDefault = false, isGlobal = false } = req.body;
+
+    if (!name || !columnMapping) {
+      return res.status(400).json({ error: 'Name and column mapping are required' });
+    }
+
+    // If this is being set as default, unset any existing default for this program
+    if (isDefault && !isGlobal) {
+      await importConfigRepo.update(
+        { program: { id: programId }, isDefault: true },
+        { isDefault: false }
+      );
+    }
+
+    // If this is being set as global default, unset any existing global default
+    if (isDefault && isGlobal) {
+      await importConfigRepo.update(
+        { isGlobal: true, isDefault: true },
+        { isDefault: false }
+      );
+    }
+
+    const config = importConfigRepo.create({
+      name,
+      description: description || '',
+      columnMapping,
+      isDefault,
+      isGlobal,
+      program: isGlobal ? null : { id: programId }
+    });
+
+    const savedConfig = await importConfigRepo.save(config);
+    res.status(201).json(savedConfig);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to save configuration' });
+  }
+});
+
+// Get saved configurations for a program (including global configs)
+router.get('/:programId/config', async (req, res) => {
+  try {
+    const { programId } = req.params;
+    
+    // Get both program-specific and global configurations
+    const [programConfigs, globalConfigs] = await Promise.all([
+      importConfigRepo.find({
+        where: { program: { id: programId }, isGlobal: false },
+        order: { isDefault: 'DESC', name: 'ASC' }
+      }),
+      importConfigRepo.find({
+        where: { isGlobal: true },
+        order: { isDefault: 'DESC', name: 'ASC' }
+      })
+    ]);
+
+    // Combine and mark global configs
+    const allConfigs = [
+      ...programConfigs,
+      ...globalConfigs.map(config => ({ ...config, isGlobal: true }))
+    ];
+
+    res.json(allConfigs);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch configurations' });
+  }
+});
+
+// Get all global configurations
+router.get('/config/global', async (req, res) => {
+  try {
+    const globalConfigs = await importConfigRepo.find({
+      where: { isGlobal: true },
+      order: { isDefault: 'DESC', name: 'ASC' }
+    });
+    res.json(globalConfigs);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch global configurations' });
+  }
+});
+
+// Copy configuration to another program
+router.post('/config/:configId/copy', async (req, res) => {
+  try {
+    const { configId } = req.params;
+    const { targetProgramId, name, description, isDefault = false } = req.body;
+
+    if (!targetProgramId) {
+      return res.status(400).json({ error: 'Target program ID is required' });
+    }
+
+    // Get the source configuration
+    const sourceConfig = await importConfigRepo.findOne({
+      where: { id: configId },
+      relations: ['program']
+    });
+
+    if (!sourceConfig) {
+      return res.status(404).json({ error: 'Source configuration not found' });
+    }
+
+    // If setting as default, unset existing default for target program
+    if (isDefault) {
+      await importConfigRepo.update(
+        { program: { id: targetProgramId }, isDefault: true },
+        { isDefault: false }
+      );
+    }
+
+    // Create the copied configuration
+    const copiedConfig = importConfigRepo.create({
+      name: name || `${sourceConfig.name} (Copy)`,
+      description: description || sourceConfig.description,
+      columnMapping: sourceConfig.columnMapping,
+      isDefault,
+      isGlobal: false, // Copied configs are always program-specific
+      program: { id: targetProgramId }
+    });
+
+    const savedConfig = await importConfigRepo.save(copiedConfig);
+    res.status(201).json(savedConfig);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to copy configuration' });
+  }
+});
+
+// Get a specific configuration
+router.get('/config/:configId', async (req, res) => {
+  try {
+    const { configId } = req.params;
+    const config = await importConfigRepo.findOne({
+      where: { id: configId },
+      relations: ['program']
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
+
+    res.json(config);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch configuration' });
+  }
+});
+
+// Update a configuration
+router.put('/config/:configId', async (req, res) => {
+  try {
+    const { configId } = req.params;
+    const { name, description, columnMapping, isDefault = false, isGlobal = false } = req.body;
+
+    const config = await importConfigRepo.findOne({
+      where: { id: configId },
+      relations: ['program']
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
+
+    // Handle default configuration updates
+    if (isDefault && isGlobal) {
+      // Unset any existing global default
+      await importConfigRepo.update(
+        { isGlobal: true, isDefault: true },
+        { isDefault: false }
+      );
+    } else if (isDefault && !isGlobal && config.program) {
+      // Unset any existing default for this program
+      await importConfigRepo.update(
+        { program: { id: config.program.id }, isDefault: true },
+        { isDefault: false }
+      );
+    }
+
+    config.name = name || config.name;
+    config.description = description || config.description;
+    config.columnMapping = columnMapping || config.columnMapping;
+    config.isDefault = isDefault;
+    config.isGlobal = isGlobal;
+
+    const updatedConfig = await importConfigRepo.save(config);
+    res.json(updatedConfig);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to update configuration' });
+  }
+});
+
+// Delete a configuration
+router.delete('/config/:configId', async (req, res) => {
+  try {
+    const { configId } = req.params;
+    const config = await importConfigRepo.findOneBy({ id: configId });
+
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
+
+    await importConfigRepo.remove(config);
+    res.json({ message: 'Configuration deleted successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to delete configuration' });
+  }
+});
+
+// Get NetSuite import template
+router.get('/template/netsuite', (req, res) => {
+  const template = {
+    description: 'NetSuite Export Template',
+    columns: {
+      programCodeColumn: 'Program Code',
+      vendorColumn: 'Vendor Name',
+      descriptionColumn: 'Description',
+      amountColumn: 'Amount',
+      dateColumn: 'Transaction Date',
+      categoryColumn: 'Category',
+      subcategoryColumn: 'Subcategory',
+      invoiceColumn: 'Invoice Number',
+      referenceColumn: 'Reference Number'
+    },
+    sampleData: [
+      {
+        'Program Code': 'PROG001',
+        'Vendor Name': 'ABC Supplies Inc',
+        'Description': 'Office supplies for Q1',
+        'Amount': '1250.00',
+        'Transaction Date': '2024-01-15',
+        'Category': 'Supplies',
+        'Subcategory': 'Office',
+        'Invoice Number': 'INV-2024-001',
+        'Reference Number': 'REF-001'
+      }
+    ]
+  };
+
+  res.json(template);
+});
+
+// Clean up import session and files
+router.delete('/session/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await importService.getImportSession(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Import session not found' });
+    }
+
+    // Delete the uploaded file
+    if (fs.existsSync(session.filename)) {
+      fs.unlinkSync(session.filename);
+    }
+
+    // Note: In a production environment, you might want to soft delete the session
+    // instead of hard deleting it for audit purposes
+    
+    res.json({ message: 'Import session deleted successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to delete import session' });
+  }
+});
+
+// Get session details
+router.get('/session/:id/details', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const session = await importService.getImportSession(id);
+    if (!session) return res.status(404).json({ error: 'Upload session not found' });
+    const transactions = await importService.getImportTransactions(id);
+    res.json({ session, transactions });
+  } catch (err) {
+    console.error('Error fetching upload session details:', err);
+    res.status(500).json({ error: 'Failed to fetch upload session details' });
+  }
+});
+
+// Remove a confirmed match between transaction and ledger entry
+router.post('/transaction/:transactionId/remove-match', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    await importService.removeMatch(transactionId);
+    res.json({ message: 'Match removed successfully' });
+  } catch (error: any) {
+    console.error('[REMOVE MATCH] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to remove match' });
+  }
+});
+
+// Undo a rejection for a transaction
+router.post('/transaction/:transactionId/undo-reject', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    await importService.undoReject(transactionId);
+    res.json({ message: 'Rejection undone successfully' });
+  } catch (error: any) {
+    console.error('[UNDO REJECT] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to undo rejection' });
+  }
+});
+
+// Reject a potential match for a transaction
+router.post('/transaction/:transactionId/reject', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    await importService.rejectMatch(transactionId);
+    res.json({ message: 'Match rejected successfully' });
+  } catch (error: any) {
+    console.error('[REJECT MATCH] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to reject match' });
+  }
+});
+
+export const importRouter = router; 

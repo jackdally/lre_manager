@@ -29,7 +29,44 @@ router.get('/:programId/ledger', async (req, res) => {
       take: Number(pageSize),
       relations: ['program'],
     });
-    res.json({ entries, total });
+
+    // For each entry, find the related ImportTransaction (if any) and its ImportSession
+    const importTransactionRepo = AppDataSource.getRepository(require('../entities/ImportTransaction').ImportTransaction);
+    const importSessionRepo = AppDataSource.getRepository(require('../entities/ImportSession').ImportSession);
+    const entriesWithImportInfo = await Promise.all(entries.map(async (entry) => {
+      const importTransaction = await importTransactionRepo.findOne({
+        where: {
+          matchedLedgerEntry: { id: entry.id },
+          amount: entry.actual_amount,
+          transactionDate: entry.actual_date,
+        },
+        relations: ['importSession'],
+        order: { createdAt: 'DESC' },
+      });
+      if (importTransaction) {
+        return {
+          ...entry,
+          importTransaction: {
+            id: importTransaction.id,
+            vendorName: importTransaction.vendorName,
+            description: importTransaction.description,
+            amount: importTransaction.amount,
+            transactionDate: importTransaction.transactionDate,
+            status: importTransaction.status,
+            importSession: importTransaction.importSession ? {
+              id: importTransaction.importSession.id,
+              originalFilename: importTransaction.importSession.originalFilename,
+              description: importTransaction.importSession.description,
+              createdAt: importTransaction.importSession.createdAt,
+            } : null,
+          },
+        };
+      } else {
+        return entry;
+      }
+    }));
+
+    res.json({ entries: entriesWithImportInfo, total });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching ledger entries', error: err });
   }
@@ -340,6 +377,78 @@ router.get('/import/template', (req, res) => {
   res.setHeader('Content-Disposition', 'attachment; filename="ledger_template.xlsx"');
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.send(buffer);
+});
+
+// Get potential matches for a ledger entry (matched and rejected)
+router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, res) => {
+  const { ledgerEntryId } = req.params;
+  try {
+    const importTransactionRepo = AppDataSource.getRepository('ImportTransaction');
+    const matched = await importTransactionRepo.find({
+      where: {
+        matchedLedgerEntry: { id: ledgerEntryId },
+        status: 'matched',
+      },
+      relations: ['importSession'],
+      order: { createdAt: 'DESC' },
+    });
+    const rejected = await importTransactionRepo.find({
+      where: {
+        matchedLedgerEntry: { id: ledgerEntryId },
+        status: 'rejected',
+      },
+      relations: ['importSession'],
+      order: { createdAt: 'DESC' },
+    });
+    res.json({ matched, rejected });
+  } catch (err) {
+    console.error('Error fetching potential matches:', err);
+    res.status(500).json({ error: 'Failed to fetch potential matches' });
+  }
+});
+
+// Get all ledger entry IDs with potential matches for a program
+router.get('/:programId/ledger/potential-match-ids', async (req, res) => {
+  const { programId } = req.params;
+  try {
+    const importTransactionRepo = AppDataSource.getRepository('ImportTransaction');
+    const matches = await importTransactionRepo
+      .createQueryBuilder('it')
+      .leftJoin('it.matchedLedgerEntry', 'le')
+      .where('le.programId = :programId', { programId })
+      .andWhere('it.status = :status', { status: 'matched' })
+      .select('le.id', 'ledgerEntryId')
+      .distinct(true)
+      .getRawMany();
+    const ids = matches.map(m => m.ledgerEntryId);
+    console.log('[DEBUG] Potential match ledgerEntryIds:', ids);
+    res.json(ids);
+  } catch (err) {
+    console.error('Error fetching potential match IDs:', err);
+    res.status(500).json({ error: 'Failed to fetch potential match IDs' });
+  }
+});
+
+// Get all ledger entry IDs with rejected matches for a program
+router.get('/:programId/ledger/rejected-match-ids', async (req, res) => {
+  const { programId } = req.params;
+  try {
+    const importTransactionRepo = AppDataSource.getRepository('ImportTransaction');
+    const rejected = await importTransactionRepo
+      .createQueryBuilder('it')
+      .leftJoin('it.matchedLedgerEntry', 'le')
+      .where('le.programId = :programId', { programId })
+      .andWhere('it.status = :status', { status: 'rejected' })
+      .select('le.id', 'ledgerEntryId')
+      .distinct(true)
+      .getRawMany();
+    const ids = rejected.map(m => m.ledgerEntryId);
+    console.log('[DEBUG] Rejected match ledgerEntryIds:', ids);
+    res.json(ids);
+  } catch (err) {
+    console.error('Error fetching rejected match IDs:', err);
+    res.status(500).json({ error: 'Failed to fetch rejected match IDs' });
+  }
 });
 
 export const ledgerRouter = router; 

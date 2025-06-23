@@ -6,6 +6,7 @@ import { AppDataSource } from './config/database';
 import { programRouter } from './routes/program';
 import { ledgerRouter } from './routes/ledger';
 import { wbsRouter } from './routes/wbs';
+import { importRouter } from './routes/import';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 
@@ -42,6 +43,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use('/api/programs', programRouter);
 app.use('/api/programs', ledgerRouter);
 app.use('/api/programs', wbsRouter);
+app.use('/api/import', importRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {

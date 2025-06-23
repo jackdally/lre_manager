@@ -7,6 +7,7 @@ A comprehensive tool for managing Laboratory Research Equipment (LRE) programs, 
 - Program Management
 - Expense Tracking
 - Financial Reporting
+- **NetSuite Actuals Upload & Smart Matching** - Upload and automatically match NetSuite transaction exports
 - User Management
 - Role-based Access Control
 
@@ -38,12 +39,25 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:4000
 
+## Key Features
+
+### NetSuite Actuals Upload & Smart Matching
+The application includes a sophisticated upload system that allows you to:
+- Upload CSV/Excel exports from NetSuite containing actual transactions
+- Automatically match transactions to existing ledger entries using smart algorithms
+- Handle unmatched transactions as unplanned expenses with null baseline/planned values
+- Review and confirm matches with confidence scoring
+- Track upload sessions and processing status
+
+For detailed information about the actuals upload feature, see [IMPORT_FEATURE.md](docs/IMPORT_FEATURE.md).
+
 ## Documentation
 
 For detailed documentation, see the [docs](docs/) directory:
 - [Setup Guide](docs/SETUP.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [API Examples](docs/API_EXAMPLES.md)
+- [NetSuite Actuals Upload Feature](docs/IMPORT_FEATURE.md)
 - [FAQ](docs/FAQ.md)
 
 ## Development
@@ -179,9 +193,3 @@ DB_NAME=lre_manager
 2. **Database issues:**
    - Check if the database container is running: `docker ps | grep postgres`
    - View database logs: `docker-compose logs db`
-   - Reset database volume: `docker-compose down -v`
-
-3. **Application issues:**
-   - Check application logs: `docker-compose logs frontend` or `docker-compose logs backend`
-   - Ensure all environment variables are set correctly
-   - Verify network connectivity between containers 
