@@ -55,6 +55,61 @@ router.post('/:programId/upload', upload.single('file'), async (req: Request & {
   }
 });
 
+// Replace existing upload with new file
+router.post('/:programId/replace-upload', upload.single('file'), async (req: Request & { file?: any }, res) => {
+  try {
+    const { programId } = req.params;
+    const { 
+      replaceSessionId, 
+      description, 
+      config,
+      preserveConfirmedMatches = true,
+      preserveAllMatches = false,
+      forceReplace = false
+    } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    if (!replaceSessionId) {
+      return res.status(400).json({ error: 'Replace session ID is required' });
+    }
+
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
+      return res.status(400).json({ error: 'Unsupported file type. Please upload Excel or CSV files.' });
+    }
+
+    // Parse config from request body
+    const importConfig: ImportConfig = JSON.parse(config);
+
+    // Replace the existing session
+    const result = await importService.replaceImportSession(
+      replaceSessionId,
+      req.file.path,
+      req.file.originalname,
+      description || 'NetSuite Actuals Upload (Replacement)',
+      programId,
+      importConfig,
+      {
+        preserveConfirmedMatches: preserveConfirmedMatches === 'true' || preserveConfirmedMatches === true,
+        preserveAllMatches: preserveAllMatches === 'true' || preserveAllMatches === true,
+        forceReplace: forceReplace === 'true' || forceReplace === true
+      }
+    );
+
+    res.json(result);
+
+  } catch (error: any) {
+    console.error('Replace upload error:', error);
+    res.status(500).json({ 
+      error: error.message || 'Replace upload failed',
+      details: error.stack 
+    });
+  }
+});
+
 // Get import sessions for a program
 router.get('/:programId/sessions', async (req, res) => {
   try {
@@ -423,11 +478,13 @@ router.post('/transaction/:transactionId/remove-match', async (req, res) => {
   }
 });
 
-// Undo a rejection for a transaction
+// Undo a rejection for a transaction/ledger pair
 router.post('/transaction/:transactionId/undo-reject', async (req, res) => {
   try {
     const { transactionId } = req.params;
-    await importService.undoReject(transactionId);
+    const { ledgerEntryId } = req.body;
+    console.log(`[DEBUG ROUTE UNDO REJECT] Frontend request: transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
+    await importService.undoReject(transactionId, ledgerEntryId);
     res.json({ message: 'Rejection undone successfully' });
   } catch (error: any) {
     console.error('[UNDO REJECT] Error:', error);
@@ -435,15 +492,98 @@ router.post('/transaction/:transactionId/undo-reject', async (req, res) => {
   }
 });
 
-// Reject a potential match for a transaction
+// Reject a potential match for a transaction/ledger pair
 router.post('/transaction/:transactionId/reject', async (req, res) => {
   try {
     const { transactionId } = req.params;
-    await importService.rejectMatch(transactionId);
+    const { ledgerEntryId } = req.body;
+    console.log(`[DEBUG ROUTE REJECT] Frontend request: transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
+    await importService.rejectMatch(transactionId, ledgerEntryId);
     res.json({ message: 'Match rejected successfully' });
   } catch (error: any) {
     console.error('[REJECT MATCH] Error:', error);
     res.status(500).json({ error: error.message || 'Failed to reject match' });
+  }
+});
+
+// Get all rejected ledger entries for a given import transaction
+router.get('/transaction/:transactionId/rejected-ledger-entries', async (req, res) => {
+  const { transactionId } = req.params;
+  try {
+    const ledgerEntries = await importService.getRejectedLedgerEntries(transactionId);
+    res.json(ledgerEntries);
+  } catch (err) {
+    console.error('Error fetching rejected ledger entries:', err);
+    res.status(500).json({ error: 'Failed to fetch rejected ledger entries' });
+  }
+});
+
+// Get all potential ledger entries for a given import transaction
+router.get('/transaction/:transactionId/potential-matches', async (req, res) => {
+  const { transactionId } = req.params;
+  try {
+    console.log(`[DEBUG ROUTE POTENTIAL MATCHES] Frontend request for transactionId=${transactionId}`);
+    const transaction = await importService.getTransactionWithSession(transactionId);
+    if (!transaction) return res.status(404).json({ error: 'Transaction not found' });
+    const session = transaction.importSession;
+    const config = session.importConfig;
+    const ledgerEntries = await importService.getLedgerEntriesForProgram(session.program.id);
+    console.log(`[DEBUG ROUTE POTENTIAL MATCHES] Found ${ledgerEntries.length} total ledger entries for program`);
+    
+    // Use the matching algorithm to get only valid matches
+    const matches = await importService.findMatches(transaction, ledgerEntries, config);
+    console.log(`[DEBUG ROUTE POTENTIAL MATCHES] Returning ${matches.length} potential matches to frontend`);
+    
+    // Return only the ledgerEntry objects
+    const result = matches.map(m => m.ledgerEntry);
+    res.json(result);
+  } catch (error) {
+    console.error('[POTENTIAL MATCHES] Error:', error);
+    res.status(500).json({ error: (error as Error).message || 'Failed to get potential matches' });
+  }
+});
+
+// Batch endpoint: Get all potential matches for a list of transaction IDs
+router.post('/transactions/potential-matches', async (req, res) => {
+  const { transactionIds } = req.body;
+  if (!Array.isArray(transactionIds)) {
+    return res.status(400).json({ error: 'transactionIds must be an array' });
+  }
+  try {
+    const result: Record<string, any[]> = {};
+    for (const transactionId of transactionIds) {
+      const transaction = await importService.getTransactionWithSession(transactionId);
+      if (!transaction) {
+        result[transactionId] = [];
+        continue;
+      }
+      const session = transaction.importSession;
+      const config = session.importConfig;
+      const ledgerEntries = await importService.getLedgerEntriesForProgram(session.program.id);
+      const matches = await importService.findMatches(transaction, ledgerEntries, config);
+      result[transactionId] = matches.map(m => m.ledgerEntry);
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message || 'Failed to get batch potential matches' });
+  }
+});
+
+// Batch endpoint: Get all rejected ledger entries for a list of transaction IDs
+router.post('/transactions/rejected-ledger-entries', async (req, res) => {
+  const { transactionIds } = req.body;
+  if (!Array.isArray(transactionIds)) {
+    return res.status(400).json({ error: 'transactionIds must be an array' });
+  }
+  try {
+    const result: Record<string, any[]> = {};
+    for (const transactionId of transactionIds) {
+      const rejected = await importService.getRejectedLedgerEntries(transactionId);
+      result[transactionId] = rejected;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message || 'Failed to get batch rejected ledger entries' });
   }
 });
 

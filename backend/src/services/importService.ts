@@ -1,11 +1,12 @@
 import { AppDataSource } from '../config/database';
 import { ImportSession, ImportStatus } from '../entities/ImportSession';
-import { ImportTransaction, TransactionStatus } from '../entities/ImportTransaction';
+import { ImportTransaction, TransactionStatus, DuplicateType } from '../entities/ImportTransaction';
 import { LedgerEntry } from '../entities/LedgerEntry';
 import { Program } from '../entities/Program';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import { Like, Between } from 'typeorm';
+import { RejectedMatch } from '../entities/RejectedMatch';
 
 export interface ImportConfig {
   programCodeColumn: string;
@@ -35,6 +36,7 @@ export class ImportService {
   private importTransactionRepo = AppDataSource.getRepository(ImportTransaction);
   private ledgerRepo = AppDataSource.getRepository(LedgerEntry);
   private programRepo = AppDataSource.getRepository(Program);
+  private rejectedMatchRepo = AppDataSource.getRepository(RejectedMatch);
 
   async createImportSession(
     filename: string,
@@ -60,6 +62,125 @@ export class ImportService {
     return await this.importSessionRepo.save(session);
   }
 
+  async replaceImportSession(
+    replaceSessionId: string,
+    newFilename: string,
+    newOriginalFilename: string,
+    newDescription: string,
+    programId: string,
+    config: ImportConfig,
+    options: {
+      preserveConfirmedMatches: boolean;
+      preserveAllMatches: boolean;
+      forceReplace: boolean;
+    }
+  ): Promise<any> {
+    // Get the existing session to replace
+    const existingSession = await this.importSessionRepo.findOne({
+      where: { id: replaceSessionId },
+      relations: ['program']
+    });
+
+    if (!existingSession) {
+      throw new Error('Import session to replace not found');
+    }
+
+    // Verify the session belongs to the correct program
+    if (existingSession.program.id !== programId) {
+      throw new Error('Session does not belong to the specified program');
+    }
+
+    // Create a new session for the replacement
+    const newSession = this.importSessionRepo.create({
+      filename: newFilename,
+      originalFilename: newOriginalFilename,
+      description: newDescription,
+      program: existingSession.program,
+      importConfig: config,
+      status: ImportStatus.PENDING
+    });
+    const savedNewSession = await this.importSessionRepo.save(newSession);
+
+    // Mark the original session as replaced
+    existingSession.status = ImportStatus.REPLACED;
+    existingSession.replacedBySessionId = savedNewSession.id;
+    await this.importSessionRepo.save(existingSession);
+
+    // Get existing transactions to determine what to preserve
+    const existingTransactions = await this.importTransactionRepo.find({
+      where: { importSession: { id: replaceSessionId } },
+      relations: ['matchedLedgerEntry']
+    });
+
+    // Handle force replace: mark all transactions as replaced and reverse ledger entries
+    if (options.forceReplace) {
+      for (const transaction of existingTransactions) {
+        // Reverse ledger entry if transaction was confirmed or added to ledger
+        if (transaction.matchedLedgerEntry && 
+            (transaction.status === TransactionStatus.CONFIRMED || 
+             transaction.status === TransactionStatus.ADDED_TO_LEDGER)) {
+          
+          const ledgerEntry = await this.ledgerRepo.findOneBy({ id: transaction.matchedLedgerEntry.id });
+          if (ledgerEntry) {
+            // Clear actuals and add audit note
+            ledgerEntry.actual_amount = null;
+            ledgerEntry.actual_date = null;
+            ledgerEntry.notes = `REVERSED: Force replace of import session ${replaceSessionId}. ` +
+                            `Original transaction: ${transaction.vendorName} - ${transaction.description} ` +
+                            `($${transaction.amount} on ${transaction.transactionDate}). ` +
+                            `Replaced by session: ${savedNewSession.id}`;
+            
+            await this.ledgerRepo.save(ledgerEntry);
+          }
+        }
+        
+        // Mark transaction as replaced (not rejected)
+        transaction.status = TransactionStatus.REPLACED;
+        await this.importTransactionRepo.save(transaction);
+      }
+    }
+
+    // Determine which transactions to preserve based on options (only if not force replace)
+    let transactionsToPreserve: ImportTransaction[] = [];
+    if (!options.forceReplace) {
+      if (options.preserveAllMatches) {
+        transactionsToPreserve = existingTransactions.filter(t =>
+          t.status === TransactionStatus.MATCHED ||
+          t.status === TransactionStatus.CONFIRMED ||
+          t.status === TransactionStatus.ADDED_TO_LEDGER
+        );
+      } else if (options.preserveConfirmedMatches) {
+        transactionsToPreserve = existingTransactions.filter(t =>
+          t.status === TransactionStatus.CONFIRMED ||
+          t.status === TransactionStatus.ADDED_TO_LEDGER
+        );
+      }
+    }
+
+    // Copy preserved transactions to the new session
+    for (const tx of transactionsToPreserve) {
+      const copy = this.importTransactionRepo.create({
+        ...tx,
+        id: undefined, // Let DB assign new ID
+        importSession: savedNewSession,
+        preservedFromSessionId: tx.importSession.id
+      });
+      await this.importTransactionRepo.save(copy);
+    }
+
+    // Process the new file in the new session
+    const result = await this.processNetSuiteFile(savedNewSession.id);
+
+    return {
+      sessionId: savedNewSession.id,
+      preservedTransactions: transactionsToPreserve.length,
+      replacedSessionId: replaceSessionId,
+      forceReplaced: options.forceReplace,
+      replacedTransactions: options.forceReplace ? existingTransactions.length : 0,
+      ...result
+    };
+  }
+
   async processNetSuiteFile(sessionId: string): Promise<any> {
     const session = await this.importSessionRepo.findOne({
       where: { id: sessionId },
@@ -75,17 +196,11 @@ export class ImportService {
       session.status = ImportStatus.PROCESSING;
       await this.importSessionRepo.save(session);
 
-      console.log(`[PROCESSING DEBUG] Starting to process file: ${session.originalFilename}`);
-      console.log(`[PROCESSING DEBUG] Program: ${session.program.code} (${session.program.name})`);
-
       // Read and parse the file
       const workbook = XLSX.readFile(session.filename);
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-      console.log(`[PROCESSING DEBUG] Found ${rows.length} rows in file`);
-      console.log(`[PROCESSING DEBUG] Column mapping:`, session.importConfig);
 
       const config = session.importConfig as ImportConfig;
       const transactions: ImportTransaction[] = [];
@@ -111,42 +226,26 @@ export class ImportService {
 
             if (!vendorName || !description || isNaN(amount) || !dateStr) {
               validationFailCount++;
-              if (validationFailCount <= 3) {
-                console.log(`[PROCESSING DEBUG] Row ${i + 2} validation failed: Vendor=${!!vendorName}, Desc=${!!description}, Amount=${!isNaN(amount)}, Date=${!!dateStr}`);
-              }
             } else if (!programCodeRaw || typeof programCodeRaw !== 'string' || programCodeRaw.trim() === '') {
               noProgramCodeCount++;
-              if (noProgramCodeCount <= 3) {
-                console.log(`[PROCESSING DEBUG] Row ${i + 2} no program code: "${vendorName}" - "${description}"`);
-              }
             } else {
               // Check if it's a program mismatch (has program code but doesn't match)
               const programCodeMatch = programCodeRaw.match(/([A-Z]{3}\.\d{4})/);
               if (programCodeMatch && programCodeMatch[1] !== session.program.code) {
                 programMismatchCount++;
-                if (programMismatchCount <= 3) {
-                  console.log(`[PROCESSING DEBUG] Row ${i + 2} program mismatch: Expected ${session.program.code}, got ${programCodeMatch[1]} from "${programCodeRaw}"`);
-                }
               } else {
                 // Invalid program code format
                 noProgramCodeCount++;
-                if (noProgramCodeCount <= 3) {
-                  console.log(`[PROCESSING DEBUG] Row ${i + 2} invalid program code format: "${programCodeRaw}"`);
-                }
               }
             }
           }
         } catch (error) {
           errorCount++;
-          console.error(`[PROCESSING DEBUG] Error processing row ${i + 2}:`, error);
         }
       }
 
-      console.log(`[PROCESSING DEBUG] Parsing results: ${transactions.length} valid, ${validationFailCount} validation failures, ${noProgramCodeCount} no program code, ${programMismatchCount} program mismatches, ${errorCount} errors`);
-
       // Save all transactions
       const savedTransactions = await this.importTransactionRepo.save(transactions);
-      console.log(`[PROCESSING DEBUG] Saved ${savedTransactions.length} transactions to database`);
 
       // Update session with counts
       session.totalRecords = rows.length;
@@ -184,18 +283,10 @@ export class ImportService {
     const amount = parseFloat(row[config.amountColumn]);
     const dateStr = row[config.dateColumn];
     const periodStr = config.periodColumn ? row[config.periodColumn] : null;
-
-    // Debug: Log the first few rows to see what we're getting
-    if (Math.random() < 0.1) { // Log ~10% of rows for debugging
-      console.log(`[PARSING DEBUG] Raw row data:`, JSON.stringify(row, null, 2));
-      console.log(`[PARSING DEBUG] Extracted: Program="${programCodeRaw}", Vendor=${vendorName}, Desc=${description}, Amount=${amount}, Date=${dateStr}, Period=${periodStr}`);
-    }
+    const invoiceNumber = config.invoiceColumn ? row[config.invoiceColumn] : null;
 
     // Validate required fields (excluding program code for now)
     if (!vendorName || !description || isNaN(amount) || !dateStr) {
-      if (Math.random() < 0.1) { // Log some validation failures
-        console.log(`[PARSING DEBUG] Validation failed: Vendor=${!!vendorName}, Desc=${!!description}, Amount=${!isNaN(amount)}, Date=${!!dateStr}`);
-      }
       return null;
     }
 
@@ -206,25 +297,16 @@ export class ImportService {
       const programCodeMatch = programCodeRaw.match(/([A-Z]{3}\.\d{4})/);
       if (programCodeMatch) {
         programCode = programCodeMatch[1];
-        console.log(`[PARSING DEBUG] Extracted program code: "${programCode}" from "${programCodeRaw}"`);
-      } else {
-        console.log(`[PARSING DEBUG] No valid program code pattern found in: "${programCodeRaw}"`);
       }
     }
 
     // Skip transactions without a valid program code
     if (!programCode) {
-      if (Math.random() < 0.1) { // Log some skipped transactions
-        console.log(`[PARSING DEBUG] Skipping transaction without program code: "${vendorName}" - "${description}"`);
-      }
       return null;
     }
 
     // Check if this transaction belongs to the current program
     if (programCode !== session.program.code) {
-      if (Math.random() < 0.1) { // Log some program mismatches
-        console.log(`[PARSING DEBUG] Program mismatch: Expected ${session.program.code}, got ${programCode}`);
-      }
       return null;
     }
 
@@ -235,6 +317,43 @@ export class ImportService {
     let periodDate = null;
     if (periodStr) {
       periodDate = this.parsePeriod(periodStr);
+    }
+
+    // Duplicate detection logic
+    let duplicateType = DuplicateType.NONE;
+    let duplicateOfId: string | null = null;
+    let existing: ImportTransaction | null = null;
+
+    if (invoiceNumber && vendorName) {
+      existing = await this.importTransactionRepo.findOne({
+        where: { invoiceNumber, vendorName },
+      });
+      if (existing && existing.status !== TransactionStatus.REPLACED) {
+        // Check if all fields match (true duplicate)
+        if (
+          existing.amount === amount &&
+          existing.transactionDate === transactionDate &&
+          ((periodDate && existing.rawData?.Period === periodDate) || (!periodDate && !existing.rawData?.Period)) &&
+          existing.description === description
+        ) {
+          return null; // True duplicate, skip
+        } else {
+          duplicateType = DuplicateType.DIFFERENT_INFO;
+          duplicateOfId = existing.id;
+        }
+      }
+    } else {
+      // Fallback: vendorName + date + amount (removed period comparison to fix JSON error)
+      existing = await this.importTransactionRepo.findOne({
+        where: {
+          vendorName,
+          transactionDate,
+          amount
+        },
+      });
+      if (existing && existing.status !== TransactionStatus.REPLACED) {
+        return null; // True duplicate, skip
+      }
     }
 
     const transaction = this.importTransactionRepo.create({
@@ -249,7 +368,9 @@ export class ImportService {
       referenceNumber: config.referenceColumn ? row[config.referenceColumn] || null : null,
       rawData: row,
       importSession: session,
-      status: TransactionStatus.UNMATCHED
+      status: TransactionStatus.UNMATCHED,
+      duplicateType,
+      duplicateOfId
     });
 
     return transaction;
@@ -354,21 +475,10 @@ export class ImportService {
       where: { program: { id: session.program.id } }
     });
 
-    console.log(`[MATCHING DEBUG] Processing ${transactions.length} transactions against ${ledgerEntries.length} ledger entries`);
-    console.log(`[MATCHING DEBUG] Program: ${session.program.code} (${session.program.name})`);
-    
-    // Debug: Show sample of ledger entries
-    console.log(`[MATCHING DEBUG] Sample ledger entries:`);
-    ledgerEntries.slice(0, 3).forEach((entry, i) => {
-      console.log(`  ${i + 1}. Vendor: "${entry.vendor_name}", Desc: "${entry.expense_description}", Planned: ${entry.planned_amount}, Date: ${entry.planned_date}, Actual: ${entry.actual_amount}`);
-    });
-
     let matchedCount = 0;
     let unmatchedCount = 0;
 
     for (const transaction of transactions) {
-      console.log(`\n[MATCHING DEBUG] Processing transaction: "${transaction.vendorName}" - "${transaction.description}" ($${transaction.amount}) on ${transaction.transactionDate}`);
-      
       const matches = await this.findMatches(transaction, ledgerEntries, session.importConfig);
       
       if (matches.length > 0) {
@@ -380,23 +490,20 @@ export class ImportService {
           id: m.ledgerEntry.id,
           vendorName: m.ledgerEntry.vendor_name,
           description: m.ledgerEntry.expense_description,
+          planned_amount: m.ledgerEntry.planned_amount,
+          planned_date: m.ledgerEntry.planned_date,
           confidence: m.confidence,
           matchType: m.matchType,
           reasons: m.reasons
         }));
         matchedCount++;
-        console.log(`[MATCHING DEBUG] ✓ Found match with confidence ${bestMatch.confidence}: "${bestMatch.ledgerEntry.vendor_name}" - "${bestMatch.ledgerEntry.expense_description}"`);
-        console.log(`[MATCHING DEBUG]   Match reasons: ${bestMatch.reasons.join(', ')}`);
       } else {
         transaction.status = TransactionStatus.UNMATCHED;
         unmatchedCount++;
-        console.log(`[MATCHING DEBUG] ✗ No matches found`);
       }
 
       await this.importTransactionRepo.save(transaction);
     }
-
-    console.log(`\n[MATCHING DEBUG] Final results: ${matchedCount} matched, ${unmatchedCount} unmatched`);
 
     // Update session counts
     session.matchedRecords = matchedCount;
@@ -405,7 +512,7 @@ export class ImportService {
     await this.importSessionRepo.save(session);
   }
 
-  private async findMatches(
+  public async findMatches(
     transaction: ImportTransaction,
     ledgerEntries: LedgerEntry[],
     config: ImportConfig
@@ -414,10 +521,16 @@ export class ImportService {
     const tolerance = config.amountTolerance || 0.01; // 1% default tolerance
     const threshold = config.matchThreshold || 0.7; // 70% default threshold
 
-    console.log(`[MATCHING DEBUG]   Checking ${ledgerEntries.length} ledger entries with threshold ${threshold}, tolerance ${tolerance}`);
+    // Get rejected ledger entry IDs for this transaction
+    const rejectedMatches = await this.rejectedMatchRepo.find({
+      where: { transaction: { id: transaction.id } },
+      relations: ['ledgerEntry']
+    });
+    const rejectedLedgerEntryIds = new Set(rejectedMatches.map(rm => rm.ledgerEntry.id));
 
     let checkedCount = 0;
     let skippedActualsCount = 0;
+    let skippedRejectedCount = 0;
     let belowThresholdCount = 0;
 
     for (const entry of ledgerEntries) {
@@ -426,6 +539,12 @@ export class ImportService {
       // Skip entries that already have actuals - we want to match to planned/baseline entries
       if (entry.actual_amount !== null || entry.actual_date !== null) {
         skippedActualsCount++;
+        continue;
+      }
+
+      // Skip entries that have been rejected for this transaction
+      if (rejectedLedgerEntryIds.has(entry.id)) {
+        skippedRejectedCount++;
         continue;
       }
 
@@ -441,17 +560,10 @@ export class ImportService {
           matchType,
           reasons
         });
-        
-        console.log(`[MATCHING DEBUG]   ✓ Potential match (${confidence.toFixed(3)}): "${entry.vendor_name}" - "${entry.expense_description}"`);
       } else {
         belowThresholdCount++;
-        if (confidence > 0.3) { // Log high-ish confidence matches that didn't make threshold
-          console.log(`[MATCHING DEBUG]   - Below threshold (${confidence.toFixed(3)}): "${entry.vendor_name}" - "${entry.expense_description}"`);
-        }
       }
     }
-
-    console.log(`[MATCHING DEBUG]   Summary: Checked ${checkedCount}, Skipped ${skippedActualsCount} (has actuals), Below threshold ${belowThresholdCount}, Matches found ${matches.length}`);
 
     // Sort by confidence (highest first)
     return matches.sort((a, b) => b.confidence - a.confidence);
@@ -543,16 +655,6 @@ export class ImportService {
 
     const finalConfidence = maxScore > 0 ? score / maxScore : 0;
     
-    // Log detailed scoring for high confidence matches or when debugging specific entries
-    if (finalConfidence > 0.3 || (transaction.vendorName.toLowerCase().includes('test') || entry.vendor_name.toLowerCase().includes('test'))) {
-      console.log(`[MATCHING DEBUG]     Scoring breakdown for "${entry.vendor_name}":`);
-      console.log(`[MATCHING DEBUG]       Vendor: ${debugScores.vendor.toFixed(1)}/50 (similarity: ${vendorSimilarity.toFixed(3)})`);
-      console.log(`[MATCHING DEBUG]       Date: ${debugScores.date.toFixed(1)}/30 (matched: ${dateMatched})`);
-      console.log(`[MATCHING DEBUG]       Amount: ${debugScores.amount.toFixed(1)}/15 (planned: ${entry.planned_amount}, actual: ${transaction.amount})`);
-      console.log(`[MATCHING DEBUG]       Description: ${debugScores.description.toFixed(1)}/5 (similarity: ${descSimilarity.toFixed(3)})`);
-      console.log(`[MATCHING DEBUG]       Total: ${score.toFixed(1)}/${maxScore} = ${finalConfidence.toFixed(3)}`);
-    }
-
     return finalConfidence;
   }
 
@@ -741,19 +843,66 @@ export class ImportService {
     await this.importTransactionRepo.save(transaction);
   }
 
-  async undoReject(transactionId: string): Promise<void> {
+  async undoReject(transactionId: string, ledgerEntryId: string): Promise<void> {
+    const rejected = await this.rejectedMatchRepo.findOne({ 
+      where: { transaction: { id: transactionId }, ledgerEntry: { id: ledgerEntryId } },
+      relations: ['ledgerEntry']
+    });
+    
+    if (rejected) {
+      await this.rejectedMatchRepo.remove(rejected);
+    }
+    
+    // Log all remaining rejected matches for this transaction
+    const remainingRejected = await this.rejectedMatchRepo.find({
+      where: { transaction: { id: transactionId } },
+      relations: ['ledgerEntry']
+    });
+  }
+
+  async rejectMatch(transactionId: string, ledgerEntryId: string): Promise<void> {
     const transaction = await this.importTransactionRepo.findOneBy({ id: transactionId });
     if (!transaction) throw new Error('Transaction not found');
-    if (transaction.status !== 'rejected') throw new Error('Transaction is not rejected');
-    transaction.status = TransactionStatus.MATCHED;
+    
+    // Prevent duplicate rejected match
+    const existing = await this.rejectedMatchRepo.findOne({ 
+      where: { transaction: { id: transactionId }, ledgerEntry: { id: ledgerEntryId } },
+      relations: ['ledgerEntry']
+    });
+    
+    if (!existing) {
+      const ledgerEntry = await this.ledgerRepo.findOneBy({ id: ledgerEntryId });
+      if (!ledgerEntry) throw new Error('Ledger entry not found');
+      
+      const rejected = this.rejectedMatchRepo.create({ transaction, ledgerEntry: { id: ledgerEntryId } });
+      await this.rejectedMatchRepo.save(rejected);
+    }
+    
+    // Do NOT set status to unmatched or clear matchedLedgerEntry
+    // The status should remain 'matched' even if all matches are rejected
     await this.importTransactionRepo.save(transaction);
   }
 
-  async rejectMatch(transactionId: string): Promise<void> {
-    const transaction = await this.importTransactionRepo.findOneBy({ id: transactionId });
-    if (!transaction) throw new Error('Transaction not found');
-    if (transaction.status !== 'matched') throw new Error('Only matched transactions can be rejected');
-    transaction.status = TransactionStatus.REJECTED;
-    await this.importTransactionRepo.save(transaction);
+  async getRejectedLedgerEntries(transactionId: string): Promise<LedgerEntry[]> {
+    const rejected = await this.rejectedMatchRepo.find({ where: { transaction: { id: transactionId } }, relations: ['ledgerEntry'] });
+    return rejected.map(r => r.ledgerEntry);
+  }
+
+  // Public helper for routes: get transaction with session and program
+  public async getTransactionWithSession(transactionId: string) {
+    return this.importTransactionRepo.findOne({
+      where: { id: transactionId },
+      relations: ['importSession', 'importSession.program']
+    });
+  }
+
+  // Public helper for routes: get all ledger entries for a program
+  public async getLedgerEntriesForProgram(programId: string) {
+    return this.ledgerRepo.find({ where: { program: { id: programId } } });
+  }
+
+  // Public helper for routes: get all rejected matches for a transaction
+  public async getRejectedMatchesForTransaction(transactionId: string) {
+    return this.rejectedMatchRepo.find({ where: { transaction: { id: transactionId } }, relations: ['ledgerEntry'] });
   }
 } 

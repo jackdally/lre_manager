@@ -7,7 +7,13 @@ export enum TransactionStatus {
   MATCHED = 'matched',
   CONFIRMED = 'confirmed',
   REJECTED = 'rejected',
-  ADDED_TO_LEDGER = 'added_to_ledger'
+  ADDED_TO_LEDGER = 'added_to_ledger',
+  REPLACED = 'replaced'
+}
+
+export enum DuplicateType {
+  NONE = 'none',
+  DIFFERENT_INFO = 'different_info'
 }
 
 @Entity()
@@ -66,4 +72,17 @@ export class ImportTransaction {
 
   @CreateDateColumn()
   createdAt!: Date;
+
+  @Column({
+    type: 'enum',
+    enum: DuplicateType,
+    default: DuplicateType.NONE
+  })
+  duplicateType!: DuplicateType;
+
+  @Column({ type: 'uuid', nullable: true })
+  duplicateOfId!: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  preservedFromSessionId!: string | null;
 } 

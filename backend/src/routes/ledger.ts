@@ -2,7 +2,7 @@ import { Router, Request } from 'express';
 import { AppDataSource } from '../config/database';
 import { LedgerEntry } from '../entities/LedgerEntry';
 import { Program } from '../entities/Program';
-import { Between, Like } from 'typeorm';
+import { Between, Like, In } from 'typeorm';
 import multer from 'multer';
 import path from 'path';
 import { importLedgerFromFile } from '../services/ledger';
@@ -395,7 +395,7 @@ router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, re
     const rejected = await importTransactionRepo.find({
       where: {
         matchedLedgerEntry: { id: ledgerEntryId },
-        status: 'rejected',
+        status: In(['rejected', 'replaced']),
       },
       relations: ['importSession'],
       order: { createdAt: 'DESC' },
@@ -438,16 +438,16 @@ router.get('/:programId/ledger/rejected-match-ids', async (req, res) => {
       .createQueryBuilder('it')
       .leftJoin('it.matchedLedgerEntry', 'le')
       .where('le.programId = :programId', { programId })
-      .andWhere('it.status = :status', { status: 'rejected' })
+      .andWhere('it.status IN (:...statuses)', { statuses: ['rejected', 'replaced'] })
       .select('le.id', 'ledgerEntryId')
       .distinct(true)
       .getRawMany();
     const ids = rejected.map(m => m.ledgerEntryId);
-    console.log('[DEBUG] Rejected match ledgerEntryIds:', ids);
+    console.log('[DEBUG] Rejected/replaced match ledgerEntryIds:', ids);
     res.json(ids);
   } catch (err) {
-    console.error('Error fetching rejected match IDs:', err);
-    res.status(500).json({ error: 'Failed to fetch rejected match IDs' });
+    console.error('Error fetching rejected/replaced match IDs:', err);
+    res.status(500).json({ error: 'Failed to fetch rejected/replaced match IDs' });
   }
 });
 

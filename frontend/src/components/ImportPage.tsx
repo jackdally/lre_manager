@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from './Layout';
+import TransactionMatchModal from './TransactionMatchModal';
 
 interface ImportConfig {
   programCodeColumn: string;
@@ -35,7 +36,7 @@ interface ImportSession {
   filename: string;
   originalFilename: string;
   description: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'replaced';
   totalRecords: number;
   processedRecords: number;
   matchedRecords: number;
@@ -43,6 +44,7 @@ interface ImportSession {
   errorRecords: number;
   createdAt: string;
   updatedAt: string;
+  replacedBySessionId?: string | null;
 }
 
 interface ImportTransaction {
@@ -56,10 +58,14 @@ interface ImportTransaction {
   subcategory?: string;
   invoiceNumber?: string;
   referenceNumber?: string;
-  status: 'unmatched' | 'matched' | 'confirmed' | 'rejected' | 'added_to_ledger';
+  status: 'unmatched' | 'matched' | 'confirmed' | 'rejected' | 'added_to_ledger' | 'replaced';
   matchConfidence?: number;
   suggestedMatches?: any[];
   matchedLedgerEntry?: any;
+  duplicateType?: 'none' | 'different_info';
+  duplicateOfId?: string | null;
+  preservedFromSessionId?: string | null;
+  rejectedMatches?: any[];
 }
 
 interface Program {
@@ -111,6 +117,36 @@ const ImportPage: React.FC = () => {
   const [selectedConfigForCopy, setSelectedConfigForCopy] = useState<SavedConfig | null>(null);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedConfigForSave, setSelectedConfigForSave] = useState<SavedConfig | null>(null);
+
+  // Add state for the match review modal
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [modalTransaction, setModalTransaction] = useState<ImportTransaction | null>(null);
+  const [modalMatches, setModalMatches] = useState<any[]>([]);
+  const [modalMatchIndex, setModalMatchIndex] = useState(0);
+  const [modalMatch, setModalMatch] = useState<any>(null);
+  const [rejectedLedgerEntries, setRejectedLedgerEntries] = useState<any[]>([]);
+
+  // Add state for showAllDuplicates toggle
+  const [showAllDuplicates, setShowAllDuplicates] = useState(false);
+
+  // Add state for replace upload feature
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [selectedSessionToReplace, setSelectedSessionToReplace] = useState<string>('');
+  const [preserveConfirmedMatches, setPreserveConfirmedMatches] = useState(true);
+  const [preserveAllMatches, setPreserveAllMatches] = useState(false);
+  const [forceReplace, setForceReplace] = useState(false);
+  const [showReplaceOptions, setShowReplaceOptions] = useState(false);
+
+  // Add state for force replace confirmation modal
+  const [showForceReplaceConfirm, setShowForceReplaceConfirm] = useState(false);
+  const [pendingUploadData, setPendingUploadData] = useState<{
+    file: File;
+    description: string;
+    config: any;
+  } | null>(null);
+
+  // Add state for potential matches
+  const [potentialMatchesMap, setPotentialMatchesMap] = useState<{ [transactionId: string]: any[] }>({});
 
   useEffect(() => {
     if (programId) {
@@ -289,6 +325,19 @@ const ImportPage: React.FC = () => {
   const handleUpload = async () => {
     if (!file || !programId) return;
 
+    // If force replace is enabled, show confirmation modal first
+    if (replaceMode && forceReplace) {
+      setPendingUploadData({ file, description, config });
+      setShowForceReplaceConfirm(true);
+      return;
+    }
+
+    await performUpload();
+  };
+
+  const performUpload = async () => {
+    if (!file || !programId) return;
+
     setLoading(true);
     setError(null);
 
@@ -298,7 +347,17 @@ const ImportPage: React.FC = () => {
       formData.append('description', description);
       formData.append('config', JSON.stringify(config));
 
-      const response = await fetch(`/api/import/${programId}/upload`, {
+      let endpoint = `/api/import/${programId}/upload`;
+      
+      if (replaceMode && selectedSessionToReplace) {
+        endpoint = `/api/import/${programId}/replace-upload`;
+        formData.append('replaceSessionId', selectedSessionToReplace);
+        formData.append('preserveConfirmedMatches', preserveConfirmedMatches.toString());
+        formData.append('preserveAllMatches', preserveAllMatches.toString());
+        formData.append('forceReplace', forceReplace.toString());
+      }
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         body: formData,
       });
@@ -307,6 +366,14 @@ const ImportPage: React.FC = () => {
         const result = await response.json();
         setDescription('');
         setFile(null);
+        setReplaceMode(false);
+        setSelectedSessionToReplace('');
+        setPreserveConfirmedMatches(true);
+        setPreserveAllMatches(false);
+        setForceReplace(false);
+        setShowReplaceOptions(false);
+        setShowForceReplaceConfirm(false);
+        setPendingUploadData(null);
         await loadSessions();
         setActiveTab('sessions');
       } else {
@@ -322,7 +389,6 @@ const ImportPage: React.FC = () => {
 
   const loadSessionDetails = async (sessionId: string) => {
     try {
-      console.log('Loading session details for:', sessionId);
       const [sessionResponse, transactionsResponse] = await Promise.all([
         fetch(`/api/import/session/${sessionId}`),
         fetch(`/api/import/session/${sessionId}/transactions`)
@@ -332,17 +398,9 @@ const ImportPage: React.FC = () => {
         const sessionData = await sessionResponse.json();
         const transactionsData = await transactionsResponse.json();
         
-        console.log('Session data:', sessionData);
-        console.log('Transactions data:', transactionsData);
-        
         setCurrentSession(sessionData);
         setTransactions(transactionsData);
         setActiveTab('matching');
-      } else {
-        console.error('Failed to load session details:', {
-          sessionStatus: sessionResponse.status,
-          transactionsStatus: transactionsResponse.status
-        });
       }
     } catch (err) {
       console.error('Failed to load session details:', err);
@@ -403,9 +461,198 @@ const ImportPage: React.FC = () => {
       case 'matched': return 'text-blue-600';
       case 'added_to_ledger': return 'text-purple-600';
       case 'rejected': return 'text-red-600';
+      case 'replaced': return 'text-orange-600';
       default: return 'text-gray-600';
     }
   };
+
+  // Helper for currency formatting
+  const formatCurrency = (amount: number | string | undefined) => {
+    if (amount === undefined || amount === null || isNaN(Number(amount))) return '';
+    return Number(amount).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  };
+
+  // Handler to open the modal
+  const handleReviewMatch = async (transaction: ImportTransaction, matches: any[]) => {
+    setModalTransaction(transaction);
+    setModalMatchIndex(0);
+    
+    // Fetch fresh potential matches from backend (this filters out rejected entries)
+    try {
+      const matchesRes = await fetch(`/api/import/transaction/${transaction.id}/potential-matches`);
+      if (matchesRes.ok) {
+        const freshMatches = await matchesRes.json();
+        setModalMatches(freshMatches);
+      } else {
+        setModalMatches(matches);
+      }
+      
+      // Fetch rejected matches for this transaction
+      const rejectedRes = await fetch(`/api/import/transaction/${transaction.id}/rejected-ledger-entries`);
+      if (rejectedRes.ok) {
+        const rejectedMatches = await rejectedRes.json();
+        setRejectedLedgerEntries(rejectedMatches);
+      } else {
+        setRejectedLedgerEntries(transaction.rejectedMatches || []);
+      }
+      
+      setShowMatchModal(true);
+    } catch (error) {
+      setModalMatches(matches);
+      setRejectedLedgerEntries(transaction.rejectedMatches || []);
+      setShowMatchModal(true);
+    }
+  };
+
+  useEffect(() => {
+    if (modalMatches.length > 0) {
+      setModalMatch(modalMatches[modalMatchIndex]);
+    }
+  }, [modalMatchIndex, modalMatches]);
+
+  const handleNextMatch = () => {
+    if (modalMatchIndex < modalMatches.length - 1) {
+      setModalMatchIndex(modalMatchIndex + 1);
+    }
+  };
+  const handlePrevMatch = () => {
+    if (modalMatchIndex > 0) {
+      setModalMatchIndex(modalMatchIndex - 1);
+    }
+  };
+
+  // Handler to close the modal
+  const handleCloseMatchModal = () => {
+    setShowMatchModal(false);
+    setModalTransaction(null);
+    setModalMatch(null);
+  };
+
+  // Handler for confirm/reject inside modal
+  const handleModalConfirm = async () => {
+    if (modalTransaction && modalMatch) {
+      await confirmMatch(modalTransaction.id, modalMatch.id);
+      handleCloseMatchModal();
+      if (currentSession) await loadSessionDetails(currentSession.id);
+    }
+  };
+
+  const handleModalReject = async (ledgerEntry: any) => {
+    if (modalTransaction) {
+      await fetch(`/api/import/transaction/${modalTransaction.id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ledgerEntryId: ledgerEntry.id })
+      });
+      
+      // Refresh rejected ledger entries
+      const res = await fetch(`/api/import/transaction/${modalTransaction.id}/rejected-ledger-entries`);
+      const newRejected = res.ok ? await res.json() : [];
+      setRejectedLedgerEntries(newRejected);
+      
+      // Refresh potential matches (backend now filters out rejected entries)
+      const matchesRes = await fetch(`/api/import/transaction/${modalTransaction.id}/potential-matches`);
+      if (matchesRes.ok) {
+        const newMatches = await matchesRes.json();
+        setModalMatches(newMatches);
+        
+        // Adjust modal match index after the list has been updated
+        if (newMatches.length === 0) {
+          // Check if there are rejected matches to show
+          if (newRejected.length > 0) {
+            // Don't close the modal - it will auto-switch to rejected tab
+          } else {
+            handleCloseMatchModal();
+          }
+        } else if (modalMatchIndex >= newMatches.length) {
+          // If current index is now out of bounds, move to the last item
+          const newIndex = newMatches.length - 1;
+          setModalMatchIndex(newIndex);
+          setModalMatch(newMatches[newIndex]);
+        } else {
+          // Index is still valid, just update the current match
+          setModalMatch(newMatches[modalMatchIndex]);
+        }
+      } else {
+        // If no more potential matches, close modal
+        handleCloseMatchModal();
+      }
+      if (currentSession) await loadSessionDetails(currentSession.id);
+    }
+  };
+
+  const handleModalUndoReject = async (ledgerEntry: any) => {
+    if (modalTransaction) {
+      await fetch(`/api/import/transaction/${modalTransaction.id}/undo-reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ledgerEntryId: ledgerEntry.id })
+      });
+      
+      // Refresh rejected ledger entries
+      const res = await fetch(`/api/import/transaction/${modalTransaction.id}/rejected-ledger-entries`);
+      const newRejected = res.ok ? await res.json() : [];
+      setRejectedLedgerEntries(newRejected);
+      
+      // Refresh potential matches after undo (backend now includes the restored entry)
+      const matchesRes = await fetch(`/api/import/transaction/${modalTransaction.id}/potential-matches`);
+      if (matchesRes.ok) {
+        const newMatches = await matchesRes.json();
+        setModalMatches(newMatches);
+      }
+      
+      if (currentSession) await loadSessionDetails(currentSession.id);
+    }
+  };
+
+  // After loading transactions, fetch potential matches for each transaction
+  useEffect(() => {
+    if (transactions.length > 0) {
+      const fetchBatchData = async () => {
+        try {
+          const transactionIds = transactions.map(t => t.id);
+          
+          // Fetch potential matches for all transactions in one request
+          const potentialMatchesRes = await fetch('/api/import/transactions/potential-matches', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transactionIds })
+          });
+          
+          if (potentialMatchesRes.ok) {
+            const potentialMatchesData = await potentialMatchesRes.json();
+            setPotentialMatchesMap(potentialMatchesData);
+          }
+          
+          // Fetch rejected matches for all transactions in one request
+          const rejectedMatchesRes = await fetch('/api/import/transactions/rejected-ledger-entries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transactionIds })
+          });
+          
+          if (rejectedMatchesRes.ok) {
+            const rejectedMatchesData = await rejectedMatchesRes.json();
+            // Update transactions with rejected matches data
+            const updatedTransactions = transactions.map(transaction => ({
+              ...transaction,
+              rejectedMatches: rejectedMatchesData[transaction.id] || []
+            }));
+            setTransactions(updatedTransactions);
+          }
+        } catch (error) {
+          console.error('Error fetching batch data:', error);
+        }
+      };
+      
+      fetchBatchData();
+    }
+  }, [transactions.length > 0 ? transactions.map(t => t.id).join(',') : null]);
+
+  // Filter transactions for display
+  const displayedTransactions = showAllDuplicates
+    ? transactions
+    : transactions.filter(t => t.duplicateType !== 'none' ? false : true);
 
   return (
     <Layout>
@@ -455,10 +702,165 @@ const ImportPage: React.FC = () => {
       {/* Upload Tab */}
       {activeTab === 'upload' && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Upload NetSuite Actuals</h2>
+          <h2 className="text-xl font-semibold mb-4">Upload NetSuite Export</h2>
           
-          <div className="space-y-6">
-            {/* Saved Configurations */}
+          {/* File Upload Section */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">File Upload</h3>
+            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 mb-2">Select File</label>
+            <div className="flex items-center gap-4">
+              <label htmlFor="file-upload" className="px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors font-semibold shadow-sm">
+                Choose File
+                <input
+                  id="file-upload"
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+              </label>
+              {file && <span className="text-sm text-gray-700 truncate max-w-xs">{file.name}</span>}
+            </div>
+          </div>
+
+          {/* Description Section */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Description</h3>
+            <label htmlFor="upload-description" className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <input
+              id="upload-description"
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Enter a description for this upload"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Replace Upload Section */}
+          <div className="mb-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+              <span className="font-semibold">Note:</span> When you replace an upload, the original upload and its transactions are never deleted. You can always view previous uploads and preserved transactions in the Upload Sessions tab.
+            </div>
+          </div>
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Replace Options</h3>
+            <div className="flex items-center mb-3">
+              <input
+                type="checkbox"
+                id="replaceMode"
+                checked={replaceMode}
+                onChange={(e) => {
+                  setReplaceMode(e.target.checked);
+                  if (!e.target.checked) {
+                    setSelectedSessionToReplace('');
+                    setShowReplaceOptions(false);
+                  }
+                }}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="replaceMode" className="ml-2 block text-sm font-medium text-gray-900">
+                Replace existing upload
+              </label>
+            </div>
+            {replaceMode && (
+              <div className="ml-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select session to replace
+                  </label>
+                  <select
+                    value={selectedSessionToReplace}
+                    onChange={(e) => {
+                      setSelectedSessionToReplace(e.target.value);
+                      setShowReplaceOptions(!!e.target.value);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a session...</option>
+                    {sessions
+                      .filter(session => session.status === 'completed')
+                      .map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {session.description ? session.description : 'No description'} — {session.originalFilename} — {new Date(session.createdAt).toLocaleDateString()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                {showReplaceOptions && (
+                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Preservation Options</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="preserveConfirmedMatches"
+                          checked={preserveConfirmedMatches}
+                          onChange={(e) => setPreserveConfirmedMatches(e.target.checked)}
+                          disabled={forceReplace}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="preserveConfirmedMatches" className="ml-2 block text-sm text-gray-900">
+                          Preserve confirmed matches
+                          <span className="ml-1 text-xs text-gray-500" title="Copies confirmed and added-to-ledger transactions from the previous upload into the new session. The original upload remains visible for audit.">
+                            (copies confirmed/added-to-ledger; original upload is preserved)
+                          </span>
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="preserveAllMatches"
+                          checked={preserveAllMatches}
+                          onChange={(e) => setPreserveAllMatches(e.target.checked)}
+                          disabled={forceReplace || preserveConfirmedMatches}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="preserveAllMatches" className="ml-2 block text-sm text-gray-900">
+                          Preserve all matches
+                          <span className="ml-1 text-xs text-gray-500" title="Copies all matched, confirmed, and added-to-ledger transactions from the previous upload into the new session. The original upload remains visible for audit.">
+                            (copies matched/confirmed/added-to-ledger; original upload is preserved)
+                          </span>
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="forceReplace"
+                          checked={forceReplace}
+                          onChange={(e) => {
+                            setForceReplace(e.target.checked);
+                            if (e.target.checked) {
+                              setPreserveConfirmedMatches(false);
+                              setPreserveAllMatches(false);
+                            }
+                          }}
+                          className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="forceReplace" className="ml-2 block text-sm text-red-700 font-medium">
+                          Force replace
+                          <span className="ml-1 text-xs text-gray-500" title="No transactions are preserved. The new session will only contain transactions from the new file. The original upload is still preserved for audit.">
+                            (no transactions preserved; original upload is preserved)
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                    {forceReplace && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                        <p className="text-sm text-red-700">
+                          ⚠️ Warning: This will not copy any transactions from the previous upload. The original upload will still be visible for audit/history.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Saved Configurations */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Configuration</h3>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Saved Configuration
@@ -490,132 +892,109 @@ const ImportPage: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
 
-            {/* File Upload */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select File (Excel or CSV)
-              </label>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter a description for this upload (e.g., Q1 2024 Actuals)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Column Mapping */}
-            <div>
-              <h3 className="text-lg font-medium mb-3">Column Mapping</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Program Code Column
-                  </label>
-                  <input
-                    type="text"
-                    value={config.programCodeColumn}
-                    onChange={(e) => setConfig({...config, programCodeColumn: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Vendor Column
-                  </label>
-                  <input
-                    type="text"
-                    value={config.vendorColumn}
-                    onChange={(e) => setConfig({...config, vendorColumn: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description Column
-                  </label>
-                  <input
-                    type="text"
-                    value={config.descriptionColumn}
-                    onChange={(e) => setConfig({...config, descriptionColumn: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Amount Column
-                  </label>
-                  <input
-                    type="text"
-                    value={config.amountColumn}
-                    onChange={(e) => setConfig({...config, amountColumn: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date Column
-                  </label>
-                  <input
-                    type="text"
-                    value={config.dateColumn}
-                    onChange={(e) => setConfig({...config, dateColumn: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Period Column
-                  </label>
-                  <input
-                    type="text"
-                    value={config.periodColumn || ''}
-                    onChange={(e) => setConfig({...config, periodColumn: e.target.value})}
-                    placeholder="e.g., Period"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date Format
-                  </label>
-                  <select
-                    value={config.dateFormat}
-                    onChange={(e) => setConfig({...config, dateFormat: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                  </select>
-                </div>
+          {/* Column Mapping */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Column Mapping</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Program Code Column
+                </label>
+                <input
+                  type="text"
+                  value={config.programCodeColumn}
+                  onChange={(e) => setConfig({...config, programCodeColumn: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Vendor Column
+                </label>
+                <input
+                  type="text"
+                  value={config.vendorColumn}
+                  onChange={(e) => setConfig({...config, vendorColumn: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description Column
+                </label>
+                <input
+                  type="text"
+                  value={config.descriptionColumn}
+                  onChange={(e) => setConfig({...config, descriptionColumn: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount Column
+                </label>
+                <input
+                  type="text"
+                  value={config.amountColumn}
+                  onChange={(e) => setConfig({...config, amountColumn: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date Column
+                </label>
+                <input
+                  type="text"
+                  value={config.dateColumn}
+                  onChange={(e) => setConfig({...config, dateColumn: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Period Column
+                </label>
+                <input
+                  type="text"
+                  value={config.periodColumn || ''}
+                  onChange={(e) => setConfig({...config, periodColumn: e.target.value})}
+                  placeholder="e.g., Period"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date Format
+                </label>
+                <select
+                  value={config.dateFormat}
+                  onChange={(e) => setConfig({...config, dateFormat: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                  <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                  <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                </select>
               </div>
             </div>
+          </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-red-800">{error}</p>
-              </div>
-            )}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
 
+          <div className="flex justify-end mt-10">
             <button
+              type="button"
               onClick={handleUpload}
-              disabled={!file || loading}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              disabled={loading || !file}
+              className={`px-6 py-3 rounded-md font-semibold shadow-sm transition-colors ${loading || !file ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              aria-busy={loading}
             >
               {loading ? 'Uploading and Processing...' : 'Upload and Process Actuals'}
             </button>
@@ -877,15 +1256,52 @@ const ImportPage: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {sessions.map((session) => (
-                  <tr key={session.id} className="hover:bg-gray-50">
+                  <tr key={session.id} className={`hover:bg-gray-50 ${session.status === 'replaced' ? 'bg-gray-100 opacity-70' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
                           {session.originalFilename}
+                          {session.status === 'replaced' && (
+                            <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 text-gray-700 border border-gray-400">Replaced</span>
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {session.description}
                         </div>
+                        {session.status === 'replaced' && session.replacedBySessionId && (
+                          <div className="mt-1 text-xs text-blue-700">
+                            <button
+                              className="underline hover:text-blue-900"
+                              onClick={() => loadSessionDetails(session.replacedBySessionId!)}
+                            >
+                              View Replacement Session
+                            </button>
+                          </div>
+                        )}
+                        {session.status !== 'replaced' && session.replacedBySessionId && (
+                          <div className="mt-1 text-xs text-blue-700">
+                            <button
+                              className="underline hover:text-blue-900"
+                              onClick={() => loadSessionDetails(session.replacedBySessionId!)}
+                            >
+                              View Replacement Session
+                            </button>
+                          </div>
+                        )}
+                        {/* If this session is a replacement, show link to original */}
+                        {sessions.some(s => s.replacedBySessionId === session.id) && (
+                          <div className="mt-1 text-xs text-blue-700">
+                            <button
+                              className="underline hover:text-blue-900"
+                              onClick={() => {
+                                const original = sessions.find(s => s.replacedBySessionId === session.id);
+                                if (original) loadSessionDetails(original.id);
+                              }}
+                            >
+                              View Original Session
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -911,6 +1327,9 @@ const ImportPage: React.FC = () => {
                           Review Matches
                         </button>
                       )}
+                      {session.status === 'replaced' && (
+                        <span className="text-gray-400">Replaced</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -923,11 +1342,19 @@ const ImportPage: React.FC = () => {
       {/* Matching Tab */}
       {activeTab === 'matching' && currentSession && (
         <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold">Transaction Matching</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              {currentSession.originalFilename} - {currentSession.matchedRecords} matched, {currentSession.unmatchedRecords} unmatched
-            </p>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Transaction Matching</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {currentSession.originalFilename} - {currentSession.matchedRecords} matched, {currentSession.unmatchedRecords} unmatched
+              </p>
+            </div>
+            <button
+              className={`px-4 py-2 rounded-md font-semibold border transition-colors ${showAllDuplicates ? 'bg-blue-100 border-blue-400 text-blue-700' : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-400'}`}
+              onClick={() => setShowAllDuplicates(v => !v)}
+            >
+              {showAllDuplicates ? 'Hide Duplicates' : 'Show All'}
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -948,63 +1375,190 @@ const ImportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {transactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {transaction.vendorName || 'Unknown Vendor'}
+                {displayedTransactions.map((transaction: ImportTransaction) => {
+                  const potentialMatches = potentialMatchesMap[transaction.id] || [];
+                  const rejectedMatches = transaction.rejectedMatches || [];
+                  const hasPotentialMatches = potentialMatches.length > 0;
+                  const hasRejectedMatches = rejectedMatches.length > 0;
+                  return (
+                    <tr key={transaction.id} className={`hover:bg-gray-50 ${transaction.duplicateType === 'different_info' ? 'bg-yellow-50' : ''}`}>
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {transaction.vendorName || 'Unknown Vendor'}
+                            {transaction.preservedFromSessionId && (
+                              <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-800 border border-blue-300 cursor-pointer"
+                                title="View original session"
+                                onClick={() => loadSessionDetails(transaction.preservedFromSessionId!)}
+                              >
+                                Preserved from previous upload
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {transaction.description || 'No description'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {`${Number(transaction.amount).toFixed(2)} - ${transaction.transactionDate || 'No date'}`}
+                          </div>
+                          {transaction.duplicateType === 'different_info' && (
+                            <span className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded bg-yellow-200 text-yellow-900 border border-yellow-400">
+                              Duplicate: Different Info
+                            </span>
+                          )}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {transaction.description || 'No description'}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {`${Number(transaction.amount).toFixed(2)} - ${transaction.transactionDate || 'No date'}`}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTransactionStatusColor(transaction.status || 'unmatched')}`}>
-                        {transaction.status || 'unmatched'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {transaction.matchConfidence ? `${(transaction.matchConfidence * 100).toFixed(1)}%` : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {transaction.status === 'matched' && transaction.suggestedMatches && Array.isArray(transaction.suggestedMatches) && (
-                        <div className="space-y-2">
-                          {transaction.suggestedMatches.slice(0, 3).map((match, index) => (
-                            <button
-                              key={index}
-                              onClick={() => confirmMatch(transaction.id, match?.id || '')}
-                              className="block text-blue-600 hover:text-blue-900 text-xs"
-                            >
-                              Confirm: {match?.vendorName || 'Unknown Vendor'} ({(Number(match?.confidence ?? 0) * 100).toFixed(1)}%)
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {transaction.status === 'unmatched' && (
-                        <button
-                          onClick={() => {
-                            // This would open a modal to select WBS category/subcategory
-                            const wbsCategory = prompt('Enter WBS Category:');
-                            const wbsSubcategory = prompt('Enter WBS Subcategory:');
-                            if (wbsCategory && wbsSubcategory) {
-                              addToLedger(transaction.id, wbsCategory, wbsSubcategory);
-                            }
-                          }}
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          Add to Ledger
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full 
+                          ${transaction.status === 'rejected' || (transaction.status === 'matched' && (!potentialMatchesMap[transaction.id] || potentialMatchesMap[transaction.id].length === 0) && transaction.rejectedMatches && transaction.rejectedMatches.length > 0)
+                            ? 'text-red-600 bg-red-100'
+                          : transaction.status === 'confirmed'
+                            ? 'text-green-700 bg-green-100'
+                          : transaction.status === 'unmatched'
+                            ? 'text-gray-700 bg-gray-200'
+                          : transaction.status === 'matched'
+                            ? 'text-blue-700 bg-blue-100'
+                          : 'text-gray-700 bg-gray-200' 
+                        }`}>
+                          {
+                            (transaction.status === 'matched' && (!potentialMatchesMap[transaction.id] || potentialMatchesMap[transaction.id].length === 0) && transaction.rejectedMatches && transaction.rejectedMatches.length > 0)
+                              ? 'rejected'
+                            : transaction.status || 'unmatched'
+                          }
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {transaction.matchConfidence ? `${(transaction.matchConfidence * 100).toFixed(1)}%` : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        {(() => {
+                          if (transaction.status === 'matched' && hasPotentialMatches) {
+                            return (
+                              <button
+                                onClick={() => handleReviewMatch(transaction, potentialMatches)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                Review Match
+                              </button>
+                            );
+                          }
+                          if ((!hasPotentialMatches && hasRejectedMatches && transaction.status === 'matched')) {
+                            return (
+                              <button
+                                onClick={() => handleReviewMatch(transaction, [])}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Review Rejected Matches
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
+                        {transaction.status === 'unmatched' && (
+                          <button
+                            onClick={() => {
+                              const wbsCategory = prompt('Enter WBS Category:');
+                              const wbsSubcategory = prompt('Enter WBS Subcategory:');
+                              if (wbsCategory && wbsSubcategory) {
+                                addToLedger(transaction.id, wbsCategory, wbsSubcategory);
+                              }
+                            }}
+                            className="text-green-600 hover:text-green-900"
+                          >
+                            Add to Ledger
+                          </button>
+                        )}
+                        {(transaction.status === 'confirmed' || transaction.status === 'rejected' || transaction.status === 'added_to_ledger') && (
+                          <span className="text-gray-400">{transaction.status}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+          {/* Match Review Modal */}
+          {showMatchModal && modalTransaction && (
+            <TransactionMatchModal
+              isOpen={showMatchModal}
+              onClose={handleCloseMatchModal}
+              transaction={modalTransaction}
+              potentialLedgerEntries={modalMatches}
+              rejectedLedgerEntries={rejectedLedgerEntries}
+              onConfirm={handleModalConfirm}
+              onReject={handleModalReject}
+              onUndoReject={handleModalUndoReject}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Force Replace Confirmation Modal */}
+      {showForceReplaceConfirm && pendingUploadData && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full mx-4 border-2 border-red-200">
+            <div className="text-center mb-6">
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Force Replace Confirmation</h3>
+              <p className="text-lg text-gray-700 mb-4">
+                Are you sure you want to force replace this upload?
+              </p>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <h4 className="text-lg font-semibold text-red-800 mb-3">⚠️ This action will:</h4>
+              <ul className="text-red-700 space-y-2">
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Mark <strong>ALL transactions</strong> in the original upload as <strong>REPLACED</strong></span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span><strong>Remove/reverse</strong> any actuals that were added to ledger entries from confirmed matches</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span><strong>Clear</strong> any invoice numbers and notes that were added to ledger entries</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Create a <strong>new upload session</strong> with only the transactions from the new file</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h4 className="text-lg font-semibold text-blue-800 mb-2">📋 Audit Trail:</h4>
+              <ul className="text-blue-700 space-y-1">
+                <li>• The original upload will be preserved and marked as "replaced"</li>
+                <li>• All reversals will be logged with detailed audit notes</li>
+                <li>• You can always view the original upload and see what was reversed</li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowForceReplaceConfirm(false);
+                  setPendingUploadData(null);
+                }}
+                className="px-6 py-3 text-base font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={performUpload}
+                disabled={loading}
+                className="px-6 py-3 text-base font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Processing...' : 'Yes, Force Replace'}
+              </button>
+            </div>
           </div>
         </div>
       )}

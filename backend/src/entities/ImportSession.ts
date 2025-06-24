@@ -6,7 +6,8 @@ export enum ImportStatus {
   PROCESSING = 'processing',
   COMPLETED = 'completed',
   FAILED = 'failed',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
+  REPLACED = 'replaced'
 }
 
 @Entity()
@@ -62,4 +63,7 @@ export class ImportSession {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @Column({ type: 'uuid', nullable: true })
+  replacedBySessionId!: string | null;
 } 

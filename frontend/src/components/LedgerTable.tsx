@@ -160,18 +160,20 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     }
   }, [entries, highlightId]);
 
+  // Only fetch potential/rejected match IDs on mount or when programId changes
   useEffect(() => {
+    let isMounted = true;
     const fetchPotentialMatchIds = async () => {
       const res = await fetch(`/api/programs/${programId}/ledger/potential-match-ids`);
       const ids = await res.json();
-      setPotentialMatchIds(ids);
+      if (isMounted) setPotentialMatchIds(ids);
     };
     const fetchEntriesWithRejectedMatches = async () => {
       try {
         const res = await fetch(`/api/programs/${programId}/ledger/rejected-match-ids`);
         if (res.ok) {
           const ids = await res.json();
-          setEntriesWithRejectedMatches(new Set(ids));
+          if (isMounted) setEntriesWithRejectedMatches(new Set(ids));
         }
       } catch (error) {
         console.error('Failed to fetch rejected match IDs:', error);
@@ -179,6 +181,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     };
     fetchPotentialMatchIds();
     fetchEntriesWithRejectedMatches();
+    return () => { isMounted = false; };
   }, [programId]);
 
   // Save cell edit
