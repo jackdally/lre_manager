@@ -7,6 +7,7 @@ import multer from 'multer';
 import path from 'path';
 import { importLedgerFromFile } from '../services/ledger';
 import * as XLSX from 'xlsx';
+import { PotentialMatch } from '../entities/PotentialMatch';
 
 const router = Router();
 const ledgerRepo = AppDataSource.getRepository(LedgerEntry);
@@ -383,24 +384,32 @@ router.get('/import/template', (req, res) => {
 router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, res) => {
   const { ledgerEntryId } = req.params;
   try {
-    const importTransactionRepo = AppDataSource.getRepository('ImportTransaction');
-    const matched = await importTransactionRepo.find({
+    const potentialMatchRepo = AppDataSource.getRepository(PotentialMatch);
+    
+    // Get all potential matches for this ledger entry
+    const potentialMatches = await potentialMatchRepo.find({
       where: {
-        matchedLedgerEntry: { id: ledgerEntryId },
-        status: 'matched',
+        ledgerEntry: { id: ledgerEntryId },
+        status: 'potential'
       },
-      relations: ['importSession'],
+      relations: ['transaction', 'transaction.importSession'],
       order: { createdAt: 'DESC' },
     });
-    const rejected = await importTransactionRepo.find({
+    
+    // Get rejected matches for this ledger entry
+    const rejectedMatchRepo = AppDataSource.getRepository('RejectedMatch');
+    const rejectedMatches = await rejectedMatchRepo.find({
       where: {
-        matchedLedgerEntry: { id: ledgerEntryId },
-        status: In(['rejected', 'replaced']),
+        ledgerEntry: { id: ledgerEntryId }
       },
-      relations: ['importSession'],
+      relations: ['transaction', 'transaction.importSession'],
       order: { createdAt: 'DESC' },
     });
-    res.json({ matched, rejected });
+    
+    res.json({ 
+      matched: potentialMatches.map(pm => pm.transaction), 
+      rejected: rejectedMatches.map(rm => rm.transaction) 
+    });
   } catch (err) {
     console.error('Error fetching potential matches:', err);
     res.status(500).json({ error: 'Failed to fetch potential matches' });
@@ -411,18 +420,20 @@ router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, re
 router.get('/:programId/ledger/potential-match-ids', async (req, res) => {
   const { programId } = req.params;
   try {
-    const importTransactionRepo = AppDataSource.getRepository('ImportTransaction');
-    const matches = await importTransactionRepo
-      .createQueryBuilder('it')
-      .leftJoin('it.matchedLedgerEntry', 'le')
-      .where('le.programId = :programId', { programId })
-      .andWhere('it.status = :status', { status: 'matched' })
-      .select('le.id', 'ledgerEntryId')
-      .distinct(true)
-      .getRawMany();
-    const ids = matches.map(m => m.ledgerEntryId);
-    console.log('[DEBUG] Potential match ledgerEntryIds:', ids);
-    res.json(ids);
+    const potentialMatchRepo = AppDataSource.getRepository(PotentialMatch);
+    
+    // Get all potential matches for this program
+    const potentialMatches = await potentialMatchRepo.find({
+      where: {
+        ledgerEntry: { program: { id: programId } },
+        status: 'potential'
+      },
+      relations: ['ledgerEntry']
+    });
+    
+    // Extract unique ledger entry IDs
+    const matchIds = new Set(potentialMatches.map(pm => pm.ledgerEntry.id));
+    res.json(Array.from(matchIds));
   } catch (err) {
     console.error('Error fetching potential match IDs:', err);
     res.status(500).json({ error: 'Failed to fetch potential match IDs' });
@@ -433,21 +444,19 @@ router.get('/:programId/ledger/potential-match-ids', async (req, res) => {
 router.get('/:programId/ledger/rejected-match-ids', async (req, res) => {
   const { programId } = req.params;
   try {
-    const importTransactionRepo = AppDataSource.getRepository('ImportTransaction');
-    const rejected = await importTransactionRepo
-      .createQueryBuilder('it')
-      .leftJoin('it.matchedLedgerEntry', 'le')
+    const rejectedMatchRepo = AppDataSource.getRepository('RejectedMatch');
+    const rejected = await rejectedMatchRepo
+      .createQueryBuilder('rm')
+      .leftJoin('rm.ledgerEntry', 'le')
       .where('le.programId = :programId', { programId })
-      .andWhere('it.status IN (:...statuses)', { statuses: ['rejected', 'replaced'] })
       .select('le.id', 'ledgerEntryId')
       .distinct(true)
       .getRawMany();
     const ids = rejected.map(m => m.ledgerEntryId);
-    console.log('[DEBUG] Rejected/replaced match ledgerEntryIds:', ids);
     res.json(ids);
   } catch (err) {
-    console.error('Error fetching rejected/replaced match IDs:', err);
-    res.status(500).json({ error: 'Failed to fetch rejected/replaced match IDs' });
+    console.error('Error fetching rejected match IDs:', err);
+    res.status(500).json({ error: 'Failed to fetch rejected match IDs' });
   }
 });
 

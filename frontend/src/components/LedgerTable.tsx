@@ -52,10 +52,11 @@ const PAGE_SIZE = 10;
 // Required fields for a ledger entry
 const requiredFields = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory'];
 
-function formatCurrency(val: number | undefined | null) {
-  if (val == null) return '--';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(val));
-}
+// Robust currency formatter for both numbers and strings
+const formatCurrency = (val: number | string | undefined | null) => {
+  if (val === undefined || val === null || isNaN(Number(val))) return '--';
+  return Number(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+};
 
 const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange, filterType = 'all', vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter, onOptionsUpdate }) => {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
@@ -390,11 +391,9 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
       const res = await fetch(`/api/programs/${programId}/ledger/${entryId}/potential-matches`);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
-      console.log('DEBUG: potential-matches API response', data);
       setPotentialMatched(data.matched || []);
       setPotentialRejected(data.rejected || []);
       setTimeout(() => {
-        console.log('DEBUG: potentialRejected after fetch', data.rejected || []);
       }, 100);
       // Track which entries have rejected matches
       if (data.rejected && data.rejected.length > 0) {
@@ -435,7 +434,9 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
   }
 
   // Before rendering the modal content, define currentMatches
-  const currentMatches = potentialTab === 'matched' ? potentialMatched : potentialRejected;
+  const filteredPotentialMatched = potentialMatched.filter(entry => entry.status !== 'replaced');
+  const filteredPotentialRejected = potentialRejected.filter(entry => entry.status !== 'replaced');
+  const currentMatches = potentialTab === 'matched' ? filteredPotentialMatched : filteredPotentialRejected;
 
   useEffect(() => {
     if (toast) {
@@ -448,9 +449,18 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
 
   useEffect(() => {
     if (potentialTab === 'rejected') {
-      console.log('DEBUG: currentMatches in rejected tab', potentialRejected);
     }
   }, [potentialTab, potentialRejected]);
+
+  // Always sort entries by planned_date ascending before rendering
+  const sortedEntries = useMemo(() => {
+    return [...entries].sort((a, b) => {
+      if (!a.planned_date && !b.planned_date) return 0;
+      if (!a.planned_date) return 1;
+      if (!b.planned_date) return -1;
+      return new Date(a.planned_date).getTime() - new Date(b.planned_date).getTime();
+    });
+  }, [entries]);
 
   return (
     <div className="bg-white rounded-xl shadow p-4">
@@ -695,7 +705,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
             </tr>
           </thead>
           <tbody>
-            {filteredEntries.map((entry, idx) => {
+            {sortedEntries.map((entry, idx) => {
               return (
                 <tr
                   key={entry.id}
@@ -981,31 +991,6 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
                             </button>
                           );
                         }
-                        // Both Potential Match and Rejected Matches (stacked)
-                        if (hasPotentialMatch && hasRejectedMatches) {
-                          return (
-                            <div className="flex flex-col items-start gap-1">
-                              <button
-                                className="flex items-center gap-1 text-yellow-600 underline hover:text-yellow-800 text-sm font-semibold"
-                                aria-label="Review Potential Match"
-                                data-tooltip-id={`potential-tooltip-${entry.id}`}
-                                onClick={() => handleShowPotentialMatches(entry.id)}
-                              >
-                                <InformationCircleIcon className="h-4 w-4" /> Potential Match
-                              </button>
-                              <button
-                                className="flex items-center gap-1 text-red-600 underline hover:text-red-800 text-sm font-semibold"
-                                aria-label="View Rejected Matches"
-                                onClick={async () => {
-                                  await handleShowPotentialMatches(entry.id);
-                                  setPotentialTab('rejected');
-                                }}
-                              >
-                                <XCircleIcon className="h-4 w-4" /> Rejected Matches
-                              </button>
-                            </div>
-                          );
-                        }
                         // Only Potential Match
                         if (hasPotentialMatch) {
                           return (
@@ -1058,7 +1043,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
             <div className="mb-3 flex flex-col gap-2 text-base">
               <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{uploadModalData.vendorName}</span></div>
               <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{uploadModalData.description}</span></div>
-              <div><b className="text-gray-600">Amount:</b> <span className="text-green-700 font-semibold">${Number(uploadModalData.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+              <div><b className="text-gray-600">Amount:</b> <span className="text-green-700 font-semibold">{formatCurrency(uploadModalData.amount)}</span></div>
               <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{uploadModalData.transactionDate ? new Date(uploadModalData.transactionDate).toLocaleDateString() : ''}</span></div>
               <div><b className="text-gray-600">Status:</b> <span className="text-gray-900 capitalize">{uploadModalData.status}</span></div>
               <div><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{uploadModalData.importSession?.originalFilename}</span></div>
@@ -1076,20 +1061,19 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
                       try {
                         const response = await fetch(`/api/import/transaction/${uploadModalData.id}/remove-match`, { method: 'POST' });
                         if (response.ok) {
-                          // Find the ledger entry that was matched to this transaction
-                          const matchedEntry = entries.find(entry => entry.importTransaction?.id === uploadModalData.id);
-                          if (matchedEntry) {
-                            // Add this entry back to potential matches
-                            setPotentialMatchIds(prev => [...prev, matchedEntry.id]);
-                            // Remove from rejected matches if it was there
-                            setEntriesWithRejectedMatches(prev => {
-                              const newSet = new Set(Array.from(prev));
-                              newSet.delete(matchedEntry.id);
-                              return newSet;
-                            });
-                          }
                           setShowUploadModal(false);
+                          // Refresh all data from backend to get updated state
                           fetchEntries();
+                          // Refresh potential match IDs
+                          const res = await fetch(`/api/programs/${programId}/ledger/potential-match-ids`);
+                          const ids = await res.json();
+                          setPotentialMatchIds(ids);
+                          // Refresh rejected match IDs
+                          const rejectedRes = await fetch(`/api/programs/${programId}/ledger/rejected-match-ids`);
+                          if (rejectedRes.ok) {
+                            const rejectedIds = await rejectedRes.json();
+                            setEntriesWithRejectedMatches(new Set(rejectedIds));
+                          }
                         } else {
                           console.error('Failed to remove match');
                         }
@@ -1146,7 +1130,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
                   <div className="flex flex-col gap-1 text-base">
                     <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{entries.find(e => e.id === potentialLedgerEntryId)?.vendor_name || '--'}</span></div>
                     <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{entries.find(e => e.id === potentialLedgerEntryId)?.expense_description || '--'}</span></div>
-                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">${Number(entries.find(e => e.id === potentialLedgerEntryId)?.planned_amount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(entries.find(e => e.id === potentialLedgerEntryId)?.planned_amount ?? 0)}</span></div>
                     <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{
                       (() => {
                         const plannedDate = entries.find(e => e.id === potentialLedgerEntryId)?.planned_date;
@@ -1169,7 +1153,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
                   <div className="mb-3 flex flex-col gap-2 text-base">
                     <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{currentMatches[potentialIndex].vendorName}</span></div>
                     <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{currentMatches[potentialIndex].description}</span></div>
-                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">${Number(currentMatches[potentialIndex].amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(currentMatches[potentialIndex].amount)}</span></div>
                     <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{currentMatches[potentialIndex].transactionDate ? new Date(currentMatches[potentialIndex].transactionDate).toLocaleDateString() : ''}</span></div>
                     <div><b className="text-gray-600">Status:</b> <span className="text-gray-900 capitalize">{currentMatches[potentialIndex].status}</span></div>
                     <div><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{currentMatches[potentialIndex].importSession?.originalFilename}</span></div>
@@ -1227,17 +1211,14 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
                   <button
                     className="btn btn-primary px-6 py-2 text-base font-semibold rounded shadow hover:bg-blue-700 transition"
                     onClick={async () => {
-                      console.log('Confirm button clicked for transaction:', currentMatches[potentialIndex]);
                       try {
                         const response = await fetch(`/api/import/transaction/${currentMatches[potentialIndex].id}/confirm-match`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ ledgerEntryId: potentialLedgerEntryId }),
                         });
-                        console.log('Confirm match response:', response.status, response.statusText);
                         if (response.ok) {
                           const result = await response.json();
-                          console.log('Confirm match result:', result);
                         } else {
                           const error = await response.text();
                           console.error('Confirm match error:', error);
@@ -1254,7 +1235,11 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
                   <button
                     className="btn btn-ghost px-6 py-2 text-base font-semibold rounded shadow hover:bg-gray-200 transition"
                     onClick={async () => {
-                      await fetch(`/api/import/transaction/${currentMatches[potentialIndex].id}/reject`, { method: 'POST' });
+                      await fetch(`/api/import/transaction/${currentMatches[potentialIndex].id}/reject`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ledgerEntryId: potentialLedgerEntryId })
+                      });
                       // Move the rejected match to the rejected tab immediately, regardless of tab
                       const rejectedMatch = potentialMatched[potentialIndex];
                       const newMatched = potentialMatched.filter((_, i) => i !== potentialIndex);

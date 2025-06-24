@@ -13,7 +13,12 @@ export enum TransactionStatus {
 
 export enum DuplicateType {
   NONE = 'none',
-  DIFFERENT_INFO = 'different_info'
+  EXACT_DUPLICATE = 'exact_duplicate',
+  DIFFERENT_INFO_CONFIRMED = 'different_info_confirmed',
+  DIFFERENT_INFO_PENDING = 'different_info_pending',
+  ORIGINAL_REJECTED = 'original_rejected',
+  NO_INVOICE_POTENTIAL = 'no_invoice_potential',
+  MULTIPLE_POTENTIAL = 'multiple_potential'
 }
 
 @Entity()
@@ -47,6 +52,9 @@ export class ImportTransaction {
 
   @Column({ nullable: true })
   referenceNumber!: string;
+
+  @Column({ nullable: true })
+  transactionId!: string;
 
   @Column('json', { nullable: true })
   rawData!: any;

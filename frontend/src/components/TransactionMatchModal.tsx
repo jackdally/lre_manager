@@ -8,6 +8,11 @@ interface LedgerEntry {
   planned_date?: string;
   wbs_category?: string;
   wbs_subcategory?: string;
+  actual_amount?: number;
+  actual_date?: string;
+  notes?: string;
+  invoice_link_text?: string;
+  invoice_link_url?: string;
   [key: string]: any;
 }
 
@@ -21,6 +26,11 @@ interface ImportTransaction {
   importSession?: { originalFilename: string };
   matchConfidence?: number;
   confidence?: number;
+  invoiceNumber?: string;
+  referenceNumber?: string;
+  transactionId?: string;
+  category?: string;
+  subcategory?: string;
   [key: string]: any;
 }
 
@@ -73,9 +83,12 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
     }
   }, [rejectedLedgerEntries.length, potentialLedgerEntries.length, currentLedgerIndex, currentTab]);
 
-  if (!isOpen) return null;
+  // Filter out replaced entries
+  const filteredPotentialLedgerEntries = potentialLedgerEntries.filter(entry => entry.status !== 'replaced');
+  const filteredRejectedLedgerEntries = rejectedLedgerEntries.filter(entry => entry.status !== 'replaced');
 
-  const ledgerEntries = currentTab === 'potential' ? potentialLedgerEntries : rejectedLedgerEntries;
+  // Use filtered arrays for tab logic
+  const ledgerEntries = currentTab === 'potential' ? filteredPotentialLedgerEntries : filteredRejectedLedgerEntries;
   const ledgerEntry = ledgerEntries[currentLedgerIndex];
   const total = ledgerEntries.length;
 
@@ -96,14 +109,18 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
   };
 
   // Helper for formatting
-  const formatCurrency = (val: number | undefined | null) =>
-    val == null ? '--' : `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatCurrency = (val: number | string | undefined | null) => {
+    if (val == null || isNaN(Number(val))) return '--';
+    return Number(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  };
 
   const matchConfidence = (transaction.confidence ?? transaction.matchConfidence ?? 0) * 100;
   let confidenceColor = 'text-gray-500';
   if (matchConfidence >= 80) confidenceColor = 'text-green-600';
   else if (matchConfidence >= 60) confidenceColor = 'text-yellow-600';
   else confidenceColor = 'text-red-600';
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
@@ -117,6 +134,25 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
           <div className="mb-2 text-base"><b className="text-gray-600">Description:</b> <span className="text-gray-900">{transaction.description}</span></div>
           <div className="mb-2 text-base"><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(transaction.amount)}</span></div>
           <div className="mb-2 text-base"><b className="text-gray-600">Date:</b> <span className="text-gray-900">{transaction.transactionDate}</span></div>
+          {transaction.category && <div className="mb-2 text-base"><b className="text-gray-600">Category:</b> <span className="text-gray-900">{transaction.category}</span></div>}
+          {transaction.subcategory && <div className="mb-2 text-base"><b className="text-gray-600">Subcategory:</b> <span className="text-gray-900">{transaction.subcategory}</span></div>}
+          {transaction.invoiceNumber && (
+            <div className="mb-2 text-base">
+              <b className="text-gray-600">Invoice Number:</b>
+              {transaction.referenceNumber && transaction.referenceNumber.startsWith('http') ? (
+                <a
+                  href={transaction.referenceNumber}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline ml-1"
+                >
+                  {transaction.invoiceNumber}
+                </a>
+              ) : (
+                <span className="text-gray-900 ml-1">{transaction.invoiceNumber}</span>
+              )}
+            </div>
+          )}
           {transaction.status && <div className="mb-2 text-base"><b className="text-gray-600">Status:</b> <span className="text-gray-900">{transaction.status}</span></div>}
           {transaction.importSession && <div className="mb-2 text-base"><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{transaction.importSession.originalFilename}</span></div>}
           <div className="mb-2 text-base font-semibold">Match Confidence: <span className={`font-bold ${confidenceColor}`}>{matchConfidence.toFixed(1)}%</span></div>
@@ -142,10 +178,26 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
               <h3 className={`text-lg font-bold mb-2 ${currentTab === 'rejected' ? 'text-red-700' : 'text-blue-700'}`}>{currentTab === 'rejected' ? 'Rejected Ledger Entry' : 'Ledger Entry'}</h3>
               <div className="mb-2 text-base"><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{ledgerEntry.vendor_name}</span></div>
               <div className="mb-2 text-base"><b className="text-gray-600">Description:</b> <span className="text-gray-900">{ledgerEntry.expense_description}</span></div>
-              <div className="mb-2 text-base"><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(ledgerEntry.planned_amount)}</span></div>
-              <div className="mb-2 text-base"><b className="text-gray-600">Date:</b> <span className="text-gray-900">{ledgerEntry.planned_date}</span></div>
+              <div className="mb-2 text-base"><b className="text-gray-600">Planned Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(ledgerEntry.planned_amount)}</span></div>
+              <div className="mb-2 text-base"><b className="text-gray-600">Planned Date:</b> <span className="text-gray-900">{ledgerEntry.planned_date}</span></div>
+              {ledgerEntry.actual_amount && <div className="mb-2 text-base"><b className="text-gray-600">Actual Amount:</b> <span className="text-green-700 font-semibold">{formatCurrency(ledgerEntry.actual_amount)}</span></div>}
+              {ledgerEntry.actual_date && <div className="mb-2 text-base"><b className="text-gray-600">Actual Date:</b> <span className="text-gray-900">{ledgerEntry.actual_date}</span></div>}
               {ledgerEntry.wbs_category && <div className="mb-2 text-base"><b className="text-gray-600">WBS Category:</b> <span className="text-gray-900">{ledgerEntry.wbs_category}</span></div>}
               {ledgerEntry.wbs_subcategory && <div className="mb-2 text-base"><b className="text-gray-600">WBS Subcategory:</b> <span className="text-gray-900">{ledgerEntry.wbs_subcategory}</span></div>}
+              {ledgerEntry.notes && <div className="mb-2 text-base"><b className="text-gray-600">Notes:</b> <span className="text-gray-900">{ledgerEntry.notes}</span></div>}
+              {ledgerEntry.invoice_link_url && (
+                <div className="mb-2 text-base">
+                  <b className="text-gray-600">Invoice Link:</b> 
+                  <a 
+                    href={ledgerEntry.invoice_link_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline ml-1"
+                  >
+                    {ledgerEntry.invoice_link_text || 'View Invoice'}
+                  </a>
+                </div>
+              )}
               {/* Restore button for rejected tab */}
               {currentTab === 'rejected' && (
                 <button

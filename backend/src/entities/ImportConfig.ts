@@ -23,6 +23,7 @@ export class ImportConfig {
     subcategoryColumn?: string;
     invoiceColumn?: string;
     referenceColumn?: string;
+    transactionIdColumn?: string;
     dateFormat?: string;
     amountTolerance?: number;
     matchThreshold?: number;

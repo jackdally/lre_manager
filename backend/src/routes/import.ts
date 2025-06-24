@@ -5,6 +5,9 @@ import { ImportConfig as ImportConfigEntity } from '../entities/ImportConfig';
 import multer from 'multer';
 import path from 'path';
 import * as fs from 'fs';
+import { PotentialMatch } from '../entities/PotentialMatch';
+import { In } from 'typeorm';
+import { ImportStatus } from '../entities/ImportSession';
 
 const router = Router();
 const importService = new ImportService();
@@ -497,6 +500,9 @@ router.post('/transaction/:transactionId/reject', async (req, res) => {
   try {
     const { transactionId } = req.params;
     const { ledgerEntryId } = req.body;
+    if (!ledgerEntryId) {
+      return res.status(400).json({ error: 'ledgerEntryId is required' });
+    }
     console.log(`[DEBUG ROUTE REJECT] Frontend request: transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
     await importService.rejectMatch(transactionId, ledgerEntryId);
     res.json({ message: 'Match rejected successfully' });
@@ -523,19 +529,21 @@ router.get('/transaction/:transactionId/potential-matches', async (req, res) => 
   const { transactionId } = req.params;
   try {
     console.log(`[DEBUG ROUTE POTENTIAL MATCHES] Frontend request for transactionId=${transactionId}`);
-    const transaction = await importService.getTransactionWithSession(transactionId);
-    if (!transaction) return res.status(404).json({ error: 'Transaction not found' });
-    const session = transaction.importSession;
-    const config = session.importConfig;
-    const ledgerEntries = await importService.getLedgerEntriesForProgram(session.program.id);
-    console.log(`[DEBUG ROUTE POTENTIAL MATCHES] Found ${ledgerEntries.length} total ledger entries for program`);
     
-    // Use the matching algorithm to get only valid matches
-    const matches = await importService.findMatches(transaction, ledgerEntries, config);
-    console.log(`[DEBUG ROUTE POTENTIAL MATCHES] Returning ${matches.length} potential matches to frontend`);
+    // Query the PotentialMatch table for this transaction
+    const potentialMatchRepo = AppDataSource.getRepository(PotentialMatch);
+    const potentialMatches = await potentialMatchRepo.find({
+      where: {
+        transaction: { id: transactionId },
+        status: 'potential'
+      },
+      relations: ['ledgerEntry']
+    });
+    
+    console.log(`[DEBUG ROUTE POTENTIAL MATCHES] Found ${potentialMatches.length} potential matches in database`);
     
     // Return only the ledgerEntry objects
-    const result = matches.map(m => m.ledgerEntry);
+    const result = potentialMatches.map(pm => pm.ledgerEntry);
     res.json(result);
   } catch (error) {
     console.error('[POTENTIAL MATCHES] Error:', error);
@@ -550,19 +558,26 @@ router.post('/transactions/potential-matches', async (req, res) => {
     return res.status(400).json({ error: 'transactionIds must be an array' });
   }
   try {
+    // Query the PotentialMatch table for all transactions in the list
+    const potentialMatchRepo = AppDataSource.getRepository(PotentialMatch);
+    const potentialMatches = await potentialMatchRepo.find({
+      where: {
+        transaction: { id: In(transactionIds) },
+        status: 'potential'
+      },
+      relations: ['transaction', 'ledgerEntry']
+    });
+    
+    // Group by transactionId
     const result: Record<string, any[]> = {};
     for (const transactionId of transactionIds) {
-      const transaction = await importService.getTransactionWithSession(transactionId);
-      if (!transaction) {
-        result[transactionId] = [];
-        continue;
-      }
-      const session = transaction.importSession;
-      const config = session.importConfig;
-      const ledgerEntries = await importService.getLedgerEntriesForProgram(session.program.id);
-      const matches = await importService.findMatches(transaction, ledgerEntries, config);
-      result[transactionId] = matches.map(m => m.ledgerEntry);
+      result[transactionId] = [];
     }
+    
+    for (const pm of potentialMatches) {
+      result[pm.transaction.id].push(pm.ledgerEntry);
+    }
+    
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message || 'Failed to get batch potential matches' });
@@ -584,6 +599,75 @@ router.post('/transactions/rejected-ledger-entries', async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message || 'Failed to get batch rejected ledger entries' });
+  }
+});
+
+// Cancel an import session
+router.post('/session/:sessionId/cancel', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await importService.getImportSession(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Import session not found' });
+    }
+    if (session.status !== ImportStatus.PENDING && session.status !== ImportStatus.PROCESSING) {
+      return res.status(400).json({ error: 'Only pending or processing sessions can be cancelled' });
+    }
+    session.status = ImportStatus.CANCELLED;
+    await AppDataSource.getRepository('ImportSession').save(session);
+    res.json({ message: 'Session cancelled successfully' });
+  } catch (error: any) {
+    console.error('Cancel session error:', error);
+    res.status(500).json({ error: error.message || 'Failed to cancel session' });
+  }
+});
+
+// Ignore duplicate for a transaction
+router.post('/transaction/:transactionId/ignore-duplicate', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    await importService.ignoreDuplicate(transactionId);
+    res.json({ message: 'Duplicate ignored successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to ignore duplicate' });
+  }
+});
+
+// Reject duplicate for a transaction
+router.post('/transaction/:transactionId/reject-duplicate', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    await importService.rejectDuplicate(transactionId);
+    res.json({ message: 'Duplicate rejected successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to reject duplicate' });
+  }
+});
+
+// Accept duplicate and replace original
+router.post('/transaction/:transactionId/accept-replace-original', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    await importService.acceptAndReplaceOriginal(transactionId);
+    res.json({ message: 'Duplicate accepted and original replaced successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to accept and replace original' });
+  }
+});
+
+// Force smart matching for all sessions in a program
+router.post('/:programId/force-smart-matching', async (req, res) => {
+  const { programId } = req.params;
+  try {
+    const sessionRepo = AppDataSource.getRepository(require('../entities/ImportSession').ImportSession);
+    const sessions = await sessionRepo.find({ where: { program: { id: programId } } });
+    for (const session of sessions) {
+      await importService.performSmartMatching(session.id);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error running smart matching:', err);
+    res.status(500).json({ error: 'Failed to run smart matching' });
   }
 });
 

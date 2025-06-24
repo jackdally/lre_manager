@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from './Layout';
 import TransactionMatchModal from './TransactionMatchModal';
@@ -14,6 +14,7 @@ interface ImportConfig {
   subcategoryColumn?: string;
   invoiceColumn?: string;
   referenceColumn?: string;
+  transactionIdColumn?: string;
   dateFormat?: string;
   amountTolerance?: number;
   matchThreshold?: number;
@@ -42,6 +43,10 @@ interface ImportSession {
   matchedRecords: number;
   unmatchedRecords: number;
   errorRecords: number;
+  confirmedRecords?: number;
+  rejectedRecords?: number;
+  replacedRecords?: number;
+  addedToLedgerRecords?: number;
   createdAt: string;
   updatedAt: string;
   replacedBySessionId?: string | null;
@@ -58,11 +63,12 @@ interface ImportTransaction {
   subcategory?: string;
   invoiceNumber?: string;
   referenceNumber?: string;
+  transactionId?: string;
   status: 'unmatched' | 'matched' | 'confirmed' | 'rejected' | 'added_to_ledger' | 'replaced';
   matchConfidence?: number;
   suggestedMatches?: any[];
   matchedLedgerEntry?: any;
-  duplicateType?: 'none' | 'different_info';
+  duplicateType?: 'none' | 'exact_duplicate' | 'different_info_confirmed' | 'different_info_pending' | 'original_rejected' | 'no_invoice_potential' | 'multiple_potential';
   duplicateOfId?: string | null;
   preservedFromSessionId?: string | null;
   rejectedMatches?: any[];
@@ -91,6 +97,7 @@ const ImportPage: React.FC = () => {
     subcategoryColumn: 'Subcategory',
     invoiceColumn: 'Invoice Number',
     referenceColumn: 'Reference Number',
+    transactionIdColumn: 'Transaction ID',
     dateFormat: 'MM/DD/YYYY',
     amountTolerance: 0.01,
     matchThreshold: 0.7
@@ -156,6 +163,12 @@ const ImportPage: React.FC = () => {
     }
   }, [programId]);
 
+  useEffect(() => {
+    if (activeTab === 'sessions' && programId) {
+      loadSessions();
+    }
+  }, [activeTab, programId]);
+
   const loadSessions = async () => {
     try {
       const response = await fetch(`/api/import/${programId}/sessions`);
@@ -213,6 +226,7 @@ const ImportPage: React.FC = () => {
         subcategoryColumn: 'Subcategory',
         invoiceColumn: 'Invoice Number',
         referenceColumn: 'Reference Number',
+        transactionIdColumn: 'Transaction ID',
         dateFormat: 'MM/DD/YYYY',
         amountTolerance: 0.01,
         matchThreshold: 0.7
@@ -652,7 +666,70 @@ const ImportPage: React.FC = () => {
   // Filter transactions for display
   const displayedTransactions = showAllDuplicates
     ? transactions
-    : transactions.filter(t => t.duplicateType !== 'none' ? false : true);
+    : transactions.filter(t => t.duplicateType === 'none' || !t.duplicateType);
+
+  // Always sort displayedTransactions by transactionDate ascending for consistent order
+  const sortedDisplayedTransactions = useMemo(() => {
+    return [...displayedTransactions].sort((a, b) => {
+      if (!a.transactionDate && !b.transactionDate) return 0;
+      if (!a.transactionDate) return 1;
+      if (!b.transactionDate) return -1;
+      return new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime();
+    });
+  }, [displayedTransactions]);
+
+  // Handle ignoring a duplicate
+  const handleIgnoreDuplicate = async (transactionId: string) => {
+    try {
+      await fetch(`/api/import/transaction/${transactionId}/ignore-duplicate`, { method: 'POST' });
+      setTransactions(prev => prev.map(t => t.id === transactionId ? { ...t, duplicateType: 'none' } : t));
+    } catch (err) {
+      alert('Failed to ignore duplicate');
+    }
+  };
+
+  // Handle rejecting a duplicate
+  const handleRejectDuplicate = async (transactionId: string) => {
+    try {
+      await fetch(`/api/import/transaction/${transactionId}/reject-duplicate`, { method: 'POST' });
+      if (currentSession) {
+        await loadSessionDetails(currentSession.id);
+      }
+    } catch (err) {
+      alert('Failed to reject duplicate');
+    }
+  };
+
+  // Handle accepting a duplicate and replacing the original
+  const handleAcceptAndReplaceOriginal = async (transactionId: string, duplicateOfId: string | null | undefined) => {
+    if (!duplicateOfId) return;
+    try {
+      await fetch(`/api/import/transaction/${transactionId}/accept-replace-original`, { method: 'POST' });
+      setTransactions(prev => prev.map(t =>
+        t.id === transactionId ? { ...t, duplicateType: 'none' } :
+        t.id === duplicateOfId ? { ...t, status: 'rejected' } :
+        t
+      ));
+    } catch (err) {
+      alert('Failed to accept and replace original');
+    }
+  };
+
+  // Add this handler function near the other handlers
+  const handleForceSmartMatching = async () => {
+    if (!programId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/import/${programId}/force-smart-matching`, { method: 'POST' });
+      if (!response.ok) throw new Error('Failed to run smart matching');
+      await loadSessions();
+    } catch (err: any) {
+      setError(err.message || 'Failed to run smart matching');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Layout>
@@ -967,6 +1044,66 @@ const ImportPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category Column
+                </label>
+                <input
+                  type="text"
+                  value={config.categoryColumn || ''}
+                  onChange={(e) => setConfig({...config, categoryColumn: e.target.value})}
+                  placeholder="e.g., Category"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Subcategory Column
+                </label>
+                <input
+                  type="text"
+                  value={config.subcategoryColumn || ''}
+                  onChange={(e) => setConfig({...config, subcategoryColumn: e.target.value})}
+                  placeholder="e.g., Subcategory"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Invoice Number Column
+                </label>
+                <input
+                  type="text"
+                  value={config.invoiceColumn || ''}
+                  onChange={(e) => setConfig({...config, invoiceColumn: e.target.value})}
+                  placeholder="e.g., Invoice Number"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Transaction ID Column
+                </label>
+                <input
+                  type="text"
+                  value={config.transactionIdColumn || ''}
+                  onChange={(e) => setConfig({...config, transactionIdColumn: e.target.value})}
+                  placeholder="e.g., Transaction ID"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reference Number Column
+                </label>
+                <input
+                  type="text"
+                  value={config.referenceColumn || ''}
+                  onChange={(e) => setConfig({...config, referenceColumn: e.target.value})}
+                  placeholder="e.g., Reference Number (optional - will auto-generate from Transaction ID)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date Format
                 </label>
                 <select
@@ -1230,6 +1367,16 @@ const ImportPage: React.FC = () => {
       {activeTab === 'sessions' && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold">Upload Sessions</h2>
+          <div style={{ marginBottom: 16 }}>
+            <button
+              onClick={handleForceSmartMatching}
+              style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}
+              disabled={loading}
+            >
+              Force Smart Matching
+            </button>
+            {error && <span style={{ color: 'red', marginLeft: 12 }}>{error}</span>}
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -1256,7 +1403,7 @@ const ImportPage: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {sessions.map((session) => (
-                  <tr key={session.id} className={`hover:bg-gray-50 ${session.status === 'replaced' ? 'bg-gray-100 opacity-70' : ''}`}>
+                  <tr key={session.id} className={`hover:bg-gray-50 ${(session.status === 'replaced' || session.status === 'cancelled') ? 'bg-gray-100 opacity-70' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
@@ -1302,18 +1449,55 @@ const ImportPage: React.FC = () => {
                             </button>
                           </div>
                         )}
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                          {/* Inline status summary for this session */}
+                          <span className="font-semibold text-green-700">{session.confirmedRecords || 0} confirmed</span>,
+                          <span className="font-semibold text-green-700">{session.addedToLedgerRecords || 0} added to ledger</span>,
+                          <span className="font-semibold text-red-600">{session.rejectedRecords || 0} rejected</span>,
+                          <span className="font-semibold text-orange-600">{session.replacedRecords || 0} replaced</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(session.status)}`}>
-                        {session.status}
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        session.status === 'completed' && (session.matchedRecords > 0 || session.unmatchedRecords > 0)
+                          ? 'text-blue-700 bg-blue-100'
+                          : session.status === 'completed'
+                            ? 'text-green-700 bg-green-100'
+                            : session.status === 'pending'
+                              ? 'text-yellow-800 bg-yellow-100'
+                            : session.status === 'processing'
+                              ? 'text-purple-700 bg-purple-100'
+                            : session.status === 'failed'
+                              ? 'text-red-700 bg-red-100'
+                            : session.status === 'cancelled'
+                              ? 'text-gray-500 bg-gray-200'
+                            : session.status === 'replaced'
+                              ? 'text-yellow-800 bg-yellow-100'
+                            : getStatusColor(session.status)
+                      }`}>
+                        {session.status === 'completed' && (session.matchedRecords > 0 || session.unmatchedRecords > 0)
+                          ? 'in review'
+                          : session.status === 'completed'
+                            ? 'completed'
+                            : session.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {session.processedRecords} / {session.totalRecords}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {session.matchedRecords} matched, {session.unmatchedRecords} unmatched
+                      {session.matchedRecords === 0 && session.unmatchedRecords === 0 ? (
+                        <span className="font-semibold text-green-700 flex items-center">
+                          0 matched, 0 unmatched
+                          <svg className="ml-1 w-4 h-4 text-green-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-blue-700">{session.matchedRecords} <span className="text-blue-700">matched</span></span>,{' '}
+                          <span className="font-semibold text-gray-700">{session.unmatchedRecords} <span className="text-gray-700">unmatched</span></span>
+                        </>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(session.createdAt).toLocaleDateString()}
@@ -1327,6 +1511,19 @@ const ImportPage: React.FC = () => {
                           Review Matches
                         </button>
                       )}
+                      {session.status === 'pending' || session.status === 'processing' ? (
+                        <button
+                          onClick={async () => {
+                            if (window.confirm('Are you sure you want to cancel this session?')) {
+                              await fetch(`/api/import/session/${session.id}/cancel`, { method: 'POST' });
+                              loadSessions();
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-900 ml-2"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
                       {session.status === 'replaced' && (
                         <span className="text-gray-400">Replaced</span>
                       )}
@@ -1375,13 +1572,13 @@ const ImportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {displayedTransactions.map((transaction: ImportTransaction) => {
+                {sortedDisplayedTransactions.map((transaction: ImportTransaction) => {
                   const potentialMatches = potentialMatchesMap[transaction.id] || [];
                   const rejectedMatches = transaction.rejectedMatches || [];
                   const hasPotentialMatches = potentialMatches.length > 0;
                   const hasRejectedMatches = rejectedMatches.length > 0;
                   return (
-                    <tr key={transaction.id} className={`hover:bg-gray-50 ${transaction.duplicateType === 'different_info' ? 'bg-yellow-50' : ''}`}>
+                    <tr key={transaction.id} className={`hover:bg-gray-50 ${transaction.duplicateType && transaction.duplicateType !== 'none' && transaction.status !== 'rejected' ? 'bg-yellow-50' : ''}`}>
                       <td className="px-6 py-4">
                         <div>
                           <div className="text-sm font-medium text-gray-900">
@@ -1399,33 +1596,77 @@ const ImportPage: React.FC = () => {
                             {transaction.description || 'No description'}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {`${Number(transaction.amount).toFixed(2)} - ${transaction.transactionDate || 'No date'}`}
+                            {`${formatCurrency(transaction.amount)} - ${transaction.transactionDate || 'No date'}`}
                           </div>
-                          {transaction.duplicateType === 'different_info' && (
-                            <span className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded bg-yellow-200 text-yellow-900 border border-yellow-400">
-                              Duplicate: Different Info
-                            </span>
+                          {transaction.duplicateType && transaction.duplicateType !== 'none' && (
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded border ${
+                                transaction.duplicateType === 'exact_duplicate' 
+                                  ? 'bg-red-200 text-red-900 border-red-400'
+                                : transaction.duplicateType === 'different_info_confirmed'
+                                  ? 'bg-orange-200 text-orange-900 border-orange-400'
+                                : transaction.duplicateType === 'different_info_pending'
+                                  ? 'bg-yellow-200 text-yellow-900 border-yellow-400'
+                                : transaction.duplicateType === 'original_rejected'
+                                  ? 'bg-purple-200 text-purple-900 border-purple-400'
+                                : transaction.duplicateType === 'no_invoice_potential'
+                                  ? 'bg-blue-200 text-blue-900 border-blue-400'
+                                : transaction.duplicateType === 'multiple_potential'
+                                  ? 'bg-indigo-200 text-indigo-900 border-indigo-400'
+                                : 'bg-gray-200 text-gray-900 border-gray-400'
+                              }`}>
+                                {transaction.duplicateType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              </span>
+                              {transaction.duplicateOfId && transaction.status !== 'rejected' && (
+                                <button
+                                  className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
+                                  onClick={() => handleAcceptAndReplaceOriginal(transaction.id, transaction.duplicateOfId)}
+                                >
+                                  Accept & Replace Original
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                          ${transaction.status === 'rejected' || (transaction.status === 'matched' && (!potentialMatchesMap[transaction.id] || potentialMatchesMap[transaction.id].length === 0) && transaction.rejectedMatches && transaction.rejectedMatches.length > 0)
-                            ? 'text-red-600 bg-red-100'
-                          : transaction.status === 'confirmed'
-                            ? 'text-green-700 bg-green-100'
-                          : transaction.status === 'unmatched'
-                            ? 'text-gray-700 bg-gray-200'
-                          : transaction.status === 'matched'
-                            ? 'text-blue-700 bg-blue-100'
-                          : 'text-gray-700 bg-gray-200' 
-                        }`}>
-                          {
-                            (transaction.status === 'matched' && (!potentialMatchesMap[transaction.id] || potentialMatchesMap[transaction.id].length === 0) && transaction.rejectedMatches && transaction.rejectedMatches.length > 0)
-                              ? 'rejected'
-                            : transaction.status || 'unmatched'
-                          }
-                        </span>
+                        {transaction.duplicateType && transaction.duplicateType !== 'none' && transaction.status !== 'rejected' ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-gray-500">Duplicate detected</span>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleIgnoreDuplicate(transaction.id)}
+                                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+                              >
+                                Ignore
+                              </button>
+                              <button
+                                onClick={() => handleRejectDuplicate(transaction.id)}
+                                className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full 
+                            ${transaction.status === 'rejected' || (transaction.status === 'matched' && (!potentialMatchesMap[transaction.id] || potentialMatchesMap[transaction.id].length === 0) && transaction.rejectedMatches && transaction.rejectedMatches.length > 0)
+                              ? 'text-red-600 bg-red-100'
+                            : transaction.status === 'confirmed'
+                              ? 'text-green-700 bg-green-100'
+                            : transaction.status === 'unmatched'
+                              ? 'text-gray-700 bg-gray-200'
+                            : transaction.status === 'matched'
+                              ? 'text-blue-700 bg-blue-100'
+                            : 'text-gray-700 bg-gray-200' 
+                          }`}>
+                            {
+                              (transaction.status === 'matched' && (!potentialMatchesMap[transaction.id] || potentialMatchesMap[transaction.id].length === 0) && transaction.rejectedMatches && transaction.rejectedMatches.length > 0)
+                                ? 'rejected'
+                              : transaction.status || 'unmatched'
+                            }
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {transaction.matchConfidence ? `${(transaction.matchConfidence * 100).toFixed(1)}%` : 'N/A'}
@@ -1442,7 +1683,7 @@ const ImportPage: React.FC = () => {
                               </button>
                             );
                           }
-                          if ((!hasPotentialMatches && hasRejectedMatches && transaction.status === 'matched')) {
+                          if (((!hasPotentialMatches && hasRejectedMatches && transaction.status === 'matched') || (transaction.status === 'rejected' && hasRejectedMatches))) {
                             return (
                               <button
                                 onClick={() => handleReviewMatch(transaction, [])}
@@ -1463,12 +1704,22 @@ const ImportPage: React.FC = () => {
                                 addToLedger(transaction.id, wbsCategory, wbsSubcategory);
                               }
                             }}
-                            className="text-green-600 hover:text-green-900"
+                            className="text-gray-700 hover:text-gray-900"
                           >
                             Add to Ledger
                           </button>
                         )}
-                        {(transaction.status === 'confirmed' || transaction.status === 'rejected' || transaction.status === 'added_to_ledger') && (
+                        {(transaction.status === 'confirmed' || transaction.status === 'added_to_ledger') && transaction.matchedLedgerEntry && (
+                          <a
+                            href={`/programs/${programId}/ledger?highlight=${transaction.matchedLedgerEntry.id}`}
+                            className="text-green-600 hover:text-green-900 underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View in Ledger
+                          </a>
+                        )}
+                        {(transaction.status === 'confirmed' || transaction.status === 'rejected' || transaction.status === 'added_to_ledger') && !transaction.matchedLedgerEntry && (
                           <span className="text-gray-400">{transaction.status}</span>
                         )}
                       </td>
@@ -1566,4 +1817,4 @@ const ImportPage: React.FC = () => {
   );
 };
 
-export default ImportPage; 
+export default ImportPage;

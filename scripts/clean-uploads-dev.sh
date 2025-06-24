@@ -38,6 +38,8 @@ backup_data() {
         --table=import_session \
         --table=import_transaction \
         --table=import_config \
+        --table=potential_match \
+        --table=rejected_match \
         --data-only \
         > "$backup_file"
     
@@ -60,6 +62,10 @@ DELETE FROM import_transaction;
 
 -- Clean import sessions
 DELETE FROM import_session;
+
+-- Clean potential and rejected matches
+DELETE FROM potential_match;
+DELETE FROM rejected_match;
 
 -- Clean import configs (optional - uncomment if you want to remove these too)
 -- DELETE FROM import_config;
@@ -90,7 +96,11 @@ SELECT 'Import Sessions' as table_name, COUNT(*) as count FROM import_session
 UNION ALL
 SELECT 'Import Transactions' as table_name, COUNT(*) as count FROM import_transaction
 UNION ALL
-SELECT 'Import Configs' as table_name, COUNT(*) as count FROM import_config;
+SELECT 'Import Configs' as table_name, COUNT(*) as count FROM import_config
+UNION ALL
+SELECT 'Potential Matches' as table_name, COUNT(*) as count FROM potential_match
+UNION ALL
+SELECT 'Rejected Matches' as table_name, COUNT(*) as count FROM rejected_match;
 EOF
 
     echo "✅ DEV verification completed"
