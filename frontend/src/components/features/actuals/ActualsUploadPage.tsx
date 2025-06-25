@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import Layout from '../../Layout';
+import Layout from '../../layout';
 import TransactionMatchModal from './TransactionMatchModal';
 // Add this at the top of the file or in a declarations file if needed:
 // declare module '@heroicons/react/solid';

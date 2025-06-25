@@ -35,7 +35,7 @@
 1. **Environment Variables**
    ```bash
    # Run the production setup script
-   ./scripts/production-setup.sh
+   ./scripts/production/production-setup.sh
    ```
 
 2. **Update .env.production**
@@ -178,7 +178,7 @@ export const logger = winston.createLogger({
 
 ## 📚 Resources
 
-1. **Production Setup Script**: `./scripts/production-setup.sh`
+1. **Production Setup Script**: `./scripts/production/production-setup.sh`
 2. **Detailed Review**: `docs/PRODUCTION_READINESS_REVIEW.md`
 3. **API Documentation**: `http://localhost:4000/api-docs`
 4. **Docker Configuration**: `docker/docker-compose.prod.yml`
@@ -207,11 +207,11 @@ export const logger = winston.createLogger({
 
 ## 🆘 Getting Help
 
-1. **Run the setup script**: `./scripts/production-setup.sh`
+1. **Run the setup script**: `./scripts/production/production-setup.sh`
 2. **Check logs**: `docker-compose logs -f`
 3. **Monitor health**: `./scripts/monitor.sh`
 4. **Review documentation**: `docs/PRODUCTION_READINESS_REVIEW.md`
 
 ---
 
-**Next Step**: Run `./scripts/production-setup.sh` to implement the critical security and infrastructure improvements. 
+**Next Step**: Run `./scripts/production/production-setup.sh` to implement the critical security and infrastructure improvements. 

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import Layout from './Layout';
-import LedgerTable from './LedgerTable';
+import Layout from '../../../layout';
+import LedgerTable from '../../ledger/LedgerTable';
 import {
   BarChart,
   Bar,

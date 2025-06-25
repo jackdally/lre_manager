@@ -1,6 +1,18 @@
 # Scripts Directory
 
-This directory contains utility scripts for development, testing, and maintenance of the LRE Manager application.
+This directory contains all scripts used for development, production, database management, testing, maintenance, utilities, and sample data.
+
+## Subfolders
+
+- [development/](development/README.md): Scripts for setting up and managing the development environment.
+- [production/](production/README.md): Scripts for production setup and management.
+- [database/](database/README.md): Scripts for database backup, reset, and seeding.
+- [testing/](testing/README.md): Scripts for running and managing tests.
+- [maintenance/](maintenance/README.md): Scripts for cleaning up and maintaining environments.
+- [utils/](utils/README.md): Utility scripts for project management and migration.
+- [samples/](samples/README.md): Sample data files for testing and demonstration.
+
+Each subfolder contains a README describing the scripts and files within it.
 
 ## Development Scripts
 

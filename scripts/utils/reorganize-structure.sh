@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Directory Structure Reorganization Script
+# Updated to work with current structure after feature reorganization
 # This script helps implement the recommended directory structure improvements
 
 set -e
@@ -322,10 +323,9 @@ echo "======================================"
 # Frontend directories
 print_status "Creating frontend directory structure..."
 
-# Main frontend directories
+# Main frontend directories (skip features since it already exists)
 create_dir "frontend/src/components/common"
 create_dir "frontend/src/components/layout"
-create_dir "frontend/src/components/features"
 create_dir "frontend/src/components/pages"
 create_dir "frontend/src/hooks"
 create_dir "frontend/src/services"
@@ -333,18 +333,24 @@ create_dir "frontend/src/utils"
 create_dir "frontend/src/types"
 create_dir "frontend/src/context"
 
-# Feature directories
+# Feature directories - work with existing structure
+print_status "Working with existing feature structure..."
+
+# Programs feature directories
 create_dir "frontend/src/components/features/programs"
 create_dir "frontend/src/components/features/programs/ProgramDirectory"
 create_dir "frontend/src/components/features/programs/ProgramDashboard"
 create_dir "frontend/src/components/features/programs/ProgramSettings"
-create_dir "frontend/src/components/features/ledger"
+
+# Ledger feature directories (work with existing)
 create_dir "frontend/src/components/features/ledger/LedgerPage"
 create_dir "frontend/src/components/features/ledger/LedgerEntry"
-create_dir "frontend/src/components/features/import"
-create_dir "frontend/src/components/features/import/ImportPage"
-create_dir "frontend/src/components/features/import/TransactionMatchModal"
-create_dir "frontend/src/components/features/import/UploadSessionDetails"
+create_dir "frontend/src/components/features/ledger/LedgerTable"
+
+# Actuals feature directories (already exist, just ensure subdirectories)
+create_dir "frontend/src/components/features/actuals/ActualsUploadPage"
+create_dir "frontend/src/components/features/actuals/TransactionMatchModal"
+create_dir "frontend/src/components/features/actuals/UploadSessionDetails"
 
 # Create frontend type definitions
 print_status "Creating frontend type definitions..."
@@ -475,7 +481,7 @@ export interface LedgerSummary {
   costPerformanceIndex: number;
 }'
 
-create_file "frontend/src/types/import.ts" 'export interface ImportSession {
+create_file "frontend/src/types/actuals.ts" 'export interface ActualsSession {
   id: string;
   filename: string;
   originalFilename: string;
@@ -495,7 +501,7 @@ create_file "frontend/src/types/import.ts" 'export interface ImportSession {
   };
 }
 
-export interface ImportTransaction {
+export interface ActualsTransaction {
   id: string;
   vendorName: string;
   description: string;
@@ -512,14 +518,14 @@ export interface ImportTransaction {
   duplicateOfId: string | null;
   createdAt: string;
   updatedAt: string;
-  importSession: {
+  actualsSession: {
     id: string;
     originalFilename: string;
     description: string;
   };
 }
 
-export interface ImportConfig {
+export interface ActualsConfig {
   vendorColumn: string;
   descriptionColumn: string;
   amountColumn: string;

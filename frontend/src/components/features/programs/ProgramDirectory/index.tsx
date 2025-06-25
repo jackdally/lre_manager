@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import Layout from './Layout';
+import Layout from '../../../layout';
 import { useNavigate } from 'react-router-dom';
 import { addMonths, format, parse } from 'date-fns';
 

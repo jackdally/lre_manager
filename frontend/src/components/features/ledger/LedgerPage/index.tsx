@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import Layout from './Layout';
-import LedgerTable from './LedgerTable';
+import Layout from '../../../layout';
+import LedgerTable from '../LedgerTable';
 import axios from 'axios';
 
 const LedgerPage: React.FC = () => {

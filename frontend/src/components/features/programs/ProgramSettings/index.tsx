@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
-import Layout from './Layout';
+import Layout from '../../../layout';
 
 // Types for WBS
 interface WbsSubcategory {
