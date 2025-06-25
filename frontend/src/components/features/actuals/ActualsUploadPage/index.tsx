@@ -16,7 +16,7 @@ import ProgramSelector from './ProgramSelector';
 import UploadProgress from './UploadProgress';
 import SessionsList from './SessionsList';
 import TransactionMatchingTable from './TransactionMatchingTable';
-import TransactionMatchModal from '../TransactionMatchModal';
+import TransactionMatchModal from '../TransactionMatchModal/index';
 
 const ActualsUploadPage: React.FC = () => {
   const { id: programId } = useParams<{ id: string }>();

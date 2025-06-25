@@ -120,7 +120,7 @@ const Sidebar: React.FC = () => {
               style={{ width: '100%' }}
             >
               <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>📥</span>
-              {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Actual Expenses</span>}
+              {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Upload Actuals</span>}
             </Link>
             <Link
               to={`/programs/${programId}/boe`}

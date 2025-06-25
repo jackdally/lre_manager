@@ -2,7 +2,7 @@
 
 ## Overview
 
-The NetSuite Actuals Upload feature allows users to upload CSV/Excel exports from NetSuite containing actual expenses and transactions, automatically match them to existing ledger entries, and handle unmatched transactions as unplanned expenses.
+The NetSuite Actuals Upload feature allows users to upload CSV/Excel exports from NetSuite containing actuals transactions, automatically match them to existing ledger entries, and handle unmatched transactions as unplanned actuals.
 
 ## Features
 
@@ -30,7 +30,7 @@ The system uses a sophisticated matching algorithm with the following criteria:
 
 ### 3. Transaction Management
 - **Matched Transactions**: Can be confirmed to update ledger entries with actual data
-- **Unmatched Transactions**: Can be added to ledger as unplanned expenses with null baseline/planned values
+- **Unmatched Transactions**: Can be added to ledger as unplanned actuals with null baseline/planned values
 - **Status Tracking**: Full audit trail of transaction processing
 
 ### 4. User Interface
@@ -145,11 +145,11 @@ interface ImportConfig {
 2. For each transaction:
    - **High confidence matches**: Review and confirm if correct
    - **Low confidence matches**: Manually review or reject
-   - **Unmatched transactions**: Add to ledger as unplanned expenses
+   - **Unmatched transactions**: Add to ledger as unplanned actuals
 
 ### 4. Confirm Actions
 1. **Confirm Matches**: Updates existing ledger entries with actual data
-2. **Add to Ledger**: Creates new ledger entries for unplanned expenses with null baseline/planned values
+2. **Add to Ledger**: Creates new ledger entries for unplanned actuals with null baseline/planned values
 3. **Reject Matches**: Keeps transactions unmatched for manual review
 
 ## Smart Matching Algorithm Details
@@ -237,10 +237,10 @@ function calculateStringSimilarity(str1, str2) {
 - Consider vendor name variations
 - Use the confidence percentage as a guide, not a rule
 
-### 4. Unplanned Expenses
+### 4. Unplanned Actuals
 - Categorize unmatched transactions appropriately
 - Use meaningful WBS categories and subcategories
-- Add notes to track the source of unplanned expenses
+- Add notes to track the source of unplanned actuals
 
 ## Troubleshooting
 

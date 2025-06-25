@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# =============================================================================
+# ⚠️  DEPRECATED SCRIPT - DO NOT RUN ⚠️
+# =============================================================================
+# This script has been executed and is archived for reference only.
+# Running this script again may cause issues with your codebase.
+# 
+# Purpose: Reorganized the entire project structure for better maintainability
+# Executed: [Date when you ran this migration]
+# 
+# See scripts/archive/migrations/README.md for details about what this script accomplished.
+# =============================================================================
+
 # Directory Structure Reorganization Script
 # Updated to work with current structure after feature reorganization
 # This script helps implement the recommended directory structure improvements

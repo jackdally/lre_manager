@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# =============================================================================
+# ⚠️  DEPRECATED SCRIPT - DO NOT RUN ⚠️
+# =============================================================================
+# This script has been executed and is archived for reference only.
+# Running this script again may cause issues with your codebase.
+# 
+# Purpose: Migrated import features from standalone components to feature-based organization
+# Executed: [Date when you ran this migration]
+# 
+# See scripts/archive/migrations/README.md for details about what this script accomplished.
+# =============================================================================
+
 # Import Feature Migration Script
 # This script reorganizes the import features to eliminate naming confusion
 
@@ -189,10 +201,10 @@ if [ -f "frontend/src/components/LedgerPage.tsx" ]; then
     
     # Update button text
     sed -i 's|onClick={() => setShowImportModal(true)}|onClick={() => setShowBulkAddModal(true)}|g' frontend/src/components/LedgerPage.tsx
-    sed -i 's|Import|Bulk Add|g' frontend/src/components/LedgerPage.tsx
+    sed -i 's|Import|Bulk Import|g' frontend/src/components/LedgerPage.tsx
     
     # Update modal title
-    sed -i 's|Import Ledger Data|Bulk Add Ledger Entries|g' frontend/src/components/LedgerPage.tsx
+    sed -i 's|Import Ledger Data|Bulk Import Ledger Entries|g' frontend/src/components/LedgerPage.tsx
     
     # Update help text
     sed -i 's|Upload your NetSuite export to match transactions|Import your initial program budget and planned expenses|g' frontend/src/components/LedgerPage.tsx
@@ -266,7 +278,7 @@ This feature allows users to:
 
 ## Usage
 
-Users access this feature through the "Bulk Add" button on the Ledger page.
+Users access this feature through the "Bulk Import" button on the Ledger page.
 EOF
 
 echo ""
@@ -280,7 +292,7 @@ echo "1. ✅ Renamed ImportPage.tsx → ActualsUploadPage.tsx"
 echo "2. ✅ Moved files to feature-based structure"
 echo "3. ✅ Updated routes from /import → /actuals"
 echo "4. ✅ Updated navigation from 'Upload Actuals' → 'Actual Expenses'"
-echo "5. ✅ Updated Ledger 'Import' button → 'Bulk Add'"
+echo "5. ✅ Updated Ledger 'Import' button → 'Bulk Import'"
 echo "6. ✅ Created feature documentation"
 echo ""
 echo "🔄 Next Steps:"
@@ -303,7 +315,7 @@ echo "1. Start the development server"
 echo "2. Navigate to a program"
 echo "3. Check that 'Actual Expenses' appears in navigation"
 echo "4. Verify the route /programs/:id/actuals works"
-echo "5. Check that 'Bulk Add' appears on the Ledger page"
+echo "5. Check that 'Bulk Import' appears on the Ledger page"
 echo ""
 
 print_success "🎉 Migration completed successfully!" 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ImportTransaction } from '../../../types/actuals';
+import { ImportTransaction } from '../../../../types/actuals';
 
 interface LedgerEntry {
   id: string;
