@@ -1,7 +1,7 @@
 import React from 'react';
 import { formatCurrency } from '../../../../utils/formatters';
 
-interface ImportSession {
+interface ActualsUploadSession {
   id: string;
   filename: string;
   originalFilename: string;
@@ -22,7 +22,7 @@ interface ImportSession {
 }
 
 interface SessionsListProps {
-  sessions: ImportSession[];
+  sessions: ActualsUploadSession[];
   sessionMatchCounts: Record<string, { matched: number; unmatched: number; duplicates: number; allDispositioned: boolean }>;
   onSessionClick: (sessionId: string) => void;
   onCancelSession: (sessionId: string) => void;

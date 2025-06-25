@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ImportConfig } from '../types/actuals';
+import { ActualsUploadConfig } from '../types/actuals';
 
 export const useActualsUpload = (programId: string) => {
   const [file, setFile] = useState<File | null>(null);
@@ -22,7 +22,7 @@ export const useActualsUpload = (programId: string) => {
     config: any;
   } | null>(null);
 
-  const performUpload = async (config: ImportConfig) => {
+  const performUpload = async (config: ActualsUploadConfig) => {
     if (!file) return;
 
     setLoading(true);

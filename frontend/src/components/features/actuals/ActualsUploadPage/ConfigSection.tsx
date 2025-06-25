@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface ImportConfig {
+interface ActualsUploadConfig {
   programCodeColumn: string;
   vendorColumn: string;
   descriptionColumn: string;
@@ -21,7 +21,7 @@ interface SavedConfig {
   id: string;
   name: string;
   description: string;
-  columnMapping: ImportConfig;
+  columnMapping: ActualsUploadConfig;
   isDefault: boolean;
   isGlobal: boolean;
   program?: any;
@@ -30,8 +30,8 @@ interface SavedConfig {
 }
 
 interface ConfigSectionProps {
-  config: ImportConfig;
-  setConfig: (config: ImportConfig) => void;
+  config: ActualsUploadConfig;
+  setConfig: (config: ActualsUploadConfig) => void;
   savedConfigs: SavedConfig[];
   selectedConfigId: string;
   onConfigSelect: (configId: string) => void;
@@ -98,7 +98,7 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({
   selectedConfigForSave,
   setSelectedConfigForSave
 }) => {
-  const handleConfigChange = (field: keyof ImportConfig, value: string | number) => {
+  const handleConfigChange = (field: keyof ActualsUploadConfig, value: string | number) => {
     setConfig({ ...config, [field]: value });
   };
 

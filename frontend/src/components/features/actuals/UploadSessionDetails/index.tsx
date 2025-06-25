@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
-interface UploadSession {
+interface ActualsUploadSession {
   id: string;
   filename: string;
   originalFilename?: string;
@@ -17,7 +17,7 @@ interface UploadSession {
   programId?: string;
 }
 
-interface UploadTransaction {
+interface ActualsUploadTransaction {
   id: string;
   vendorName: string;
   description: string;
@@ -34,8 +34,8 @@ interface UploadTransaction {
 
 const UploadSessionDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [session, setSession] = useState<UploadSession | null>(null);
-  const [transactions, setTransactions] = useState<UploadTransaction[]>([]);
+  const [session, setSession] = useState<ActualsUploadSession | null>(null);
+  const [transactions, setTransactions] = useState<ActualsUploadTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,11 +1,11 @@
 import React from 'react';
-import { ImportTransaction, ImportSession } from '../../../../types/actuals';
+import { ActualsUploadTransaction, ActualsUploadSession } from '../../../../types/actuals';
 
 interface TransactionMatchingTableProps {
-  transactions: ImportTransaction[];
-  currentSession: ImportSession | null;
+  transactions: ActualsUploadTransaction[];
+  currentSession: ActualsUploadSession | null;
   potentialMatchesMap: { [transactionId: string]: any[] };
-  onReviewMatch: (transaction: ImportTransaction, matches: any[]) => void;
+  onReviewMatch: (transaction: ActualsUploadTransaction, matches: any[]) => void;
   onAddToLedger: (transactionId: string, wbsCategory: string, wbsSubcategory: string) => void;
   onIgnoreDuplicate: (transactionId: string) => void;
   onRejectDuplicate: (transactionId: string) => void;

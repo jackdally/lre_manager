@@ -25,14 +25,14 @@ export interface LedgerEntry {
   invoice_number?: string | null;
   invoice_link_text?: string | null;
   invoice_link_url?: string | null;
-  importTransaction?: {
+  actualsUploadTransaction?: {
     id: string;
     vendorName: string;
     description: string;
     amount: number;
     transactionDate: string;
     status: string;
-    importSession: {
+    actualsUploadSession: {
       id: string;
       originalFilename: string;
       description: string;
@@ -442,11 +442,6 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     filteredEntries = filteredEntries.filter(e => e.wbs_subcategory === wbsSubcategoryFilter);
   }
 
-  // Before rendering the modal content, define currentMatches
-  const filteredPotentialMatched = potentialMatched.filter(entry => entry.status !== 'replaced');
-  const filteredPotentialRejected = potentialRejected.filter(entry => entry.status !== 'replaced');
-  const currentMatches = potentialTab === 'matched' ? filteredPotentialMatched : filteredPotentialRejected;
-
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => {
@@ -564,6 +559,9 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
         potentialMatchIds={potentialMatchIds}
         showUploadModal={showUploadModal}
         uploadModalData={uploadModalData}
+        showPotentialModal={showPotentialModal}
+        potentialIndex={potentialIndex}
+        potentialLedgerEntryId={potentialLedgerEntryId}
         wbsCategoryOptions={wbsCategoryOptions}
         wbsSubcategoryOptions={wbsSubcategoryOptions}
         vendorOptions={vendorOptions}
@@ -586,6 +584,8 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
         setPopoverText={setPopoverText}
         setPopoverUrl={setPopoverUrl}
         setPotentialTab={setPotentialTab}
+        setPotentialIndex={setPotentialIndex}
+        setPotentialLedgerEntryId={setPotentialLedgerEntryId}
         fetchEntries={fetchEntries}
         formatCurrency={formatCurrency}
         highlightedRowRef={highlightedRowRef}
@@ -594,6 +594,15 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
         vendorFilter={vendorFilter}
         wbsCategoryFilter={wbsCategoryFilter}
         wbsSubcategoryFilter={wbsSubcategoryFilter}
+        setShowPotentialModal={setShowPotentialModal}
+        potentialTab={potentialTab}
+        potentialMatched={potentialMatched}
+        setPotentialMatched={setPotentialMatched}
+        potentialRejected={potentialRejected}
+        setPotentialRejected={setPotentialRejected}
+        setToast={setToast}
+        setEntriesWithRejectedMatches={setEntriesWithRejectedMatches}
+        setPotentialMatchIds={setPotentialMatchIds}
       />
     </div>
   );

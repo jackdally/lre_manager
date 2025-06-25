@@ -53,7 +53,7 @@ export interface ActualsConfig {
   subcategoryColumn?: string;
 }
 
-export interface ImportConfig {
+export interface ActualsUploadConfig {
   programCodeColumn: string;
   vendorColumn: string;
   descriptionColumn: string;
@@ -74,7 +74,7 @@ export interface SavedConfig {
   id: string;
   name: string;
   description: string;
-  columnMapping: ImportConfig;
+  columnMapping: ActualsUploadConfig;
   isDefault: boolean;
   isGlobal: boolean;
   program?: any;
@@ -82,7 +82,7 @@ export interface SavedConfig {
   updatedAt: string;
 }
 
-export interface ImportSession {
+export interface ActualsUploadSession {
   id: string;
   filename: string;
   originalFilename: string;
@@ -102,7 +102,7 @@ export interface ImportSession {
   replacedBySessionId?: string | null;
 }
 
-export interface ImportTransaction {
+export interface ActualsUploadTransaction {
   id: string;
   vendorName: string;
   description: string;

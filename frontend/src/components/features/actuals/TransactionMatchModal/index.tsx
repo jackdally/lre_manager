@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ImportTransaction } from '../../../../types/actuals';
+import { ActualsUploadTransaction } from '../../../../types/actuals';
 
 interface LedgerEntry {
   id: string;
@@ -20,7 +20,7 @@ interface LedgerEntry {
 interface TransactionMatchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  transaction: ImportTransaction;
+  transaction: ActualsUploadTransaction;
   potentialLedgerEntries: LedgerEntry[];
   rejectedLedgerEntries: LedgerEntry[];
   onConfirm: (ledgerEntry: LedgerEntry) => void;

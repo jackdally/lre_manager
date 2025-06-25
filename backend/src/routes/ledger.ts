@@ -47,14 +47,14 @@ router.get('/:programId/ledger', async (req, res) => {
       if (importTransaction) {
         return {
           ...entry,
-          importTransaction: {
+          actualsUploadTransaction: {
             id: importTransaction.id,
             vendorName: importTransaction.vendorName,
             description: importTransaction.description,
             amount: importTransaction.amount,
             transactionDate: importTransaction.transactionDate,
             status: importTransaction.status,
-            importSession: importTransaction.importSession ? {
+            actualsUploadSession: importTransaction.importSession ? {
               id: importTransaction.importSession.id,
               originalFilename: importTransaction.importSession.originalFilename,
               description: importTransaction.importSession.description,

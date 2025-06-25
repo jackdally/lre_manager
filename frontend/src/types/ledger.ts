@@ -18,14 +18,14 @@ export interface LedgerEntry {
     code: string;
     name: string;
   };
-  importTransaction?: {
+  actualsUploadTransaction?: {
     id: string;
     vendorName: string;
     description: string;
     amount: number;
     transactionDate: string;
     status: string;
-    importSession?: {
+    actualsUploadSession?: {
       id: string;
       originalFilename: string;
       description: string;

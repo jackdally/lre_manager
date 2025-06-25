@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ImportConfig, SavedConfig } from '../types/actuals';
+import { ActualsUploadConfig, SavedConfig } from '../types/actuals';
 
 export const useActualsConfig = (programId: string, savedConfigs: SavedConfig[]) => {
-  const [config, setConfig] = useState<ImportConfig>({
+  const [config, setConfig] = useState<ActualsUploadConfig>({
     programCodeColumn: 'Program Code',
     vendorColumn: 'Vendor Name',
     descriptionColumn: 'Description',

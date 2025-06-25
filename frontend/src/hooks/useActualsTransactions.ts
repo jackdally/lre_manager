@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ImportTransaction } from '../types/actuals';
+import { ActualsUploadTransaction } from '../types/actuals';
 
 export const useActualsTransactions = () => {
   const [potentialMatchesMap, setPotentialMatchesMap] = useState<{ [transactionId: string]: any[] }>({});
@@ -43,7 +43,7 @@ export const useActualsTransactions = () => {
     }
   };
 
-  const handleReviewMatch = async (transaction: ImportTransaction, matches: any[]) => {
+  const handleReviewMatch = async (transaction: ActualsUploadTransaction, matches: any[]) => {
     try {
       const [matchesRes, rejectedRes] = await Promise.all([
         fetch(`/api/import/transaction/${transaction.id}/potential-matches`),
@@ -65,7 +65,7 @@ export const useActualsTransactions = () => {
     }
   };
 
-  const handleModalConfirm = async (modalTransaction: ImportTransaction, modalMatch: any) => {
+  const handleModalConfirm = async (modalTransaction: ActualsUploadTransaction, modalMatch: any) => {
     try {
       await confirmMatch(modalTransaction.id, modalMatch.id);
       
@@ -88,7 +88,7 @@ export const useActualsTransactions = () => {
     }
   };
 
-  const handleModalReject = async (modalTransaction: ImportTransaction, ledgerEntry: any) => {
+  const handleModalReject = async (modalTransaction: ActualsUploadTransaction, ledgerEntry: any) => {
     try {
       await fetch(`/api/import/transaction/${modalTransaction.id}/reject`, {
         method: 'POST',
@@ -117,7 +117,7 @@ export const useActualsTransactions = () => {
     }
   };
 
-  const handleModalUndoReject = async (modalTransaction: ImportTransaction, ledgerEntry: any) => {
+  const handleModalUndoReject = async (modalTransaction: ActualsUploadTransaction, ledgerEntry: any) => {
     try {
       await fetch(`/api/import/transaction/${modalTransaction.id}/undo-reject`, {
         method: 'POST',
@@ -146,7 +146,7 @@ export const useActualsTransactions = () => {
     }
   };
 
-  const fetchBatchData = async (transactions: ImportTransaction[]) => {
+  const fetchBatchData = async (transactions: ActualsUploadTransaction[]) => {
     try {
       const [potentialMatchesRes, rejectedMatchesRes] = await Promise.all([
         fetch('/api/import/transactions/potential-matches', {

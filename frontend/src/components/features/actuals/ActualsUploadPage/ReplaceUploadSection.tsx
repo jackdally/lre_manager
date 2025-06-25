@@ -1,12 +1,18 @@
 import React from 'react';
 
-interface ImportSession {
+interface ActualsUploadSession {
   id: string;
   filename: string;
   originalFilename: string;
   description: string;
   status: string;
+  totalRecords: number;
+  processedRecords: number;
+  matchedRecords: number;
+  unmatchedRecords: number;
+  errorRecords: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface ReplaceUploadSectionProps {
@@ -16,7 +22,7 @@ interface ReplaceUploadSectionProps {
   preserveConfirmedMatches: boolean;
   preserveAllMatches: boolean;
   forceReplace: boolean;
-  sessions: ImportSession[];
+  sessions: ActualsUploadSession[];
   onReplaceModeChange: (checked: boolean) => void;
   onSessionToReplaceChange: (sessionId: string) => void;
   onPreserveConfirmedMatchesChange: (checked: boolean) => void;

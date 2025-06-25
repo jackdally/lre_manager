@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ImportSession, ImportTransaction, SavedConfig, Program } from '../types/actuals';
+import { ActualsUploadSession, ActualsUploadTransaction, SavedConfig, Program } from '../types/actuals';
 
-interface ImportConfig {
+interface ActualsUploadConfig {
   programCodeColumn: string;
   vendorColumn: string;
   descriptionColumn: string;
@@ -19,9 +19,9 @@ interface ImportConfig {
 }
 
 export const useActuals = (programId: string) => {
-  const [sessions, setSessions] = useState<ImportSession[]>([]);
-  const [currentSession, setCurrentSession] = useState<ImportSession | null>(null);
-  const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
+  const [sessions, setSessions] = useState<ActualsUploadSession[]>([]);
+  const [currentSession, setCurrentSession] = useState<ActualsUploadSession | null>(null);
+  const [transactions, setTransactions] = useState<ActualsUploadTransaction[]>([]);
   const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(false);
@@ -96,7 +96,7 @@ export const useActuals = (programId: string) => {
         let unmatched = 0;
         let duplicates = 0;
         
-        transactions.forEach((tx: ImportTransaction) => {
+        transactions.forEach((tx: ActualsUploadTransaction) => {
           if (tx.duplicateType && tx.duplicateType !== 'none') {
             duplicates++;
           } else if (tx.status === 'matched' || tx.status === 'confirmed' || tx.status === 'added_to_ledger') {
@@ -106,7 +106,7 @@ export const useActuals = (programId: string) => {
           }
         });
         
-        const allDispositioned = transactions.every((tx: ImportTransaction) => 
+        const allDispositioned = transactions.every((tx: ActualsUploadTransaction) => 
           tx.status !== 'unmatched' || (tx.duplicateType && tx.duplicateType !== 'none')
         );
         

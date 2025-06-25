@@ -5,7 +5,7 @@ import { useActuals } from '../../../../hooks/useActuals';
 import { useActualsConfig } from '../../../../hooks/useActualsConfig';
 import { useActualsUpload } from '../../../../hooks/useActualsUpload';
 import { useActualsTransactions } from '../../../../hooks/useActualsTransactions';
-import { ImportTransaction } from '../../../../types/actuals';
+import { ActualsUploadTransaction } from '../../../../types/actuals';
 
 // Import the extracted components
 import FileUploadSection from './FileUploadSection';
@@ -133,7 +133,7 @@ const ActualsUploadPage: React.FC = () => {
 
   // Modal state
   const [showMatchModal, setShowMatchModal] = useState(false);
-  const [modalTransaction, setModalTransaction] = useState<ImportTransaction | null>(null);
+  const [modalTransaction, setModalTransaction] = useState<ActualsUploadTransaction | null>(null);
   const [modalMatches, setModalMatches] = useState<any[]>([]);
   const [modalMatchIndex, setModalMatchIndex] = useState(0);
   const [modalMatch, setModalMatch] = useState<any>(null);
@@ -193,7 +193,7 @@ const ActualsUploadPage: React.FC = () => {
   };
 
   // Handle match review
-  const handleReviewMatchClick = async (transaction: ImportTransaction, matches: any[]) => {
+  const handleReviewMatchClick = async (transaction: ActualsUploadTransaction, matches: any[]) => {
     try {
       const result = await handleReviewMatch(transaction, matches);
       if (result) {
