@@ -6,9 +6,9 @@ import axios from 'axios';
 
 const LedgerPage: React.FC = () => {
   const { id } = useParams();
-  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
-  const [bulkAddResult, setBulkAddResult] = useState<any>(null);
-  const [bulkAdding, setBulkAdding] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importing, setImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
   
@@ -34,22 +34,22 @@ const LedgerPage: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setSelectedFile(file);
-    setBulkAddResult(null);
+    setImportResult(null);
   };
 
-  const handleBulkAdd = async () => {
+  const handleImport = async () => {
     if (!selectedFile) return;
-    setBulkAdding(true);
+    setImporting(true);
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('programId', programId);
     try {
       const res = await axios.post(`/api/programs/${programId}/import/ledger`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setBulkAddResult(res.data);
+      setImportResult(res.data);
     } catch (err: any) {
-      setBulkAddResult({ error: err?.message || 'Bulk Add failed' });
+      setImportResult({ error: err?.message || 'Import failed' });
     } finally {
-      setBulkAdding(false);
+      setImporting(false);
     }
   };
 
@@ -58,7 +58,7 @@ const LedgerPage: React.FC = () => {
       <div className="p-8">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">Ledger Page</h1>
-          <button className="btn btn-primary" onClick={() => setShowBulkAddModal(true)}>Bulk Add</button>
+          <button className="btn btn-primary" onClick={() => setShowImportModal(true)}>Import</button>
         </div>
         
         {/* Quick Filters Section */}
@@ -142,10 +142,10 @@ const LedgerPage: React.FC = () => {
           onOptionsUpdate={handleOptionsUpdate}
         />
         
-        {showBulkAddModal && (
+        {showImportModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
             <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
-              <h3 className="text-xl font-bold mb-4">Bulk Add Ledger Data</h3>
+              <h3 className="text-xl font-bold mb-4">Import Ledger Data</h3>
               
               <div className="mb-6">
                 <h4 className="font-semibold mb-2">Required Format:</h4>
@@ -176,7 +176,7 @@ const LedgerPage: React.FC = () => {
                   type="file" 
                   accept=".xlsx,.xls,.csv" 
                   onChange={handleFileChange} 
-                  disabled={bulkAdding}
+                  disabled={importing}
                   className="block w-full text-sm text-gray-500
                     file:mr-4 file:py-2 file:px-4
                     file:rounded-md file:border-0
@@ -186,21 +186,21 @@ const LedgerPage: React.FC = () => {
                 />
               </div>
 
-              {bulkAdding && <div className="mb-4 text-blue-600">Bulk Adding...</div>}
+              {importing && <div className="mb-4 text-blue-600">Importing...</div>}
               
-              {bulkAddResult && (
+              {importResult && (
                 <div className="mt-4 text-left">
-                  {bulkAddResult.error ? (
-                    <div className="text-red-600">Error: {bulkAddResult.error}</div>
+                  {importResult.error ? (
+                    <div className="text-red-600">Error: {importResult.error}</div>
                   ) : (
                     <>
-                      <div className="text-green-700 font-semibold">Bulk Added: {bulkAddResult.inserted ?? 0}</div>
-                      <div className="text-yellow-700 font-semibold">Failed: {bulkAddResult.failed ?? 0}</div>
-                      {bulkAddResult.errors && Array.isArray(bulkAddResult.errors) && bulkAddResult.errors.length > 0 && (
+                      <div className="text-green-700 font-semibold">Imported: {importResult.inserted ?? 0}</div>
+                      <div className="text-yellow-700 font-semibold">Failed: {importResult.failed ?? 0}</div>
+                      {importResult.errors && Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
                         <div className="mt-2 max-h-32 overflow-y-auto text-xs">
                           <div className="font-bold mb-1">Errors:</div>
                           <ul>
-                            {bulkAddResult.errors.map((err: any, idx: number) => (
+                            {importResult.errors.map((err: any, idx: number) => (
                               <li key={idx}>Row {err.row}: {err.error}</li>
                             ))}
                           </ul>
@@ -214,15 +214,15 @@ const LedgerPage: React.FC = () => {
               <div className="flex gap-2 mt-2">
                 <button 
                   className="btn btn-primary" 
-                  onClick={handleBulkAdd} 
-                  disabled={!selectedFile || bulkAdding}
+                  onClick={handleImport} 
+                  disabled={!selectedFile || importing}
                 >
-                  {bulkAdding ? 'Bulk Adding...' : 'Bulk Add'}
+                  {importing ? 'Importing...' : 'Import'}
                 </button>
                 <button 
                   className="btn btn-ghost" 
-                  onClick={() => { setShowBulkAddModal(false); setSelectedFile(null); setBulkAddResult(null); }}
-                  disabled={bulkAdding}
+                  onClick={() => { setShowImportModal(false); setSelectedFile(null); setImportResult(null); }}
+                  disabled={importing}
                 >
                   Close
                 </button>

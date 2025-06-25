@@ -134,12 +134,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Ledger</span>}
               </Link>
               <Link
-                to={`/programs/${programId}/actuals`}
+                to={`/programs/${programId}/import`}
                 className={`flex ${sidebarOpen ? 'flex-row' : 'flex-col'} items-center justify-center gap-2 px-0 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base`}
                 style={{ width: '100%' }}
               >
                 <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>📥</span>
-                {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Actual Expenses</span>}
+                {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Upload Actuals</span>}
               </Link>
               <Link
                 to={`/programs/${programId}/boe`}
