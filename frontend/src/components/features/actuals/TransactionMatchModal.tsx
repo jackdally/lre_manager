@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ImportTransaction } from '../../../types/actuals';
 
 interface LedgerEntry {
   id: string;
@@ -16,24 +17,6 @@ interface LedgerEntry {
   [key: string]: any;
 }
 
-interface ImportTransaction {
-  id: string;
-  vendorName: string;
-  description: string;
-  amount: number;
-  transactionDate: string;
-  status?: string;
-  importSession?: { originalFilename: string };
-  matchConfidence?: number;
-  confidence?: number;
-  invoiceNumber?: string;
-  referenceNumber?: string;
-  transactionId?: string;
-  category?: string;
-  subcategory?: string;
-  [key: string]: any;
-}
-
 interface TransactionMatchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -43,6 +26,7 @@ interface TransactionMatchModalProps {
   onConfirm: (ledgerEntry: LedgerEntry) => void;
   onReject: (ledgerEntry: LedgerEntry) => void;
   onUndoReject: (ledgerEntry: LedgerEntry) => void;
+  sessionFilename?: string;
 }
 
 const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
@@ -54,6 +38,7 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
   onConfirm,
   onReject,
   onUndoReject,
+  sessionFilename,
 }) => {
   const [currentTab, setCurrentTab] = useState<'potential' | 'rejected'>('potential');
   const [currentLedgerIndex, setCurrentLedgerIndex] = useState(0);
@@ -114,7 +99,7 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
     return Number(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   };
 
-  const matchConfidence = (transaction.confidence ?? transaction.matchConfidence ?? 0) * 100;
+  const matchConfidence = (transaction.matchConfidence ?? 0) * 100;
   let confidenceColor = 'text-gray-500';
   if (matchConfidence >= 80) confidenceColor = 'text-green-600';
   else if (matchConfidence >= 60) confidenceColor = 'text-yellow-600';
@@ -154,7 +139,7 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
             </div>
           )}
           {transaction.status && <div className="mb-2 text-base"><b className="text-gray-600">Status:</b> <span className="text-gray-900">{transaction.status}</span></div>}
-          {transaction.importSession && <div className="mb-2 text-base"><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{transaction.importSession.originalFilename}</span></div>}
+          {sessionFilename && <div className="mb-2 text-base"><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{sessionFilename}</span></div>}
           <div className="mb-2 text-base font-semibold">Match Confidence: <span className={`font-bold ${confidenceColor}`}>{matchConfidence.toFixed(1)}%</span></div>
         </div>
         {/* Right: Ledger Entry with Tabs */}

@@ -1,21 +1,5 @@
 import { useState } from 'react';
-
-interface ImportConfig {
-  programCodeColumn: string;
-  vendorColumn: string;
-  descriptionColumn: string;
-  amountColumn: string;
-  dateColumn: string;
-  periodColumn?: string;
-  categoryColumn?: string;
-  subcategoryColumn?: string;
-  invoiceColumn?: string;
-  referenceColumn?: string;
-  transactionIdColumn?: string;
-  dateFormat?: string;
-  amountTolerance?: number;
-  matchThreshold?: number;
-}
+import { ImportConfig } from '../types/actuals';
 
 export const useActualsUpload = (programId: string) => {
   const [file, setFile] = useState<File | null>(null);

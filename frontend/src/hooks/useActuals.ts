@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ImportSession, ImportTransaction, SavedConfig, Program } from '../types/actuals';
 
 interface ImportConfig {
   programCodeColumn: string;
@@ -15,67 +16,6 @@ interface ImportConfig {
   dateFormat?: string;
   amountTolerance?: number;
   matchThreshold?: number;
-}
-
-interface SavedConfig {
-  id: string;
-  name: string;
-  description: string;
-  columnMapping: ImportConfig;
-  isDefault: boolean;
-  isGlobal: boolean;
-  program?: any;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ImportSession {
-  id: string;
-  filename: string;
-  originalFilename: string;
-  description: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'replaced';
-  totalRecords: number;
-  processedRecords: number;
-  matchedRecords: number;
-  unmatchedRecords: number;
-  errorRecords: number;
-  confirmedRecords?: number;
-  rejectedRecords?: number;
-  replacedRecords?: number;
-  addedToLedgerRecords?: number;
-  createdAt: string;
-  updatedAt: string;
-  replacedBySessionId?: string | null;
-}
-
-interface ImportTransaction {
-  id: string;
-  vendorName: string;
-  description: string;
-  amount: number;
-  transactionDate: string;
-  programCode: string;
-  category?: string;
-  subcategory?: string;
-  invoiceNumber?: string;
-  referenceNumber?: string;
-  transactionId?: string;
-  status: 'unmatched' | 'matched' | 'confirmed' | 'rejected' | 'added_to_ledger' | 'replaced';
-  matchConfidence?: number;
-  suggestedMatches?: any[];
-  matchedLedgerEntry?: any;
-  duplicateType?: 'none' | 'exact_duplicate' | 'different_info_confirmed' | 'different_info_pending' | 'original_rejected' | 'no_invoice_potential' | 'multiple_potential';
-  duplicateOfId?: string | null;
-  preservedFromSessionId?: string | null;
-  rejectedMatches?: any[];
-}
-
-interface Program {
-  id: string;
-  code: string;
-  name: string;
-  description: string;
 }
 
 export const useActuals = (programId: string) => {

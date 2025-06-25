@@ -264,6 +264,15 @@ const ProgramDashboard: React.FC = () => {
   const chartRef = useRef<HTMLDivElement>(null);
   const [fullScreenOpen, setFullScreenOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(280); // 17.5rem = 280px
+  // Add local state for filters
+  const [filterType, setFilterType] = React.useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
+  const [vendorFilter, setVendorFilter] = React.useState<string>('');
+  const [wbsCategoryFilter, setWbsCategoryFilter] = React.useState<string>('');
+  const [wbsSubcategoryFilter, setWbsSubcategoryFilter] = React.useState<string>('');
+  // Wrap setters to accept string | undefined
+  const handleSetVendorFilter = (v: string | undefined) => setVendorFilter(v ?? '');
+  const handleSetWbsCategoryFilter = (v: string | undefined) => setWbsCategoryFilter(v ?? '');
+  const handleSetWbsSubcategoryFilter = (v: string | undefined) => setWbsSubcategoryFilter(v ?? '');
 
   useEffect(() => {
     const fetchProgram = async () => {
@@ -1303,7 +1312,18 @@ const ProgramDashboard: React.FC = () => {
             {/* Ledger/Transactions Table Section */}
             <div className="bg-white rounded-xl shadow p-6">
               <div className="text-lg font-bold mb-4">Ledger / Transactions</div>
-              {program && program.id && <LedgerTable programId={program.id} onChange={refreshAll} />}
+              {program && program.id && <LedgerTable 
+                programId={program.id}
+                onChange={refreshAll}
+                filterType={filterType}
+                setFilterType={setFilterType}
+                vendorFilter={vendorFilter}
+                setVendorFilter={handleSetVendorFilter}
+                wbsCategoryFilter={wbsCategoryFilter}
+                setWbsCategoryFilter={handleSetWbsCategoryFilter}
+                wbsSubcategoryFilter={wbsSubcategoryFilter}
+                setWbsSubcategoryFilter={handleSetWbsSubcategoryFilter}
+              />}
             </div>
           </>
         )}

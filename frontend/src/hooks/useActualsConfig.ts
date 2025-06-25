@@ -1,33 +1,5 @@
 import { useState } from 'react';
-
-interface ImportConfig {
-  programCodeColumn: string;
-  vendorColumn: string;
-  descriptionColumn: string;
-  amountColumn: string;
-  dateColumn: string;
-  periodColumn?: string;
-  categoryColumn?: string;
-  subcategoryColumn?: string;
-  invoiceColumn?: string;
-  referenceColumn?: string;
-  transactionIdColumn?: string;
-  dateFormat?: string;
-  amountTolerance?: number;
-  matchThreshold?: number;
-}
-
-interface SavedConfig {
-  id: string;
-  name: string;
-  description: string;
-  columnMapping: ImportConfig;
-  isDefault: boolean;
-  isGlobal: boolean;
-  program?: any;
-  createdAt: string;
-  updatedAt: string;
-}
+import { ImportConfig, SavedConfig } from '../types/actuals';
 
 export const useActualsConfig = (programId: string, savedConfigs: SavedConfig[]) => {
   const [config, setConfig] = useState<ImportConfig>({
