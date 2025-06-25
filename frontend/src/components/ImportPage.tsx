@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from './Layout';
 import TransactionMatchModal from './TransactionMatchModal';
+// Add this at the top of the file or in a declarations file if needed:
+// declare module '@heroicons/react/solid';
+import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
 interface ImportConfig {
   programCodeColumn: string;
@@ -155,6 +158,9 @@ const ImportPage: React.FC = () => {
   // Add state for potential matches
   const [potentialMatchesMap, setPotentialMatchesMap] = useState<{ [transactionId: string]: any[] }>({});
 
+  // Add state for session match counts
+  const [sessionMatchCounts, setSessionMatchCounts] = useState<Record<string, { matched: number; unmatched: number; duplicates: number; allDispositioned: boolean }>>({});
+
   useEffect(() => {
     if (programId) {
       loadSessions();
@@ -168,6 +174,19 @@ const ImportPage: React.FC = () => {
       loadSessions();
     }
   }, [activeTab, programId]);
+
+  useEffect(() => {
+    if (activeTab === 'sessions' && sessions.length > 0) {
+      sessions.forEach(session => {
+        if (!sessionMatchCounts[session.id]) {
+          fetchSessionTransactionCounts(session.id).then(counts => {
+            setSessionMatchCounts(prev => ({ ...prev, [session.id]: counts }));
+          });
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, sessions]);
 
   const loadSessions = async () => {
     try {
@@ -728,6 +747,33 @@ const ImportPage: React.FC = () => {
       setError(err.message || 'Failed to run smart matching');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Helper to fetch and count transaction statuses for a session
+  const dispositionedStatuses = ['confirmed', 'added_to_ledger', 'replaced', 'rejected'];
+  const fetchSessionTransactionCounts = async (sessionId: string): Promise<{ matched: number; unmatched: number; duplicates: number; allDispositioned: boolean }> => {
+    try {
+      const res = await fetch(`/api/import/session/${sessionId}/transactions`);
+      if (!res.ok) return { matched: 0, unmatched: 0, duplicates: 0, allDispositioned: false };
+      const transactions: any[] = await res.json();
+      let matched = 0, unmatched = 0, duplicates = 0;
+      let allDispositioned = true;
+      transactions.forEach((tx: any) => {
+        if (!dispositionedStatuses.includes(tx.status)) {
+          allDispositioned = false;
+        }
+        if (tx.duplicateType && tx.duplicateType !== 'none' && !dispositionedStatuses.includes(tx.status)) {
+          duplicates++;
+        } else if (tx.status === 'matched') {
+          matched++;
+        } else if (tx.status === 'unmatched') {
+          unmatched++;
+        }
+      });
+      return { matched, unmatched, duplicates, allDispositioned };
+    } catch {
+      return { matched: 0, unmatched: 0, duplicates: 0, allDispositioned: false };
     }
   };
 
@@ -1487,17 +1533,22 @@ const ImportPage: React.FC = () => {
                       {session.processedRecords} / {session.totalRecords}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {session.matchedRecords === 0 && session.unmatchedRecords === 0 ? (
-                        <span className="font-semibold text-green-700 flex items-center">
-                          0 matched, 0 unmatched
-                          <svg className="ml-1 w-4 h-4 text-green-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        </span>
-                      ) : (
-                        <>
-                          <span className="font-semibold text-blue-700">{session.matchedRecords} <span className="text-blue-700">matched</span></span>,{' '}
-                          <span className="font-semibold text-gray-700">{session.unmatchedRecords} <span className="text-gray-700">unmatched</span></span>
-                        </>
-                      )}
+                      {(() => {
+                        const counts = sessionMatchCounts[session.id] || { matched: session.matchedRecords, unmatched: session.unmatchedRecords, duplicates: 0, allDispositioned: false };
+                        const parts = [];
+                        if (counts.allDispositioned) {
+                          return (
+                            <span className="font-semibold text-green-700 flex items-center">
+                              All transactions dispositioned
+                              <CheckCircleIcon className="ml-1 w-4 h-4 text-green-700" />
+                            </span>
+                          );
+                        }
+                        if (counts.matched > 0) parts.push(`${counts.matched} matched`);
+                        if (counts.unmatched > 0) parts.push(`${counts.unmatched} unmatched`);
+                        if (counts.duplicates > 0) parts.push(`${counts.duplicates} duplicate${counts.duplicates > 1 ? 's' : ''}`);
+                        return <span>{parts.join(', ')}</span>;
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(session.createdAt).toLocaleDateString()}
@@ -1511,7 +1562,7 @@ const ImportPage: React.FC = () => {
                           Review Matches
                         </button>
                       )}
-                      {session.status === 'pending' || session.status === 'processing' ? (
+                      {(session.status === 'pending' || session.status === 'processing') && (
                         <button
                           onClick={async () => {
                             if (window.confirm('Are you sure you want to cancel this session?')) {
@@ -1523,9 +1574,15 @@ const ImportPage: React.FC = () => {
                         >
                           Cancel
                         </button>
-                      ) : null}
+                      )}
                       {session.status === 'replaced' && (
-                        <span className="text-gray-400">Replaced</span>
+                        <button
+                          onClick={() => loadSessionDetails(session.id)}
+                          className="text-gray-400 underline hover:text-blue-600 cursor-pointer"
+                          style={{ padding: 0, background: 'none', border: 'none' }}
+                        >
+                          Replaced
+                        </button>
                       )}
                     </td>
                   </tr>
