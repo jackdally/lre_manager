@@ -50,17 +50,26 @@ export const useActualsTransactions = () => {
         fetch(`/api/import/transaction/${transaction.id}/rejected-ledger-entries`)
       ]);
 
-      if (matchesRes.ok && rejectedRes.ok) {
-        const potentialMatches = await matchesRes.json();
-        const rejected = await rejectedRes.json();
-        
-        setPotentialMatchesMap(prev => ({ ...prev, [transaction.id]: potentialMatches }));
-        setRejectedLedgerEntries(rejected);
-        
-        return { potentialMatches, rejected };
+      if (!matchesRes.ok) {
+        throw new Error(`Failed to fetch potential matches: ${matchesRes.status} ${matchesRes.statusText}`);
       }
+      
+      if (!rejectedRes.ok) {
+        throw new Error(`Failed to fetch rejected entries: ${rejectedRes.status} ${rejectedRes.statusText}`);
+      }
+
+      const potentialMatches = await matchesRes.json();
+      const rejected = await rejectedRes.json();
+      
+      setPotentialMatchesMap(prev => ({ ...prev, [transaction.id]: potentialMatches }));
+      setRejectedLedgerEntries(rejected);
+      
+      return { potentialMatches, rejected };
     } catch (err) {
       console.error('Failed to load match data:', err);
+      // Set empty arrays on error to prevent UI issues
+      setPotentialMatchesMap(prev => ({ ...prev, [transaction.id]: [] }));
+      setRejectedLedgerEntries([]);
       throw err;
     }
   };

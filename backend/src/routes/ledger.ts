@@ -392,7 +392,7 @@ router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, re
         ledgerEntry: { id: ledgerEntryId },
         status: 'potential'
       },
-      relations: ['transaction', 'transaction.importSession'],
+      relations: ['transaction', 'transaction.importSession', 'ledgerEntry'],
       order: { createdAt: 'DESC' },
     });
     
@@ -402,13 +402,25 @@ router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, re
       where: {
         ledgerEntry: { id: ledgerEntryId }
       },
-      relations: ['transaction', 'transaction.importSession'],
+      relations: ['transaction', 'transaction.importSession', 'ledgerEntry'],
       order: { createdAt: 'DESC' },
     });
     
+    // Transform the data to include ledgerEntry property that frontend expects
+    const matched = potentialMatches.map(pm => ({
+      ...pm.transaction,
+      ledgerEntry: pm.ledgerEntry,
+      confidence: pm.confidence
+    }));
+    
+    const rejected = rejectedMatches.map(rm => ({
+      ...rm.transaction,
+      ledgerEntry: rm.ledgerEntry
+    }));
+    
     res.json({ 
-      matched: potentialMatches.map(pm => pm.transaction), 
-      rejected: rejectedMatches.map(rm => rm.transaction) 
+      matched, 
+      rejected 
     });
   } catch (err) {
     console.error('Error fetching potential matches:', err);

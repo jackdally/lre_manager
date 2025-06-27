@@ -1,63 +1,130 @@
 import React from 'react';
-import { InformationCircleIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import LedgerTableCell from './Cell';
 import { LedgerEntry } from './index';
 
 interface LedgerTableRowProps {
   entry: LedgerEntry;
   index: number;
-  editingCell: { rowId: string, field: string } | null;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  isNewRow: boolean;
+  isEditing: boolean;
+  editingField: string | null;
   cellEditValue: any;
-  selectedRows: string[];
-  highlightId: string | null;
-  newRowId: string | null;
+  hasPotentialMatches: boolean;
+  hasRejectedMatches: boolean;
   wbsCategoryOptions: string[];
   wbsSubcategoryOptions: string[];
   vendorOptions: string[];
-  popover: { rowId: string | null, anchorEl: HTMLElement | null };
-  entriesWithRejectedMatches: Set<string>;
-  potentialMatchIds: string[];
+  formatCurrency: (val: any) => string;
+  onSelect: (id: string) => void;
   onCellClick: (rowId: string, field: string, value: any) => void;
-  onCellChange: (e: React.ChangeEvent<any>) => void;
-  onCellBlur: (rowId: string, field: string) => void;
-  onCellKeyDown: (e: React.KeyboardEvent, rowId: string, field: string) => void;
-  onSelectRow: (id: string) => void;
+  onCellInputChange: (e: React.ChangeEvent<any>) => void;
+  onCellInputBlur: (rowId: string, field: string, value?: string) => void;
+  onCellInputKeyDown: (e: React.KeyboardEvent, rowId: string, field: string) => void;
   onPopoverOpen: (rowId: string, text: string | null | undefined, url: string | null | undefined, event: React.MouseEvent) => void;
   onShowPotentialMatches: (entryId: string) => void;
-  formatCurrency: (val: any) => string;
-  highlightedRowRef: React.RefObject<HTMLTableRowElement>;
+  highlightedRowRef?: React.RefObject<HTMLTableRowElement>;
 }
 
-const LedgerTableRow: React.FC<LedgerTableRowProps> = ({
+const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
   entry,
   index,
-  editingCell,
+  isSelected,
+  isHighlighted,
+  isNewRow,
+  isEditing,
+  editingField,
   cellEditValue,
-  selectedRows,
-  highlightId,
-  newRowId,
+  hasPotentialMatches,
+  hasRejectedMatches,
   wbsCategoryOptions,
   wbsSubcategoryOptions,
   vendorOptions,
-  popover,
-  entriesWithRejectedMatches,
-  potentialMatchIds,
+  formatCurrency,
+  onSelect,
   onCellClick,
-  onCellChange,
-  onCellBlur,
-  onCellKeyDown,
-  onSelectRow,
+  onCellInputChange,
+  onCellInputBlur,
+  onCellInputKeyDown,
   onPopoverOpen,
   onShowPotentialMatches,
-  formatCurrency,
-  highlightedRowRef,
+  highlightedRowRef
 }) => {
-  const isEditing = editingCell && editingCell.rowId === entry.id;
-  const isHighlighted = entry.id === highlightId;
-  const isNewRow = entry.id === newRowId;
-  const isSelected = selectedRows.includes(entry.id);
-  const hasRejectedMatches = entriesWithRejectedMatches.has(entry.id);
-  const hasPotentialMatches = potentialMatchIds.includes(entry.id);
+  const renderCell = (field: string, value: any, options?: string[]) => {
+    const isEditingThisCell = isEditing && editingField === field;
+    
+    console.log('🔵 renderCell:', { field, value, isEditing, editingField, isEditingThisCell, cellEditValue });
+    
+    if (isEditingThisCell) {
+      console.log('🟢 Rendering edit input for field:', field);
+      if (field === 'wbs_category' || field === 'wbs_subcategory' || field === 'vendor_name') {
+        return (
+          <select
+            className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+            value={cellEditValue}
+            onChange={onCellInputChange}
+            onBlur={(e) => onCellInputBlur(entry.id, field, e.target.value)}
+            onKeyDown={e => onCellInputKeyDown(e, entry.id, field)}
+            autoFocus
+          >
+            <option value="">-- Select --</option>
+            {options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        );
+      } else if (field === 'expense_description') {
+        return (
+          <textarea
+            className={`input input-xs w-full min-h-24 rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+            value={cellEditValue}
+            onChange={onCellInputChange}
+            onBlur={(e) => onCellInputBlur(entry.id, field, e.target.value)}
+            onKeyDown={e => onCellInputKeyDown(e, entry.id, field)}
+            autoFocus
+          />
+        );
+      } else if (field.includes('_date')) {
+        return (
+          <input
+            type="date"
+            className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+            value={cellEditValue}
+            onChange={onCellInputChange}
+            onBlur={(e) => onCellInputBlur(entry.id, field, e.target.value)}
+            onKeyDown={e => onCellInputKeyDown(e, entry.id, field)}
+            autoFocus
+          />
+        );
+      } else if (field.includes('_amount')) {
+        return (
+          <input
+            type="number"
+            className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+            value={cellEditValue}
+            onChange={onCellInputChange}
+            onBlur={(e) => onCellInputBlur(entry.id, field, e.target.value)}
+            onKeyDown={e => onCellInputKeyDown(e, entry.id, field)}
+            autoFocus
+          />
+        );
+      } else {
+        return (
+          <input
+            type="text"
+            className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+            value={cellEditValue}
+            onChange={onCellInputChange}
+            onBlur={(e) => onCellInputBlur(entry.id, field, e.target.value)}
+            onKeyDown={e => onCellInputKeyDown(e, entry.id, field)}
+            autoFocus
+          />
+        );
+      }
+    }
+    
+    return value;
+  };
 
   return (
     <tr
@@ -74,240 +141,186 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = ({
         <input 
           type="checkbox" 
           checked={isSelected} 
-          onChange={() => onSelectRow(entry.id)} 
+          onChange={() => onSelect(entry.id)} 
         />
       </td>
       
       {/* WBS Category */}
-      <td className="px-2 py-1" onClick={() => onCellClick(entry.id, 'wbs_category', entry.wbs_category)}>
-        <LedgerTableCell
-          value={entry.wbs_category}
-          editing={!!(isEditing && editingCell?.field === 'wbs_category')}
-          field="wbs_category"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          options={wbsCategoryOptions}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1" 
+        onClick={() => {
+          console.log('🔵 WBS Category clicked:', { id: entry.id, value: entry.wbs_category });
+          onCellClick(entry.id, 'wbs_category', entry.wbs_category);
+        }}
+      >
+        {renderCell('wbs_category', entry.wbs_category, wbsCategoryOptions)}
       </td>
-
+      
       {/* WBS Subcategory */}
-      <td className="px-2 py-1" onClick={() => onCellClick(entry.id, 'wbs_subcategory', entry.wbs_subcategory)}>
-        <LedgerTableCell
-          value={entry.wbs_subcategory}
-          editing={!!(isEditing && editingCell?.field === 'wbs_subcategory')}
-          field="wbs_subcategory"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          options={wbsSubcategoryOptions}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1" 
+        onClick={() => {
+          console.log('🔵 WBS Subcategory clicked:', { id: entry.id, value: entry.wbs_subcategory });
+          onCellClick(entry.id, 'wbs_subcategory', entry.wbs_subcategory);
+        }}
+      >
+        {renderCell('wbs_subcategory', entry.wbs_subcategory, wbsSubcategoryOptions)}
       </td>
-
+      
       {/* Vendor */}
-      <td className="px-2 py-1" onClick={() => onCellClick(entry.id, 'vendor_name', entry.vendor_name)}>
-        <LedgerTableCell
-          value={entry.vendor_name}
-          editing={!!(isEditing && editingCell?.field === 'vendor_name')}
-          field="vendor_name"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          options={vendorOptions}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1" 
+        onClick={() => {
+          console.log('🔵 Vendor clicked:', { id: entry.id, value: entry.vendor_name });
+          onCellClick(entry.id, 'vendor_name', entry.vendor_name);
+        }}
+      >
+        {renderCell('vendor_name', entry.vendor_name, vendorOptions)}
       </td>
-
+      
       {/* Description */}
-      <td className="px-2 py-1 w-64 max-w-xl" onClick={() => onCellClick(entry.id, 'expense_description', entry.expense_description)}>
-        <LedgerTableCell
-          value={entry.expense_description}
-          editing={!!(isEditing && editingCell?.field === 'expense_description')}
-          field="expense_description"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1 w-64 max-w-xl" 
+        onClick={() => {
+          console.log('🔵 Description clicked:', { id: entry.id, value: entry.expense_description });
+          onCellClick(entry.id, 'expense_description', entry.expense_description);
+        }}
+      >
+        {renderCell('expense_description', entry.expense_description)}
       </td>
-
+      
       {/* Invoice Link */}
-      <td className="px-2 py-1 w-28 max-w-[7rem] relative" onClick={e => { e.stopPropagation(); onPopoverOpen(entry.id, entry.invoice_link_text ?? '', entry.invoice_link_url ?? '', e); }}>
+      <td 
+        className="px-2 py-1 w-28 max-w-[7rem] relative" 
+        onClick={e => { 
+          e.stopPropagation(); 
+          onPopoverOpen(entry.id, entry.invoice_link_text ?? '', entry.invoice_link_url ?? '', e); 
+        }}
+      >
         {entry.invoice_link_text && entry.invoice_link_url ? (
-          <a href={entry.invoice_link_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{entry.invoice_link_text}</a>
+          <a href={entry.invoice_link_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+            {entry.invoice_link_text}
+          </a>
         ) : (
           <span className="text-gray-400 italic">(add link)</span>
         )}
-        {popover.rowId === entry.id && popover.anchorEl && (
-          <div className="absolute z-50 bg-white border rounded shadow-lg p-4 top-8 left-0 w-64" style={{ minWidth: 220 }} onClick={e => e.stopPropagation()}>
-            <div className="mb-2">
-              <label className="block text-sm font-medium mb-1">Link Text</label>
-              <input
-                type="text"
-                className="input input-xs w-full"
-                value={entry.invoice_link_text || ''}
-                onChange={e => {/* Handle popover text change */}}
-                onKeyDown={e => {/* Handle popover key down */}}
-              />
-            </div>
-            <div className="mb-2">
-              <label className="block text-sm font-medium mb-1">URL</label>
-              <input
-                type="url"
-                className="input input-xs w-full"
-                value={entry.invoice_link_url || ''}
-                onChange={e => {/* Handle popover URL change */}}
-                onKeyDown={e => {/* Handle popover key down */}}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button className="btn btn-xs btn-primary" onClick={() => {/* Handle popover save */}}>Save</button>
-              <button className="btn btn-xs btn-ghost" onClick={() => {/* Handle popover close */}}>Cancel</button>
-            </div>
-          </div>
-        )}
       </td>
-
+      
       {/* Baseline Date */}
-      <td className="px-2 py-1 text-right" onClick={() => onCellClick(entry.id, 'baseline_date', entry.baseline_date)}>
-        <LedgerTableCell
-          value={entry.baseline_date}
-          editing={!!(isEditing && editingCell?.field === 'baseline_date')}
-          field="baseline_date"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1 text-right" 
+        onClick={() => {
+          console.log('🔵 Baseline Date clicked:', { id: entry.id, value: entry.baseline_date });
+          onCellClick(entry.id, 'baseline_date', entry.baseline_date);
+        }}
+      >
+        {renderCell('baseline_date', entry.baseline_date)}
       </td>
-
+      
       {/* Baseline Amount */}
-      <td className="px-2 py-1 text-right" onClick={() => onCellClick(entry.id, 'baseline_amount', entry.baseline_amount)}>
-        <LedgerTableCell
-          value={entry.baseline_amount}
-          editing={!!(isEditing && editingCell?.field === 'baseline_amount')}
-          field="baseline_amount"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-          formatCurrency={formatCurrency}
-        />
+      <td 
+        className="px-2 py-1 text-right" 
+        onClick={() => {
+          console.log('🔵 Baseline Amount clicked:', { id: entry.id, value: entry.baseline_amount });
+          onCellClick(entry.id, 'baseline_amount', entry.baseline_amount);
+        }}
+      >
+        {renderCell('baseline_amount', formatCurrency(entry.baseline_amount))}
       </td>
-
+      
       {/* Planned Date */}
-      <td className="px-2 py-1 text-right" onClick={() => onCellClick(entry.id, 'planned_date', entry.planned_date)}>
-        <LedgerTableCell
-          value={entry.planned_date}
-          editing={!!(isEditing && editingCell?.field === 'planned_date')}
-          field="planned_date"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1 text-right" 
+        onClick={() => {
+          console.log('🔵 Planned Date clicked:', { id: entry.id, value: entry.planned_date });
+          onCellClick(entry.id, 'planned_date', entry.planned_date);
+        }}
+      >
+        {renderCell('planned_date', entry.planned_date)}
       </td>
-
+      
       {/* Planned Amount */}
-      <td className="px-2 py-1 text-right" onClick={() => onCellClick(entry.id, 'planned_amount', entry.planned_amount)}>
-        <LedgerTableCell
-          value={entry.planned_amount}
-          editing={!!(isEditing && editingCell?.field === 'planned_amount')}
-          field="planned_amount"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-          formatCurrency={formatCurrency}
-        />
+      <td 
+        className="px-2 py-1 text-right" 
+        onClick={() => {
+          console.log('🔵 Planned Amount clicked:', { id: entry.id, value: entry.planned_amount });
+          onCellClick(entry.id, 'planned_amount', entry.planned_amount);
+        }}
+      >
+        {renderCell('planned_amount', formatCurrency(entry.planned_amount))}
       </td>
-
+      
       {/* Actual Date */}
-      <td className="px-2 py-1 text-right" onClick={() => onCellClick(entry.id, 'actual_date', entry.actual_date)}>
-        <LedgerTableCell
-          value={entry.actual_date}
-          editing={!!(isEditing && editingCell?.field === 'actual_date')}
-          field="actual_date"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1 text-right" 
+        onClick={() => {
+          console.log('🔵 Actual Date clicked:', { id: entry.id, value: entry.actual_date });
+          onCellClick(entry.id, 'actual_date', entry.actual_date);
+        }}
+      >
+        {renderCell('actual_date', entry.actual_date)}
       </td>
-
+      
       {/* Actual Amount */}
-      <td className="px-2 py-1 text-right" onClick={() => onCellClick(entry.id, 'actual_amount', entry.actual_amount)}>
-        <LedgerTableCell
-          value={entry.actual_amount}
-          editing={!!(isEditing && editingCell?.field === 'actual_amount')}
-          field="actual_amount"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-          formatCurrency={formatCurrency}
-        />
+      <td 
+        className="px-2 py-1 text-right" 
+        onClick={() => {
+          console.log('🔵 Actual Amount clicked:', { id: entry.id, value: entry.actual_amount });
+          onCellClick(entry.id, 'actual_amount', entry.actual_amount);
+        }}
+      >
+        {renderCell('actual_amount', formatCurrency(entry.actual_amount))}
       </td>
-
+      
       {/* Notes */}
-      <td className="px-2 py-1" onClick={() => onCellClick(entry.id, 'notes', entry.notes)}>
-        <LedgerTableCell
-          value={entry.notes}
-          editing={!!(isEditing && editingCell?.field === 'notes')}
-          field="notes"
-          rowId={entry.id}
-          cellEditValue={cellEditValue}
-          onCellClick={onCellClick}
-          onCellChange={onCellChange}
-          onCellBlur={onCellBlur}
-          onCellKeyDown={onCellKeyDown}
-        />
+      <td 
+        className="px-2 py-1" 
+        onClick={() => {
+          console.log('🔵 Notes clicked:', { id: entry.id, value: entry.notes });
+          onCellClick(entry.id, 'notes', entry.notes);
+        }}
+      >
+        {renderCell('notes', entry.notes)}
       </td>
-
-      {/* Upload/Actions */}
-      <td className="px-2 py-1">
-        <div className="flex gap-1">
+      
+      {/* Upload Column */}
+      <td className="px-2 py-1 text-center">
+        <div className="flex items-center justify-center gap-1">
           {hasPotentialMatches && (
             <button
-              className="btn btn-xs btn-primary"
+              className="btn btn-xs btn-outline btn-primary"
               onClick={() => onShowPotentialMatches(entry.id)}
               title="View potential matches"
             >
-              <DocumentMagnifyingGlassIcon className="w-3 h-3" />
+              <DocumentMagnifyingGlassIcon className="h-3 w-3" />
             </button>
           )}
           {hasRejectedMatches && (
-            <span className="text-red-600 text-xs flex items-center gap-1">
-              <InformationCircleIcon className="w-3 h-3" />
-              rejected
-            </span>
+            <button
+              className="btn btn-xs btn-outline btn-error"
+              onClick={() => onShowPotentialMatches(entry.id)}
+              title="View rejected matches"
+            >
+              <XCircleIcon className="h-3 w-3" />
+            </button>
           )}
         </div>
       </td>
     </tr>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for React.memo
+  return (
+    prevProps.entry.id === nextProps.entry.id &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isEditing === nextProps.isEditing &&
+    prevProps.editingField === nextProps.editingField &&
+    prevProps.cellEditValue === nextProps.cellEditValue &&
+    prevProps.hasPotentialMatches === nextProps.hasPotentialMatches &&
+    prevProps.hasRejectedMatches === nextProps.hasRejectedMatches
+  );
+});
+
+LedgerTableRow.displayName = 'LedgerTableRow';
 
 export default LedgerTableRow; 

@@ -9,6 +9,15 @@ import LedgerErrorModal from './ErrorModal';
 import LedgerTableHeader from './Header';
 import LedgerTableTable from './Table';
 
+// Import custom hooks
+import { usePotentialMatchModal } from '../../../../hooks/usePotentialMatchModal';
+import { useDebouncedApi } from '../../../../hooks/useDebouncedApi';
+import { useMatchOperations } from '../../../../hooks/useMatchOperations';
+import { useApiCache } from '../../../../hooks/useApiCache';
+import { useVirtualScroll } from '../../../../hooks/useVirtualScroll';
+import { usePerformanceMonitor } from '../../../../hooks/usePerformanceMonitor';
+import { useLedgerOperations } from '../../../../hooks/useLedgerOperations';
+
 export interface LedgerEntry {
   id: string;
   vendor_name: string;
@@ -68,11 +77,37 @@ const formatCurrency = (val: number | string | undefined | null) => {
 };
 
 const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange, onOptionsUpdate, filterType, vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter, setFilterType, setVendorFilter, setWbsCategoryFilter, setWbsSubcategoryFilter }) => {
+  console.log('🔄 LedgerTable component rendering');
+  
+  // Use custom hooks for better state management
+  const potentialMatchModal = usePotentialMatchModal(programId);
+  const debouncedApiResult = useDebouncedApi({ delay: 300 });
+  const { debouncedCall } = debouncedApiResult || { debouncedCall: () => {} };
+  const matchOperations = useMatchOperations({
+    onSuccess: (operation) => {
+      console.log(`🔄 Match operation ${operation} completed successfully - this might cause scroll issues`);
+      // Refresh data after successful operation
+      potentialMatchModal?.refreshData?.();
+      fetchEntries();
+    },
+    onError: (operation, error) => {
+      console.error(`Match operation ${operation} failed:`, error);
+      setToast({ message: `Failed to ${operation} match: ${error.message}`, type: 'error' });
+    }
+  });
+
+  // API caching for better performance
+  const apiCache = useApiCache<{ entries: LedgerEntry[], total: number }>({
+    ttl: 2 * 60 * 1000, // 2 minutes cache
+    maxSize: 50,
+  });
+
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newEntry, setNewEntry] = useState<Partial<LedgerEntry>>({});
   const [editingCell, setEditingCell] = useState<{ rowId: string, field: string } | null>(null);
@@ -91,113 +126,192 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadModalData, setUploadModalData] = useState<any>(null);
   const [potentialMatches, setPotentialMatches] = useState<any[]>([]);
-  const [showPotentialModal, setShowPotentialModal] = useState(false);
-  const [potentialIndex, setPotentialIndex] = useState(0);
   const [potentialMatchIds, setPotentialMatchIds] = useState<string[]>([]);
-  const [loadingPotential, setLoadingPotential] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error', undoId?: string } | null>(null);
-  const [potentialLedgerEntryId, setPotentialLedgerEntryId] = useState<string | null>(null);
-  const [potentialTab, setPotentialTab] = useState<'matched' | 'rejected'>('matched');
-  const [potentialMatched, setPotentialMatched] = useState<any[]>([]);
-  const [potentialRejected, setPotentialRejected] = useState<any[]>([]);
   const [entriesWithRejectedMatches, setEntriesWithRejectedMatches] = useState<Set<string>>(new Set());
+  const [isLoadingMatches, setIsLoadingMatches] = useState(false);
+  const [dropdownOptions, setDropdownOptions] = useState<{ vendors: string[], categories: string[], subcategories: string[] }>({ vendors: [], categories: [], subcategories: [] });
+
+  // Debug effect to track entries changes
+  useEffect(() => {
+    console.log('🔄 Entries state changed, count:', entries.length);
+  }, [entries]);
+
+  // Debug the onChange prop
+  const debugOnChange = useCallback(() => {
+    console.log('🔄 Parent onChange called - this might cause scroll to top');
+    onChange?.();
+  }, [onChange]);
+
+  // Virtual scrolling for large datasets
+  const virtualScroll = useVirtualScroll(entries, {
+    itemHeight: 48, // Approximate row height
+    containerHeight: 600, // Container height
+    overscan: 10, // Render 10 items outside visible area
+  });
+
+  // Performance monitoring
+  const performanceMonitor = usePerformanceMonitor();
 
   // Ref to track previous options to prevent unnecessary updates
   const prevOptionsRef = useRef<{ vendors: string[], categories: string[], subcategories: string[] } | null>(null);
 
-  // For dropdowns - memoize to prevent unnecessary recalculations
-  const vendorOptions = useMemo(() => Array.from(new Set(entries.map(e => e.vendor_name).filter(Boolean))), [entries]);
-  const wbsCategoryOptions = useMemo(() => Array.from(new Set(entries.map(e => e.wbs_category).filter(Boolean))), [entries]);
-  const wbsSubcategoryOptions = useMemo(() => Array.from(new Set(entries.map(e => e.wbs_subcategory).filter(Boolean))), [entries]);
-
   const location = useLocation();
-  const highlightId = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('highlight');
-  }, [location.search]);
-  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
-  const fetchEntries = useCallback(async () => {
+  // Helper functions for refreshing match IDs
+  const refreshPotentialMatchIds = useCallback(async () => {
     try {
-      let res;
-      if (showAll) {
-        res = await axios.get(`/api/programs/${programId}/ledger`, {
-          params: { page: 1, pageSize: 10000, search },
-        });
-      } else {
-        res = await axios.get(`/api/programs/${programId}/ledger`, {
-          params: { page, pageSize: PAGE_SIZE, search },
-        });
-      }
-      const data = res.data as { entries: LedgerEntry[], total: number };
-      setEntries(data.entries);
-      setTotal(data.total);
-      
-      // Only call onOptionsUpdate if it exists and we have entries
-      if (onOptionsUpdate && data.entries.length > 0) {
-        const newVendors = Array.from(new Set(data.entries.map((e: LedgerEntry) => e.vendor_name).filter(Boolean)));
-        const newCategories = Array.from(new Set(data.entries.map((e: LedgerEntry) => e.wbs_category).filter(Boolean)));
-        const newSubcategories = Array.from(new Set(data.entries.map((e: LedgerEntry) => e.wbs_subcategory).filter(Boolean)));
-        
-        const newOptions = {
-          vendors: newVendors,
-          categories: newCategories,
-          subcategories: newSubcategories,
-        };
-        
-        // Only update if options have actually changed
-        const prevOptions = prevOptionsRef.current;
-        if (!prevOptions || 
-            JSON.stringify(prevOptions.vendors) !== JSON.stringify(newOptions.vendors) ||
-            JSON.stringify(prevOptions.categories) !== JSON.stringify(newOptions.categories) ||
-            JSON.stringify(prevOptions.subcategories) !== JSON.stringify(newOptions.subcategories)) {
-          prevOptionsRef.current = newOptions;
-          onOptionsUpdate(newOptions);
-        }
-      }
-    } catch (err) {
-      // handle error
-    }
-  }, [programId, page, search, showAll, onOptionsUpdate]);
-
-  useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
-
-  useEffect(() => {
-    if (highlightedRowRef.current) {
-      highlightedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [entries, highlightId]);
-
-  // Only fetch potential/rejected match IDs on mount or when programId changes
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPotentialMatchIds = async () => {
       const res = await fetch(`/api/programs/${programId}/ledger/potential-match-ids`);
-      const ids = await res.json();
-      if (isMounted) setPotentialMatchIds(ids);
-    };
-    const fetchEntriesWithRejectedMatches = async () => {
-      try {
-        const res = await fetch(`/api/programs/${programId}/ledger/rejected-match-ids`);
-        if (res.ok) {
-          const ids = await res.json();
-          if (isMounted) setEntriesWithRejectedMatches(new Set(ids));
-        }
-      } catch (error) {
-        console.error('Failed to fetch rejected match IDs:', error);
+      if (res.ok) {
+        const ids = await res.json();
+        setPotentialMatchIds(ids);
       }
-    };
-    fetchPotentialMatchIds();
-    fetchEntriesWithRejectedMatches();
-    return () => { isMounted = false; };
+    } catch (error) {
+      console.error('Failed to refresh potential match IDs:', error);
+    }
   }, [programId]);
 
-  // Save cell edit
-  const saveCellEdit = async (rowId: string, field: string, value: any) => {
+  const refreshRejectedMatchIds = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/programs/${programId}/ledger/rejected-match-ids`);
+      if (res.ok) {
+        const ids = await res.json();
+        setEntriesWithRejectedMatches(new Set(ids));
+      }
+    } catch (error) {
+      console.error('Failed to refresh rejected match IDs:', error);
+    }
+  }, [programId]);
+
+  // Cache invalidation on data changes
+  const invalidateCache = useCallback(() => {
+    // Invalidate all ledger-related cache entries
+    if (apiCache?.invalidatePattern) {
+      apiCache.invalidatePattern(/^ledger-/);
+    } else if (apiCache?.invalidate) {
+      apiCache.invalidate();
+    }
+  }, [apiCache]);
+
+  const fetchEntries = useCallback(async () => {
+    console.log('🔄 fetchEntries called - this might cause scroll issues');
+    performanceMonitor?.startTimer?.('fetchEntries');
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Create cache key based on request parameters
+      const cacheKey = `ledger-${programId}-${page}-${search}-${showAll}`;
+      
+      // Check cache first
+      const cachedData = apiCache?.get?.(cacheKey);
+      if (cachedData) {
+        performanceMonitor?.recordCacheHit?.();
+        console.log('🔄 Using cached data - should not cause scroll');
+        setEntries(cachedData.entries);
+        setTotal(cachedData.total);
+        setLoading(false);
+        performanceMonitor?.endTimer?.('fetchEntries');
+        return;
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: PAGE_SIZE.toString(),
+        showAll: showAll ? 'true' : 'false'
+      });
+
+      if (search) params.append('search', search);
+      if (filterType !== 'all') params.append('filterType', filterType);
+      if (vendorFilter) params.append('vendorFilter', vendorFilter);
+      if (wbsCategoryFilter) params.append('wbsCategoryFilter', wbsCategoryFilter);
+      if (wbsSubcategoryFilter) params.append('wbsSubcategoryFilter', wbsSubcategoryFilter);
+
+      const response = await axios.get(`/api/programs/${programId}/ledger?${params}`);
+      
+      if (response.data) {
+        const { entries: newEntries, total: newTotal } = response.data;
+        
+        // Cache the result
+        apiCache?.set?.(cacheKey, { entries: newEntries, total: newTotal });
+        
+        setEntries(newEntries);
+        setTotal(newTotal);
+        
+        // Highlight new row if it exists
+        if (newRowId && newEntries.some(entry => entry.id === newRowId)) {
+          setTimeout(() => {
+            const row = document.getElementById(`row-${newRowId}`);
+            if (row) {
+              row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              row.classList.add('bg-yellow-100');
+              setTimeout(() => row.classList.remove('bg-yellow-100'), 3000);
+            }
+          }, 100);
+          setNewRowId(null);
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch entries:', error);
+      setError(error.response?.data?.message || 'Failed to fetch entries');
+      setShowErrorModal(true);
+    } finally {
+      setLoading(false);
+      performanceMonitor?.endTimer?.('fetchEntries');
+    }
+  }, [programId, page, search, showAll, filterType, vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter, apiCache, performanceMonitor, newRowId]);
+
+  // Debounced search
+  const debouncedSearch = useCallback(
+    debouncedCall ? debouncedCall(fetchEntries) : fetchEntries,
+    [fetchEntries, debouncedCall]
+  );
+
+  // Initial data loading
+  useEffect(() => {
+    console.log('🔄 Initial data loading useEffect triggered - this might cause scroll issues');
+    fetchEntries();
+    refreshPotentialMatchIds();
+    refreshRejectedMatchIds();
+  }, [fetchEntries, refreshPotentialMatchIds, refreshRejectedMatchIds]);
+
+  // Update dropdown options when entries change
+  useEffect(() => {
+    console.log('🔄 Dropdown options useEffect triggered - this might cause scroll issues');
+    if (entries.length > 0) {
+      const vendors = [...new Set(entries.map(entry => entry.vendor_name).filter(Boolean))].sort();
+      const categories = [...new Set(entries.map(entry => entry.wbs_category).filter(Boolean))].sort();
+      const subcategories = [...new Set(entries.map(entry => entry.wbs_subcategory).filter(Boolean))].sort();
+      
+      const newOptions = { vendors, categories, subcategories };
+      
+      // Only update if options have actually changed
+      if (JSON.stringify(prevOptionsRef.current) !== JSON.stringify(newOptions)) {
+        console.log('🔄 Updating dropdown options - this might cause scroll issues');
+        setDropdownOptions(newOptions);
+        prevOptionsRef.current = newOptions;
+        onOptionsUpdate?.(newOptions);
+      }
+    }
+  }, [entries, onOptionsUpdate]);
+
+  useEffect(() => {
+    if (highlightId && highlightedRowRef.current) {
+      highlightedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightId]);
+
+  // Enhanced save cell edit with cache invalidation
+  const saveCellEdit = useCallback(async (rowId: string, field: string, value: any) => {
+    console.log('🔵 saveCellEdit called:', { rowId, field, value });
+    
     const entry = entries.find(e => e.id === rowId);
-    if (!entry) return;
+    if (!entry) {
+      console.log('❌ Entry not found:', rowId);
+      return;
+    }
+    
     const numberFields = ['baseline_amount', 'planned_amount', 'actual_amount'];
     // Only update if value has changed (robust check)
     let oldValue = entry[field as keyof LedgerEntry];
@@ -206,6 +320,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
       oldValue = oldValue === null || oldValue === undefined || oldValue === '' ? null : Number(oldValue);
       newValue = newValue === null || newValue === undefined || newValue === '' ? null : Number(newValue);
       if (oldValue === newValue) {
+        console.log('🟡 No change detected for number field, skipping');
         setEditingCell(null);
         setCellEditValue('');
         return;
@@ -214,6 +329,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
       const oldStr = oldValue === null || oldValue === undefined ? '' : String(oldValue);
       const newStr = newValue === null || newValue === undefined ? '' : String(newValue);
       if (oldStr === newStr) {
+        console.log('🟡 No change detected for string field, skipping');
         setEditingCell(null);
         setCellEditValue('');
         return;
@@ -225,40 +341,77 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     }
     // Prevent clearing required fields
     if (requiredFields.includes(field) && (newValue === '' || newValue === null || newValue === undefined)) {
+      console.log('❌ Cannot clear required field:', field);
       setEditingCell(null);
       setCellEditValue('');
       return;
     }
+    
+    console.log('🟢 Proceeding with save:', { oldValue, newValue });
+    
     try {
-      await axios.put(`/api/programs/${programId}/ledger/${rowId}`, { [field]: newValue });
+      // Update local state immediately to preserve editing state
+      console.log('🟢 Updating local state...');
+      setEntries(prevEntries => 
+        prevEntries.map(entry => 
+          entry.id === rowId 
+            ? { ...entry, [field]: newValue }
+            : entry
+        )
+      );
+      
+      // Call API with skipRefresh to prevent full re-render
+      console.log('🟢 Calling API with skipRefresh...');
+      await ledgerOperations.updateEntry(rowId, { [field]: newValue }, true);
+      
+      console.log('✅ Cell edit saved successfully');
+      console.log('🔄 About to clear editing state...');
       setEditingCell(null);
       setCellEditValue('');
-      fetchEntries();
-      if (onChange) onChange();
+      console.log('🔄 Editing state cleared');
     } catch (err) {
+      console.error('❌ Cell edit failed:', err);
+      // Revert local state on error
+      setEntries(prevEntries => 
+        prevEntries.map(entry => 
+          entry.id === rowId 
+            ? { ...entry, [field]: oldValue }
+            : entry
+        )
+      );
       setEditingCell(null);
+      setCellEditValue('');
     }
-  };
+  }, [entries, ledgerOperations]);
 
   // Handle cell click
   const handleCellClick = (rowId: string, field: string, value: any) => {
+    console.log('🔵 Cell clicked:', { rowId, field, value });
     setEditingCell({ rowId, field });
     setCellEditValue(value ?? '');
   };
 
   // Handle cell input change
   const handleCellInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    console.log('🔵 Cell input changed:', e.target.value);
+    console.log('🔵 Setting cellEditValue to:', e.target.value);
     setCellEditValue(e.target.value);
   };
 
   // Handle cell input blur or Enter
-  const handleCellInputBlur = (rowId: string, field: string) => {
-    saveCellEdit(rowId, field, cellEditValue);
+  const handleCellInputBlur = (rowId: string, field: string, currentValue?: string) => {
+    const valueToSave = currentValue !== undefined ? currentValue : cellEditValue;
+    console.log('🔵 Cell input blur:', { rowId, field, cellEditValue, valueToSave });
+    saveCellEdit(rowId, field, valueToSave);
   };
   const handleCellInputKeyDown = (e: React.KeyboardEvent, rowId: string, field: string) => {
+    console.log('🔵 Cell key down:', { key: e.key, rowId, field, cellEditValue });
     if (e.key === 'Enter') {
       e.preventDefault();
-      saveCellEdit(rowId, field, cellEditValue);
+      // Use the current input value instead of the stale state
+      const currentValue = (e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value;
+      console.log('🔵 Enter pressed, current value from target:', currentValue);
+      saveCellEdit(rowId, field, currentValue);
     } else if (e.key === 'Escape') {
       setEditingCell(null);
       setCellEditValue('');
@@ -282,10 +435,8 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     const newEntry = entries.find(e => e.id === newRowId);
     if (!newEntry) return;
     try {
-      await axios.post(`/api/programs/${programId}/ledger`, { ...newEntry, id: undefined });
+      await ledgerOperations.createEntry({ ...newEntry, id: undefined } as Omit<LedgerEntry, 'id'>);
       setNewRowId(null);
-      fetchEntries();
-      if (onChange) onChange();
     } catch (err: any) {
       setError('Error creating entry');
       setShowErrorModal(true);
@@ -335,21 +486,28 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
       }
       // else: skip field
     });
-    await Promise.all(selectedRows.map(id => axios.put(`/api/programs/${programId}/ledger/${id}`, payload)));
-    setShowBulkEditModal(false);
-    setSelectedRows([]);
-    fetchEntries();
-    if (onChange) onChange();
+    
+    try {
+      await ledgerOperations.bulkUpdateEntries(selectedRows, payload);
+      setShowBulkEditModal(false);
+      setSelectedRows([]);
+    } catch (error) {
+      // Error handling is done in the hook
+      console.error('Bulk edit failed:', error);
+    }
   };
 
   // Bulk delete
   const handleBulkDelete = () => setShowBulkDeleteModal(true);
   const handleBulkDeleteConfirm = async () => {
-    await Promise.all(selectedRows.map(id => axios.delete(`/api/programs/ledger/${id}`)));
-    setShowBulkDeleteModal(false);
-    setSelectedRows([]);
-    fetchEntries();
-    if (onChange) onChange();
+    try {
+      await ledgerOperations.bulkDeleteEntries(selectedRows);
+      setShowBulkDeleteModal(false);
+      setSelectedRows([]);
+    } catch (error) {
+      // Error handling is done in the hook
+      console.error('Bulk delete failed:', error);
+    }
   };
 
   // Helper to determine if a field is cleared
@@ -372,13 +530,13 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
   // Popover save handler
   const handlePopoverSave = async () => {
     if (!popover.rowId) return;
-    await axios.put(`/api/programs/${programId}/ledger/${popover.rowId}`, {
-      invoice_link_text: popoverText,
-      invoice_link_url: popoverUrl,
-    });
-    handlePopoverClose();
-    fetchEntries();
-    if (onChange) onChange();
+    try {
+      await ledgerOperations.updateInvoiceLink(popover.rowId, popoverText, popoverUrl);
+      handlePopoverClose();
+    } catch (error) {
+      // Error handling is done in the hook
+      console.error('Popover save failed:', error);
+    }
   };
 
   const handlePopoverKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -392,55 +550,20 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
   };
 
   const handleShowPotentialMatches = async (entryId: string) => {
-    setPotentialLedgerEntryId(entryId);
-    setLoadingPotential(true);
-    setShowPotentialModal(true);
-    setPotentialTab('matched');
+    console.log('🔄 handleShowPotentialMatches called - this might cause scroll issues');
+    setIsLoadingMatches(true);
     try {
-      const res = await fetch(`/api/programs/${programId}/ledger/${entryId}/potential-matches`);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      setPotentialMatched(data.matched || []);
-      setPotentialRejected(data.rejected || []);
-      setTimeout(() => {
-      }, 100);
-      // Track which entries have rejected matches
-      if (data.rejected && data.rejected.length > 0) {
-        setEntriesWithRejectedMatches(prev => new Set([...Array.from(prev), entryId]));
-      }
-      setPotentialIndex(0);
-    } catch (e) {
-      setPotentialMatched([]);
-      setPotentialRejected([]);
+      const response = await axios.get(`/api/programs/${programId}/ledger/${entryId}/potential-matches`);
+      setPotentialMatches(response.data as any[]);
+      setUploadModalData({ entryId, matches: response.data });
+      setShowUploadModal(true);
+    } catch (error) {
+      console.error('Failed to fetch potential matches:', error);
+      setToast({ message: 'Failed to fetch potential matches', type: 'error' });
     } finally {
-      setLoadingPotential(false);
+      setIsLoadingMatches(false);
     }
   };
-
-  // Filter entries based on filterType and dropdown filters
-  let filteredEntries = entries;
-  
-  // Apply filterType filters first
-  if (filterType === 'currentMonthPlanned') {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const currentMonthStr = `${year}-${month}`;
-    filteredEntries = entries.filter(e => e.planned_date && e.planned_date.startsWith(currentMonthStr));
-  } else if (filterType === 'emptyActuals') {
-    filteredEntries = entries.filter(e => !e.actual_date || e.actual_amount == null);
-  }
-  
-  // Apply dropdown filters
-  if (vendorFilter) {
-    filteredEntries = filteredEntries.filter(e => e.vendor_name === vendorFilter);
-  }
-  if (wbsCategoryFilter) {
-    filteredEntries = filteredEntries.filter(e => e.wbs_category === wbsCategoryFilter);
-  }
-  if (wbsSubcategoryFilter) {
-    filteredEntries = filteredEntries.filter(e => e.wbs_subcategory === wbsSubcategoryFilter);
-  }
 
   useEffect(() => {
     if (toast) {
@@ -451,26 +574,34 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
     }
   }, [toast]);
 
-  useEffect(() => {
-    if (potentialTab === 'rejected') {
+  // Handle search input change with debouncing
+  const handleSearchChange = useCallback((newSearch: string) => {
+    setSearch(newSearch);
+    if (newSearch.trim() === '') {
+      // If search is empty, fetch immediately
+      fetchEntries();
+    } else {
+      // Debounce the search
+      debouncedSearch(newSearch);
     }
-  }, [potentialTab, potentialRejected]);
-
-  // Always sort entries by planned_date ascending before rendering
-  const sortedEntries = useMemo(() => {
-    return [...filteredEntries].sort((a, b) => {
-      if (!a.planned_date && !b.planned_date) return 0;
-      if (!a.planned_date) return 1;
-      if (!b.planned_date) return -1;
-      return new Date(a.planned_date).getTime() - new Date(b.planned_date).getTime();
-    });
-  }, [filteredEntries]);
+  }, [fetchEntries, debouncedSearch]);
 
   return (
     <div className="bg-white rounded-xl shadow p-4">
       {/* Quick Filters Bar */}
       <div className="mb-6">
-        <h2 className="text-lg font-semibold mb-3 text-gray-800">Quick Filters</h2>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-lg font-semibold text-gray-800">Quick Filters</h2>
+          {process.env.NODE_ENV === 'development' && performanceMonitor?.logPerformanceReport && (
+            <button
+              onClick={performanceMonitor.logPerformanceReport}
+              className="btn btn-xs btn-outline text-xs"
+              title="View performance metrics"
+            >
+              📊 Performance
+            </button>
+          )}
+        </div>
         <div className="flex gap-4">
           <button
             className={`btn px-4 py-2 rounded-md ${filterType === 'all' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
@@ -494,7 +625,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
       </div>
       <LedgerTableHeader
         search={search}
-        setSearch={setSearch}
+        setSearch={handleSearchChange}
         setPage={setPage}
         onAddEntry={handleAddEntry}
         selectedRows={selectedRows}
@@ -559,9 +690,12 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
         potentialMatchIds={potentialMatchIds}
         showUploadModal={showUploadModal}
         uploadModalData={uploadModalData}
-        showPotentialModal={showPotentialModal}
-        potentialIndex={potentialIndex}
-        potentialLedgerEntryId={potentialLedgerEntryId}
+        showPotentialModal={potentialMatchModal?.isOpen || false}
+        potentialIndex={potentialMatchModal?.currentIndex || 0}
+        potentialLedgerEntryId={potentialMatchModal?.ledgerEntryId || null}
+        loadingPotential={potentialMatchModal?.isLoading || false}
+        loading={loading}
+        searchLoading={searchLoading}
         wbsCategoryOptions={wbsCategoryOptions}
         wbsSubcategoryOptions={wbsSubcategoryOptions}
         vendorOptions={vendorOptions}
@@ -583,9 +717,17 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
         setUploadModalData={setUploadModalData}
         setPopoverText={setPopoverText}
         setPopoverUrl={setPopoverUrl}
-        setPotentialTab={setPotentialTab}
-        setPotentialIndex={setPotentialIndex}
-        setPotentialLedgerEntryId={setPotentialLedgerEntryId}
+        setPotentialTab={potentialMatchModal?.switchTab || (() => {})}
+        setPotentialIndex={(index: number | ((prev: number) => number)) => {
+          if (typeof index === 'function' && potentialMatchModal?.setIndex) {
+            const currentIndex = potentialMatchModal.currentIndex || 0;
+            const newIndex = index(currentIndex);
+            potentialMatchModal.setIndex(newIndex);
+          } else if (typeof index === 'number' && potentialMatchModal?.setIndex) {
+            potentialMatchModal.setIndex(index);
+          }
+        }}
+        setPotentialLedgerEntryId={() => {}}
         fetchEntries={fetchEntries}
         formatCurrency={formatCurrency}
         highlightedRowRef={highlightedRowRef}
@@ -594,18 +736,86 @@ const LedgerTable: React.FC<LedgerTableProps> = ({ programId, showAll, onChange,
         vendorFilter={vendorFilter}
         wbsCategoryFilter={wbsCategoryFilter}
         wbsSubcategoryFilter={wbsSubcategoryFilter}
-        setShowPotentialModal={setShowPotentialModal}
-        potentialTab={potentialTab}
-        potentialMatched={potentialMatched}
-        setPotentialMatched={setPotentialMatched}
-        potentialRejected={potentialRejected}
-        setPotentialRejected={setPotentialRejected}
+        setShowPotentialModal={potentialMatchModal?.closeModal || (() => {})}
+        potentialTab={potentialMatchModal?.currentTab || 'matched'}
+        potentialMatched={potentialMatchModal?.potentialMatches || []}
+        setPotentialMatched={() => {}}
+        potentialRejected={potentialMatchModal?.rejectedMatches || []}
+        setPotentialRejected={() => {}}
         setToast={setToast}
         setEntriesWithRejectedMatches={setEntriesWithRejectedMatches}
         setPotentialMatchIds={setPotentialMatchIds}
+        confirmMatch={ledgerOperations.confirmMatch}
+        rejectMatch={ledgerOperations.rejectMatch}
+        undoReject={ledgerOperations.undoReject}
       />
+
+      {/* View Upload Modal - Moved to parent component */}
+      {showUploadModal && uploadModalData && (
+        <div className="fixed inset-0 flex items-center justify-center z-[9999] bg-black bg-opacity-40">
+          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full relative border-2 border-green-200">
+            <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold" onClick={() => setShowUploadModal(false)} aria-label="Close">&times;</button>
+            <h2 className="text-2xl font-extrabold mb-4 text-green-700 flex items-center gap-2">
+              <DocumentMagnifyingGlassIcon className="h-6 w-6 text-green-500" /> Upload Details
+            </h2>
+            <div className="mb-3 flex flex-col gap-2 text-base">
+              <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{uploadModalData.vendorName}</span></div>
+              <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{uploadModalData.description}</span></div>
+              <div><b className="text-gray-600">Amount:</b> <span className="text-green-700 font-semibold">{formatCurrency(uploadModalData.amount)}</span></div>
+              <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{uploadModalData.transactionDate ? new Date(uploadModalData.transactionDate).toLocaleDateString() : ''}</span></div>
+              <div><b className="text-gray-600">Status:</b> <span className="text-gray-900 capitalize">{uploadModalData.status}</span></div>
+              <div><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{uploadModalData.actualsUploadSession?.originalFilename}</span></div>
+              {uploadModalData.actualsUploadSession?.description && (
+                <div><b className="text-gray-600">Session Description:</b> <span className="text-gray-900">{uploadModalData.actualsUploadSession.description}</span></div>
+              )}
+              <div><b className="text-gray-600">Uploaded:</b> <span className="text-gray-900">{uploadModalData.actualsUploadSession?.createdAt ? new Date(uploadModalData.actualsUploadSession.createdAt).toLocaleString() : ''}</span></div>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-end items-center mt-6 gap-4">
+              {uploadModalData.status === 'confirmed' && (
+                <button
+                  className="btn btn-error px-6 py-2 text-base font-semibold rounded shadow hover:bg-red-700 transition mb-2 sm:mb-0"
+                  onClick={async () => {
+                    if (window.confirm('Are you sure you want to remove this match? This will revert the actuals and restore potential matches.')) {
+                      try {
+                        await ledgerOperations.removeMatch(uploadModalData.id);
+                        setShowUploadModal(false);
+                        // Update the specific entry in local state to remove the actualsUploadTransaction
+                        setEntries(prevEntries => 
+                          prevEntries.map(entry => {
+                            // Find the entry that had this upload transaction and remove the actualsUploadTransaction
+                            if (entry.actualsUploadTransaction?.id === uploadModalData.id) {
+                              return {
+                                ...entry,
+                                actualsUploadTransaction: undefined,
+                                actual_amount: null,
+                                actual_date: null
+                              };
+                            }
+                            return entry;
+                          })
+                        );
+                      } catch (error) {
+                        // Error handling is done in the hook
+                        console.error('Remove match failed:', error);
+                      }
+                    }
+                  }}
+                >
+                  Remove Match
+                </button>
+              )}
+              <button
+                className="btn btn-ghost px-6 py-2 text-base font-semibold rounded shadow hover:bg-gray-100 transition"
+                onClick={() => setShowUploadModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default LedgerTable; 
+export default LedgerTable;

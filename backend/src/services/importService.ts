@@ -1105,11 +1105,17 @@ export class ImportService {
 
   async rejectMatch(transactionId: string, ledgerEntryId: string): Promise<void> {
     try {
-      const transaction = await this.importTransactionRepo.findOne({ where: { id: transactionId }, relations: ['importSession'] });
+      const transaction = await this.importTransactionRepo.findOne({ 
+        where: { id: transactionId }, 
+        relations: ['importSession'] 
+      });
       if (!transaction) throw new Error('Transaction not found');
 
       // Remove the specific potential match for this transaction/ledgerEntry
-      const deleteResult = await this.potentialMatchRepo.delete({ transaction: { id: transactionId }, ledgerEntry: { id: ledgerEntryId } });
+      const deleteResult = await this.potentialMatchRepo.delete({ 
+        transaction: { id: transactionId }, 
+        ledgerEntry: { id: ledgerEntryId } 
+      });
       if (deleteResult.affected === 0) {
         console.warn(`[rejectMatch] No PotentialMatch found for transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
       }
@@ -1117,6 +1123,7 @@ export class ImportService {
       // Add a record to the RejectedMatch table
       const ledgerEntry = await this.ledgerRepo.findOneBy({ id: ledgerEntryId });
       if (!ledgerEntry) throw new Error('Ledger entry not found');
+      
       const rejectedMatch = this.rejectedMatchRepo.create({
         transaction,
         ledgerEntry
@@ -1127,12 +1134,11 @@ export class ImportService {
       // The status should remain 'matched' even if all matches are rejected
       await this.importTransactionRepo.save(transaction);
 
-      // Remove the performSmartMatching call - it was causing rejected matches to reappear
-      // The smart matching should not be re-run after rejecting a specific match
+      console.log(`[rejectMatch] Successfully rejected match: transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
     } catch (error) {
       const err = error as any;
       console.error('[rejectMatch] Error:', err && err.stack ? err.stack : err);
-      throw error;
+      throw new Error(`Failed to reject match: ${err.message || 'Unknown error'}`);
     }
   }
 

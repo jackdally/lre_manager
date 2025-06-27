@@ -130,3 +130,73 @@ export interface Program {
   name: string;
   description: string;
 }
+
+// Add new interfaces for potential matches and rejected matches
+export interface PotentialMatchData {
+  id: string;
+  vendorName: string;
+  description: string;
+  amount: number;
+  transactionDate: string;
+  status: string;
+  matchConfidence?: number;
+  confidence?: number;
+  actualsUploadSession?: {
+    id: string;
+    originalFilename: string;
+    description: string;
+    createdAt: string;
+  } | null;
+  // Add ledgerEntry property that the frontend expects
+  ledgerEntry?: {
+    id: string;
+    vendor_name: string;
+    expense_description: string;
+    planned_amount: number;
+    planned_date: string;
+    wbs_category: string;
+    wbs_subcategory: string;
+    actual_amount?: number;
+    actual_date?: string;
+    notes?: string;
+    invoice_link_text?: string;
+    invoice_link_url?: string;
+  };
+}
+
+export interface RejectedMatchData {
+  id: string;
+  vendorName: string;
+  description: string;
+  amount: number;
+  transactionDate: string;
+  status: string;
+  matchConfidence?: number;
+  confidence?: number;
+  actualsUploadSession?: {
+    id: string;
+    originalFilename: string;
+    description: string;
+    createdAt: string;
+  } | null;
+  // Add ledgerEntry property that the frontend expects
+  ledgerEntry?: {
+    id: string;
+    vendor_name: string;
+    expense_description: string;
+    planned_amount: number;
+    planned_date: string;
+    wbs_category: string;
+    wbs_subcategory: string;
+    actual_amount?: number;
+    actual_date?: string;
+    notes?: string;
+    invoice_link_text?: string;
+    invoice_link_url?: string;
+  };
+}
+
+export interface PotentialMatchesResponse {
+  matched: PotentialMatchData[];
+  rejected: RejectedMatchData[];
+}

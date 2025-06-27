@@ -2,6 +2,7 @@ import React from 'react';
 import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { Tooltip } from 'react-tooltip';
 import { LedgerEntry } from './index';
+import { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
 
 // Type for potential match objects
 export interface PotentialMatch {
@@ -19,6 +20,21 @@ export interface PotentialMatch {
   } | null;
   matchConfidence?: number;
   confidence?: number;
+  // Add the ledgerEntry property that the API now returns
+  ledgerEntry?: {
+    id: string;
+    vendor_name: string;
+    expense_description: string;
+    planned_amount: number;
+    planned_date: string;
+    wbs_category: string;
+    wbs_subcategory: string;
+    actual_amount?: number;
+    actual_date?: string;
+    notes?: string;
+    invoice_link_text?: string;
+    invoice_link_url?: string;
+  };
 }
 
 interface LedgerTableTableProps {
@@ -45,6 +61,9 @@ interface LedgerTableTableProps {
   showPotentialModal: boolean;
   potentialIndex: number;
   potentialLedgerEntryId: string | null;
+  loadingPotential: boolean;
+  loading?: boolean;
+  searchLoading?: boolean;
   
   // Options
   wbsCategoryOptions: string[];
@@ -56,7 +75,7 @@ interface LedgerTableTableProps {
   handleSelectRow: (id: string) => void;
   handleCellClick: (rowId: string, field: string, value: any) => void;
   handleCellInputChange: (e: React.ChangeEvent<any>) => void;
-  handleCellInputBlur: (rowId: string, field: string) => void;
+  handleCellInputBlur: (rowId: string, field: string, value?: string) => void;
   handleCellInputKeyDown: (e: React.KeyboardEvent, rowId: string, field: string) => void;
   handlePopoverOpen: (rowId: string, text: string | null | undefined, url: string | null | undefined, event: React.MouseEvent) => void;
   handlePopoverClose: () => void;
@@ -93,6 +112,10 @@ interface LedgerTableTableProps {
   setToast: (toast: any) => void;
   setEntriesWithRejectedMatches: (set: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setPotentialMatchIds: (ids: string[] | ((prev: string[]) => string[])) => void;
+  // Add hook action methods
+  confirmMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
+  rejectMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
+  undoReject: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
@@ -116,6 +139,9 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
   showPotentialModal,
   potentialIndex,
   potentialLedgerEntryId,
+  loadingPotential,
+  loading = false,
+  searchLoading = false,
   wbsCategoryOptions,
   wbsSubcategoryOptions,
   vendorOptions,
@@ -158,31 +184,28 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
   setToast,
   setEntriesWithRejectedMatches,
   setPotentialMatchIds,
+  // Add hook action methods
+  confirmMatch,
+  rejectMatch,
+  undoReject,
 }) => {
-  // Apply filtering to remove inappropriate statuses
-  const filteredPotentialMatched = potentialMatched.filter(entry => 
-    entry.status !== 'replaced' && entry.status !== 'rejected'
-  );
-  const filteredPotentialRejected = potentialRejected.filter(entry => 
-    entry.status !== 'replaced'
-  );
+  // Filtered matches for the modal
+  const filteredPotentialMatched = potentialMatched.filter(entry => entry.status !== 'replaced' && entry.status !== 'rejected');
+  const filteredPotentialRejected = potentialRejected.filter(entry => entry.status !== 'replaced');
   const currentMatches = potentialTab === 'matched' ? filteredPotentialMatched : filteredPotentialRejected;
 
   // Function to refresh rejected match IDs from backend
   const refreshRejectedMatchIds = async () => {
     try {
-      console.log('[DEBUG] Refreshing rejected match IDs...');
       const res = await fetch(`/api/programs/${programId}/ledger/rejected-match-ids`);
       if (res.ok) {
         const ids = await res.json();
-        console.log('[DEBUG] Received rejected match IDs:', ids);
         setEntriesWithRejectedMatches(new Set(ids));
-        console.log('[DEBUG] Updated entriesWithRejectedMatches state');
       } else {
-        console.error('[DEBUG] Failed to fetch rejected match IDs:', res.status, res.statusText);
+        setToast({ message: 'Failed to refresh rejected match data', type: 'error' });
       }
     } catch (error) {
-      console.error('Failed to refresh rejected match IDs:', error);
+      setToast({ message: 'Network error while refreshing data', type: 'error' });
     }
   };
 
@@ -209,7 +232,34 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
             </tr>
           </thead>
           <tbody>
-            {sortedEntries.map((entry, idx) => {
+            {loading && (
+              <tr>
+                <td colSpan={14} className="px-4 py-8 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span className="text-gray-600">Loading entries...</span>
+                  </div>
+                </td>
+              </tr>
+            )}
+            {searchLoading && !loading && (
+              <tr>
+                <td colSpan={14} className="px-4 py-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="text-gray-600 text-sm">Searching...</span>
+                  </div>
+                </td>
+              </tr>
+            )}
+            {!loading && !searchLoading && sortedEntries.length === 0 && (
+              <tr>
+                <td colSpan={14} className="px-4 py-8 text-center text-gray-500">
+                  No entries found.
+                </td>
+              </tr>
+            )}
+            {!loading && !searchLoading && sortedEntries.map((entry, idx) => {
               return (
                 <tr
                   key={entry.id}
@@ -230,7 +280,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'wbs_category')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbs_category', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbs_category')}
                         autoFocus
                       >
@@ -248,7 +298,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'wbs_subcategory')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbs_subcategory', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbs_subcategory')}
                         autoFocus
                       >
@@ -266,7 +316,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'vendor_name')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'vendor_name', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'vendor_name')}
                         autoFocus
                       >
@@ -284,7 +334,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full min-h-24 rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'expense_description')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'expense_description', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'expense_description')}
                         autoFocus
                       />
@@ -334,7 +384,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'baseline_date')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'baseline_date', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'baseline_date')}
                         autoFocus
                       />
@@ -350,7 +400,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'baseline_amount')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'baseline_amount', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'baseline_amount')}
                         autoFocus
                       />
@@ -366,7 +416,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'planned_date')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'planned_date', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'planned_date')}
                         autoFocus
                       />
@@ -382,7 +432,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'planned_amount')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'planned_amount', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'planned_amount')}
                         autoFocus
                       />
@@ -398,7 +448,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'actual_date')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'actual_date', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'actual_date')}
                         autoFocus
                       />
@@ -414,7 +464,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'actual_amount')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'actual_amount', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'actual_amount')}
                         autoFocus
                       />
@@ -429,7 +479,7 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         className={`input input-xs w-full min-h-24 rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={() => handleCellInputBlur(entry.id, 'notes')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'notes', e.target.value)}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'notes')}
                         autoFocus
                       />
@@ -443,11 +493,6 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                         const hasRejectedMatches = entriesWithRejectedMatches.has(entry.id);
                         const hasPotentialMatch = potentialMatchIds.map(String).includes(String(entry.id));
                         
-                        // Debug logging for this entry
-                        if (hasRejectedMatches || hasPotentialMatch) {
-                          console.log(`[DEBUG] Entry ${entry.id}: hasRejectedMatches=${hasRejectedMatches}, hasPotentialMatch=${hasPotentialMatch}`);
-                        }
-                        
                         // If entry HAS actuals
                         if (entry.actual_amount && entry.actual_date) {
                           // View Upload - if the actuals are tied to an upload transaction
@@ -457,7 +502,10 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                                 className="flex items-center gap-1 text-blue-600 underline hover:text-blue-800 text-sm font-semibold"
                                 aria-label="View Upload Details"
                                 data-tooltip-id={`upload-tooltip-${entry.id}`}
-                                onClick={() => { setUploadModalData(entry.actualsUploadTransaction); setShowUploadModal(true); }}
+                                onClick={() => { 
+                                  setUploadModalData(entry.actualsUploadTransaction); 
+                                  setShowUploadModal(true); 
+                                }}
                               >
                                 <DocumentMagnifyingGlassIcon className="h-4 w-4" /> View Upload
                               </button>
@@ -533,66 +581,6 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
           <button className="btn btn-xs" disabled={page * PAGE_SIZE >= total} onClick={() => setPage(page + 1)}>Next</button>
         </div>
       )}
-      {/* Upload Info Modal */}
-      {showUploadModal && uploadModalData && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full relative border-2 border-green-200">
-            <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold" onClick={() => setShowUploadModal(false)} aria-label="Close">&times;</button>
-            <h2 className="text-2xl font-extrabold mb-4 text-green-700 flex items-center gap-2">
-              <DocumentMagnifyingGlassIcon className="h-6 w-6 text-green-500" /> Upload Details
-            </h2>
-            <div className="mb-3 flex flex-col gap-2 text-base">
-              <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{uploadModalData.vendorName}</span></div>
-              <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{uploadModalData.description}</span></div>
-              <div><b className="text-gray-600">Amount:</b> <span className="text-green-700 font-semibold">{formatCurrency(uploadModalData.amount)}</span></div>
-              <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{uploadModalData.transactionDate ? new Date(uploadModalData.transactionDate).toLocaleDateString() : ''}</span></div>
-              <div><b className="text-gray-600">Status:</b> <span className="text-gray-900 capitalize">{uploadModalData.status}</span></div>
-              <div><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{uploadModalData.actualsUploadSession?.originalFilename}</span></div>
-              {uploadModalData.actualsUploadSession?.description && (
-                <div><b className="text-gray-600">Session Description:</b> <span className="text-gray-900">{uploadModalData.actualsUploadSession.description}</span></div>
-              )}
-              <div><b className="text-gray-600">Uploaded:</b> <span className="text-gray-900">{uploadModalData.actualsUploadSession?.createdAt ? new Date(uploadModalData.actualsUploadSession.createdAt).toLocaleString() : ''}</span></div>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-end items-center mt-6 gap-4">
-              {uploadModalData.status === 'confirmed' && (
-                <button
-                  className="btn btn-error px-6 py-2 text-base font-semibold rounded shadow hover:bg-red-700 transition mb-2 sm:mb-0"
-                  onClick={async () => {
-                    if (window.confirm('Are you sure you want to remove this match? This will revert the actuals and restore potential matches.')) {
-                      try {
-                        const response = await fetch(`/api/import/transaction/${uploadModalData.id}/remove-match`, { method: 'POST' });
-                        if (response.ok) {
-                          setShowUploadModal(false);
-                          // Refresh all data from backend to get updated state
-                          fetchEntries();
-                          // Refresh potential match IDs
-                          const res = await fetch(`/api/programs/${programId}/ledger/potential-match-ids`);
-                          const ids = await res.json();
-                          // Refresh rejected match IDs
-                          const rejectedRes = await fetch(`/api/programs/${programId}/ledger/rejected-match-ids`);
-                          if (rejectedRes.ok) {
-                            const rejectedIds = await rejectedRes.json();
-                          }
-                        }
-                      } catch (error) {
-                        console.error('Error removing match:', error);
-                      }
-                    }
-                  }}
-                >
-                  Remove Match
-                </button>
-              )}
-              <button
-                className="btn btn-ghost px-6 py-2 text-base font-semibold rounded shadow hover:bg-gray-100 transition"
-                onClick={() => setShowUploadModal(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showPotentialModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
           <div className="bg-white rounded-xl shadow-2xl p-8 max-w-3xl w-full min-w-[320px] relative border-2 border-blue-200 overflow-x-hidden px-8">
@@ -617,9 +605,16 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
             </div>
             {currentMatches.length === 0 && (
               <div className="flex-1 flex items-center justify-center min-h-[120px] text-gray-500 text-lg font-semibold py-8">
-                {potentialTab === 'matched'
-                  ? 'No potential matches for this ledger entry.'
-                  : 'No rejected matches for this ledger entry.'}
+                {loadingPotential ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span>Loading matches...</span>
+                  </div>
+                ) : (
+                  potentialTab === 'matched'
+                    ? 'No potential matches for this ledger entry.'
+                    : 'No rejected matches for this ledger entry.'
+                )}
               </div>
             )}
             {currentMatches.length > 0 && currentMatches[potentialIndex] && (
@@ -663,42 +658,22 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                       className="mt-2 px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
                       onClick={async () => {
                         const undoId = currentMatches[potentialIndex].id;
-                        console.log('[UNDO REJECT] Starting undo for transaction:', undoId, 'ledgerEntry:', potentialLedgerEntryId);
-                        try {
-                          const res = await fetch(`/api/import/transaction/${undoId}/undo-reject`, { 
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ledgerEntryId: potentialLedgerEntryId })
-                          });
-                          if (!res.ok) throw new Error('Failed to undo rejection');
-                          
-                          console.log('[UNDO REJECT] API call successful, response status:', res.status);
-                          
-                          // Add a small delay to ensure backend processing is complete
-                          await new Promise(resolve => setTimeout(resolve, 100));
-                          
-                          const undoneMatch = currentMatches[potentialIndex];
-                          console.log('[UNDO REJECT] Moving match from rejected to potential:', undoneMatch);
-                          
-                          // Move from rejected to potential
-                          setPotentialRejected(prev => prev.filter(m => m.id !== undoneMatch.id));
-                          setPotentialMatched(prev => [...prev, undoneMatch]);
-                          setPotentialIndex(0);
-                          setPotentialTab('matched');
-                          
+                        
+                        if (!potentialLedgerEntryId) return;
+                        
+                        const result = await undoReject(undoId, potentialLedgerEntryId as string);
+                        
+                        if (result?.success) {
                           // Update the rejected matches state for the upload column
                           setEntriesWithRejectedMatches(prev => {
                             const newSet = new Set(prev);
                             // Only remove from rejected if this was the last rejected match for this ledger entry
-                            if (potentialLedgerEntryId) {
-                              const remainingRejectedForEntry = potentialRejected.filter(m => 
-                                (m as any).ledgerEntry?.id === potentialLedgerEntryId && m.id !== undoneMatch.id
-                              );
-                              if (remainingRejectedForEntry.length === 0) {
-                                newSet.delete(potentialLedgerEntryId);
-                              }
+                            const remainingRejectedForEntry = potentialRejected.filter(m => 
+                              m.ledgerEntry?.id === potentialLedgerEntryId && m.id !== undoId
+                            );
+                            if (remainingRejectedForEntry.length === 0) {
+                              newSet.delete(potentialLedgerEntryId);
                             }
-                            console.log('[UNDO REJECT] Updated rejected matches set:', Array.from(newSet));
                             return newSet;
                           });
                           
@@ -707,13 +682,11 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                           if (refreshRes.ok) {
                             const ids = await refreshRes.json();
                             setPotentialMatchIds(ids);
-                            console.log('[UNDO REJECT] Refreshed potential match IDs:', ids);
                           }
                           
                           setToast({ message: 'Rejection undone successfully', type: 'success' });
-                        } catch (error) {
-                          console.error('[UNDO REJECT] Error:', error);
-                          setToast({ message: 'Failed to undo rejection', type: 'error' });
+                        } else {
+                          setToast({ message: result?.error || 'Failed to undo rejection', type: 'error' });
                         }
                       }}
                     >
@@ -729,41 +702,22 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                   <button
                     className="btn btn-primary px-6 py-2 text-base font-semibold rounded shadow hover:bg-blue-700 transition"
                     onClick={async () => {
-                      try {
-                        const response = await fetch(`/api/import/transaction/${currentMatches[potentialIndex].id}/confirm-match`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ ledgerEntryId: potentialLedgerEntryId }),
-                        });
-                        if (response.ok) {
-                          console.log('[CONFIRM MATCH] Confirmed match for transaction:', currentMatches[potentialIndex].id, 'ledgerEntry:', potentialLedgerEntryId);
-                          
-                          // Remove ALL potential matches for this ledger entry (not just the current one)
-                          const newMatched = potentialMatched.filter(match => 
-                            (match as any).ledgerEntry?.id !== potentialLedgerEntryId
-                          );
-                          setPotentialMatched(newMatched);
-                          
-                          // Remove this ledger entry from potential match IDs
-                          if (potentialLedgerEntryId) {
-                            setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
-                          }
-                          
-                          // Close modal immediately after confirming
-                          setShowPotentialModal(false);
-                          
-                          setToast({ message: 'Match confirmed successfully.', type: 'success' });
-                          
-                          // Refresh entries to update the upload column badge
-                          fetchEntries();
-                        } else {
-                          const error = await response.text();
-                          console.error('Confirm match error:', error);
-                          setToast({ message: 'Failed to confirm match.', type: 'error' });
+                      if (!potentialLedgerEntryId) return;
+                      
+                      const result = await confirmMatch(currentMatches[potentialIndex].id, potentialLedgerEntryId as string);
+                      
+                      if (result.success) {
+                        // Remove this ledger entry from potential match IDs
+                        if (potentialLedgerEntryId) {
+                          setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
                         }
-                      } catch (error) {
-                        console.error('Confirm match exception:', error);
-                        setToast({ message: 'Failed to confirm match.', type: 'error' });
+                        
+                        setToast({ message: 'Match confirmed successfully.', type: 'success' });
+                        
+                        // Refresh entries to update the upload column badge
+                        fetchEntries();
+                      } else {
+                        setToast({ message: result.error || 'Failed to confirm match.', type: 'error' });
                       }
                     }}
                   >
@@ -772,59 +726,33 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
                   <button
                     className="btn btn-ghost px-6 py-2 text-base font-semibold rounded shadow hover:bg-gray-200 transition"
                     onClick={async () => {
-                      try {
-                        const response = await fetch(`/api/import/transaction/${currentMatches[potentialIndex].id}/reject`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ ledgerEntryId: potentialLedgerEntryId })
-                        });
+                      if (!potentialLedgerEntryId) return;
+                      
+                      const result = await rejectMatch(currentMatches[potentialIndex].id, potentialLedgerEntryId as string);
+                      
+                      if (result.success) {
+                        const rejectedMatch = currentMatches[potentialIndex];
                         
-                        if (response.ok) {
-                          const rejectedMatch = currentMatches[potentialIndex];
-                          
-                          // Remove the rejected match from potential matches
-                          const newMatched = potentialMatched.filter(match => 
-                            match.id !== rejectedMatch.id
-                          );
-                          setPotentialMatched(newMatched);
-                          
-                          // Add to rejected matches
-                          setPotentialRejected(prev => [...prev, { ...rejectedMatch, status: 'rejected' }]);
-                          
-                          // Mark this ledger entry as having rejected matches
-                          if (potentialLedgerEntryId) {
-                            setEntriesWithRejectedMatches(prev => new Set([...Array.from(prev), potentialLedgerEntryId]));
-                          }
-                          
-                          // If no more potential matches for this ledger entry, remove it from potential match IDs
-                          if (newMatched.length === 0 && potentialLedgerEntryId) {
-                            setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
-                          }
-                          
-                          // Close modal if no more matches, but ensure state updates are processed first
-                          if (newMatched.length === 0) {
-                            // Use setTimeout to ensure state updates are processed before closing modal
-                            setTimeout(() => {
-                              setShowPotentialModal(false);
-                            }, 0);
-                          } else {
-                            // Adjust index if we're at the end
-                            setPotentialIndex(i => Math.min(i, newMatched.length - 1));
-                          }
-                          
-                          setToast({ message: 'Match rejected.', type: 'success', undoId: rejectedMatch.id });
-                          
-                          // Refresh rejected match IDs from backend to ensure upload column badge updates
-                          await refreshRejectedMatchIds();
-                        } else {
-                          setToast({ message: 'Failed to reject match.', type: 'error' });
+                        // Mark this ledger entry as having rejected matches
+                        if (potentialLedgerEntryId) {
+                          setEntriesWithRejectedMatches(prev => new Set([...Array.from(prev), potentialLedgerEntryId]));
                         }
+                        
+                        // If no more potential matches for this ledger entry, remove it from potential match IDs
+                        const newMatched = potentialMatched.filter(match => match.id !== rejectedMatch.id);
+                        if (newMatched.length === 0 && potentialLedgerEntryId) {
+                          setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
+                        }
+                        
+                        setToast({ message: 'Match rejected.', type: 'success', undoId: rejectedMatch.id });
+                        
+                        // Refresh rejected match IDs from backend to ensure upload column badge updates
+                        await refreshRejectedMatchIds();
                         
                         // Refresh entries to ensure UI is updated
                         fetchEntries();
-                      } catch (error) {
-                        console.error('Reject match exception:', error);
-                        setToast({ message: 'Failed to reject match.', type: 'error' });
+                      } else {
+                        setToast({ message: result.error || 'Failed to reject match.', type: 'error' });
                       }
                     }}
                   >
@@ -865,4 +793,37 @@ const LedgerTableTable: React.FC<LedgerTableTableProps> = ({
   );
 };
 
-export default LedgerTableTable; 
+// Custom comparison function for React.memo
+const arePropsEqual = (prevProps: LedgerTableTableProps, nextProps: LedgerTableTableProps) => {
+  // Check if critical data has changed
+  if (prevProps.sortedEntries.length !== nextProps.sortedEntries.length) return false;
+  if (prevProps.total !== nextProps.total) return false;
+  if (prevProps.page !== nextProps.page) return false;
+  if (prevProps.loading !== nextProps.loading) return false;
+  if (prevProps.searchLoading !== nextProps.searchLoading) return false;
+  if (prevProps.showPotentialModal !== nextProps.showPotentialModal) return false;
+  if (prevProps.loadingPotential !== nextProps.loadingPotential) return false;
+  
+  // Check if selected rows have changed
+  if (prevProps.selectedRows.length !== nextProps.selectedRows.length) return false;
+  if (!prevProps.selectedRows.every(id => nextProps.selectedRows.includes(id))) return false;
+  
+  // Check if editing state has changed
+  if (prevProps.editingCell?.rowId !== nextProps.editingCell?.rowId) return false;
+  if (prevProps.editingCell?.field !== nextProps.editingCell?.field) return false;
+  
+  // Check if cell edit value has changed (CRITICAL for cell editing)
+  if (prevProps.cellEditValue !== nextProps.cellEditValue) return false;
+  
+  // Check if potential match data has changed
+  if (prevProps.potentialMatched.length !== nextProps.potentialMatched.length) return false;
+  if (prevProps.potentialRejected.length !== nextProps.potentialRejected.length) return false;
+  if (prevProps.potentialIndex !== nextProps.potentialIndex) return false;
+  
+  // Check if entries with rejected matches have changed
+  if (prevProps.entriesWithRejectedMatches.size !== nextProps.entriesWithRejectedMatches.size) return false;
+  
+  return true;
+};
+
+export default React.memo(LedgerTableTable, arePropsEqual); 
