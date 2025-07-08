@@ -65,6 +65,21 @@ const UploadSessionDetails: React.FC = () => {
 
   const programId = session.programId || (session as any).program?.id;
 
+  // Sort transactions by status order: Matched, Confirmed, Rejected, Unmatched, Replaced
+  const statusOrder = [
+    'matched',
+    'confirmed',
+    'rejected',
+    'unmatched',
+    'replaced',
+  ];
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    const aIndex = statusOrder.indexOf(a.status.toLowerCase());
+    const bIndex = statusOrder.indexOf(b.status.toLowerCase());
+    // If not found, put at the end
+    return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+  });
+
   return (
     <div className="max-w-4xl mx-auto p-8">
       <h1 className="text-2xl font-bold mb-4">Upload Session Details</h1>
@@ -91,7 +106,7 @@ const UploadSessionDetails: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {transactions.map(tx => (
+            {sortedTransactions.map(tx => (
               <tr key={tx.id}>
                 <td className="px-2 py-1 border">{tx.vendorName}</td>
                 <td className="px-2 py-1 border">{tx.description}</td>

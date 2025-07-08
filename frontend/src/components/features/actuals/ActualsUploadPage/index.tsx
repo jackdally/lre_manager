@@ -1,11 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../layout';
-import { useActuals } from '../../../../hooks/useActuals';
-import { useActualsConfig } from '../../../../hooks/useActualsConfig';
-import { useActualsUpload } from '../../../../hooks/useActualsUpload';
-import { useActualsTransactions } from '../../../../hooks/useActualsTransactions';
-import { ActualsUploadTransaction } from '../../../../types/actuals';
+import { 
+  useActualsSessions,
+  useActualsCurrentSession,
+  useActualsTransactions,
+  useActualsSavedConfigs,
+  useActualsPrograms,
+  useActualsSessionMatchCounts,
+  useActualsUI,
+  useActualsInitialize,
+  useActualsLoadSessionDetails,
+  useActualsCancelSession,
+  useActualsForceSmartMatching,
+  useActualsPerformUpload,
+  useActualsPerformReplaceUpload,
+  useActualsHandleConfigSelect,
+  useActualsHandleSaveConfig,
+  useActualsHandleCopyConfig,
+  useActualsSetActiveTab,
+  useActualsSetShowAllDuplicates,
+  useActualsSetLoading,
+  useActualsSetError,
+  useActualsSetShowErrorModal,
+  useActualsSetToast,
+  useActualsSetUploadLoading,
+  useActualsSetUploadError,
+  useActualsSetUploadResult,
+  useActualsSetUploadProgress,
+  useActualsSetUploadStatus,
+  useActualsSetShowSaveConfig,
+  useActualsSetShowCopyConfig,
+  useActualsSetConfigName,
+  useActualsSetConfigDescription,
+  useActualsSetIsDefaultConfig,
+  useActualsSetIsGlobalConfig,
+  useActualsSetCopyTargetProgramId,
+  useActualsSetCopyConfigName,
+  useActualsSetCopyConfigDescription,
+  useActualsSetCopyIsDefault,
+  useActualsSetSelectedConfigForCopy,
+  useActualsSetSelectedConfigForSave,
+  useActualsSetReplaceMode,
+  useActualsSetSelectedSessionToReplace,
+  useActualsSetPreserveConfirmedMatches,
+  useActualsSetPreserveAllMatches,
+  useActualsSetForceReplace,
+  useActualsSetShowReplaceOptions,
+  useActualsSetShowForceReplaceConfirm,
+  useActualsSetPendingUploadData,
+  useActualsUpdateSessionMatchCounts,
+  useActualsClearError,
+  useActualsClearToast,
+  useActualsResetUI,
+  useActualsCloseAddToLedgerModal
+} from '../../../../store/actualsStore';
+import { ActualsUploadConfig } from '../../../../types/actuals';
 
 // Import the extracted components
 import FileUploadSection from './FileUploadSection';
@@ -17,127 +67,140 @@ import UploadProgress from './UploadProgress';
 import SessionsList from './SessionsList';
 import TransactionMatchingTable from './TransactionMatchingTable';
 import TransactionMatchModal from '../TransactionMatchModal/index';
+import AddToLedgerModal from '../AddToLedgerModal/index';
 
 const ActualsUploadPage: React.FC = () => {
   const { id: programId } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'upload' | 'sessions' | 'matching'>('upload');
 
-  // Use our hooks for data management
+  // Local state for file upload (not managed by store yet)
+  const [file, setFile] = useState<File | null>(null);
+  const [description, setDescription] = useState('');
+  const [config, setConfig] = useState<ActualsUploadConfig>({
+    programCodeColumn: 'Program Code',
+    vendorColumn: 'Vendor Name',
+    descriptionColumn: 'Description',
+    amountColumn: 'Amount',
+    dateColumn: 'Transaction Date',
+    periodColumn: 'Period',
+    categoryColumn: 'Category',
+    subcategoryColumn: 'Subcategory',
+    invoiceColumn: 'Invoice Number',
+    referenceColumn: 'Reference Number',
+    transactionIdColumn: 'Transaction ID',
+    dateFormat: 'MM/DD/YYYY',
+    amountTolerance: 0.01,
+    matchThreshold: 0.7
+  });
+  const [selectedConfigId, setSelectedConfigId] = useState<string>('');
+
+  // Get state from store
+  const sessions = useActualsSessions();
+  const currentSession = useActualsCurrentSession();
+  const transactions = useActualsTransactions();
+  const savedConfigs = useActualsSavedConfigs();
+  const programs = useActualsPrograms();
+  const sessionMatchCounts = useActualsSessionMatchCounts();
+  const ui = useActualsUI();
+
+  // Get actions from store
+  const initialize = useActualsInitialize();
+  const loadSessionDetails = useActualsLoadSessionDetails();
+  const cancelSession = useActualsCancelSession();
+  const forceSmartMatching = useActualsForceSmartMatching();
+  const performUpload = useActualsPerformUpload();
+  const performReplaceUpload = useActualsPerformReplaceUpload();
+  const handleConfigSelect = useActualsHandleConfigSelect();
+  const handleSaveConfig = useActualsHandleSaveConfig();
+  const handleCopyConfig = useActualsHandleCopyConfig();
+  const setActiveTab = useActualsSetActiveTab();
+  const setShowAllDuplicates = useActualsSetShowAllDuplicates();
+  const setLoading = useActualsSetLoading();
+  const setError = useActualsSetError();
+  const setShowErrorModal = useActualsSetShowErrorModal();
+  const setToast = useActualsSetToast();
+  const setUploadLoading = useActualsSetUploadLoading();
+  const setUploadError = useActualsSetUploadError();
+  const setUploadResult = useActualsSetUploadResult();
+  const setUploadProgress = useActualsSetUploadProgress();
+  const setUploadStatus = useActualsSetUploadStatus();
+  const setShowSaveConfig = useActualsSetShowSaveConfig();
+  const setShowCopyConfig = useActualsSetShowCopyConfig();
+  const setConfigName = useActualsSetConfigName();
+  const setConfigDescription = useActualsSetConfigDescription();
+  const setIsDefaultConfig = useActualsSetIsDefaultConfig();
+  const setIsGlobalConfig = useActualsSetIsGlobalConfig();
+  const setCopyTargetProgramId = useActualsSetCopyTargetProgramId();
+  const setCopyConfigName = useActualsSetCopyConfigName();
+  const setCopyConfigDescription = useActualsSetCopyConfigDescription();
+  const setCopyIsDefault = useActualsSetCopyIsDefault();
+  const setSelectedConfigForCopy = useActualsSetSelectedConfigForCopy();
+  const setSelectedConfigForSave = useActualsSetSelectedConfigForSave();
+  const setReplaceMode = useActualsSetReplaceMode();
+  const setSelectedSessionToReplace = useActualsSetSelectedSessionToReplace();
+  const setPreserveConfirmedMatches = useActualsSetPreserveConfirmedMatches();
+  const setPreserveAllMatches = useActualsSetPreserveAllMatches();
+  const setForceReplace = useActualsSetForceReplace();
+  const setShowReplaceOptions = useActualsSetShowReplaceOptions();
+  const setShowForceReplaceConfirm = useActualsSetShowForceReplaceConfirm();
+  const setPendingUploadData = useActualsSetPendingUploadData();
+  const updateSessionMatchCounts = useActualsUpdateSessionMatchCounts();
+  const clearError = useActualsClearError();
+  const clearToast = useActualsClearToast();
+  const resetUI = useActualsResetUI();
+  const closeAddToLedgerModal = useActualsCloseAddToLedgerModal();
+
   const {
-    sessions,
-    currentSession,
-    transactions,
-    savedConfigs,
-    programs,
+    activeTab,
     loading,
     error,
-    sessionMatchCounts,
-    loadSessions,
-    loadSavedConfigs,
-    loadPrograms,
-    loadSessionDetails,
-    updateSessionMatchCounts,
-    setCurrentSession,
-    setTransactions,
-    setError
-  } = useActuals(programId!);
-
-  const {
-    config,
-    setConfig,
-    selectedConfigId,
-    setSelectedConfigId,
-    showSaveConfig,
-    setShowSaveConfig,
-    showCopyConfig,
-    setShowCopyConfig,
-    configName,
-    setConfigName,
-    configDescription,
-    setConfigDescription,
-    isDefaultConfig,
-    setIsDefaultConfig,
-    isGlobalConfig,
-    setIsGlobalConfig,
-    copyTargetProgramId,
-    setCopyTargetProgramId,
-    copyConfigName,
-    setCopyConfigName,
-    copyConfigDescription,
-    setCopyConfigDescription,
-    copyIsDefault,
-    setCopyIsDefault,
-    selectedConfigForCopy,
-    setSelectedConfigForCopy,
-    selectedConfigForSave,
-    setSelectedConfigForSave,
-    handleConfigSelect,
-    handleSaveConfig,
-    handleCopyConfig,
-    resetConfigForm,
-    resetCopyForm
-  } = useActualsConfig(programId!, savedConfigs);
-
-  const {
-    file,
-    setFile,
-    description,
-    setDescription,
-    loading: uploadLoading,
-    setLoading: setUploadLoading,
-    error: uploadError,
-    setError: setUploadError,
+    showErrorModal,
+    uploadLoading,
+    uploadError,
     uploadResult,
-    setUploadResult,
+    uploadProgress,
+    uploadStatus,
+    showSaveConfig,
+    showCopyConfig,
+    configName,
+    configDescription,
+    isDefaultConfig,
+    isGlobalConfig,
+    copyTargetProgramId,
+    copyConfigName,
+    copyConfigDescription,
+    copyIsDefault,
+    selectedConfigForCopy,
+    selectedConfigForSave,
     replaceMode,
-    setReplaceMode,
     selectedSessionToReplace,
-    setSelectedSessionToReplace,
     preserveConfirmedMatches,
-    setPreserveConfirmedMatches,
     preserveAllMatches,
-    setPreserveAllMatches,
     forceReplace,
-    setForceReplace,
     showReplaceOptions,
-    setShowReplaceOptions,
     showForceReplaceConfirm,
-    setShowForceReplaceConfirm,
     pendingUploadData,
-    setPendingUploadData,
-    performUpload,
-    handleFileChange: hookHandleFileChange,
-    handleReplaceModeChange,
-    handleSessionToReplaceChange,
-    resetUploadForm
-  } = useActualsUpload(programId!);
+    showAddToLedgerModal,
+    addToLedgerTransaction,
+    toast
+  } = ui;
 
-  const {
-    potentialMatchesMap,
-    setPotentialMatchesMap,
-    rejectedLedgerEntries,
-    setRejectedLedgerEntries,
-    confirmMatch,
-    addToLedger,
-    handleReviewMatch,
-    handleModalConfirm,
-    handleModalReject,
-    handleModalUndoReject,
-    fetchBatchData,
-    handleIgnoreDuplicate,
-    handleRejectDuplicate,
-    handleAcceptAndReplaceOriginal,
-    handleForceSmartMatching,
-    cancelSession
-  } = useActualsTransactions();
+  // Initialize store when component mounts
+  useEffect(() => {
+    if (programId) {
+      initialize(programId);
+    }
+  }, [programId, initialize]);
 
-  // Modal state
-  const [showMatchModal, setShowMatchModal] = useState(false);
-  const [modalTransaction, setModalTransaction] = useState<ActualsUploadTransaction | null>(null);
-  const [modalMatches, setModalMatches] = useState<any[]>([]);
-  const [modalMatchIndex, setModalMatchIndex] = useState(0);
-  const [modalMatch, setModalMatch] = useState<any>(null);
-  const [showAllDuplicates, setShowAllDuplicates] = useState(false);
+  // Update session match counts when sessions change
+  useEffect(() => {
+    if (activeTab === 'sessions' && sessions.length > 0) {
+      sessions.forEach(session => {
+        if (!sessionMatchCounts[session.id]) {
+          updateSessionMatchCounts(session.id);
+        }
+      });
+    }
+  }, [activeTab, sessions, sessionMatchCounts, updateSessionMatchCounts]);
 
   // Handle file change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,14 +213,61 @@ const ActualsUploadPage: React.FC = () => {
     setDescription(e.target.value);
   };
 
+  // Handle config change
+  const handleConfigChange = (newConfig: ActualsUploadConfig) => {
+    setConfig(newConfig);
+  };
+
+  // Handle config select
+  const handleConfigSelectWrapper = (configId: string) => {
+    setSelectedConfigId(configId);
+    const selectedConfig = savedConfigs.find(c => c.id === configId);
+    if (selectedConfig) {
+      setConfig(selectedConfig.columnMapping);
+    }
+  };
+
+  // Handle save config
+  const handleSaveConfigWrapper = async () => {
+    if (!configName.trim()) return;
+    
+    try {
+      await handleSaveConfig(config);
+      setConfigName('');
+      setConfigDescription('');
+      setIsDefaultConfig(false);
+      setIsGlobalConfig(false);
+      setShowSaveConfig(false);
+    } catch (err) {
+      console.error('Failed to save config:', err);
+    }
+  };
+
+  // Handle copy config
+  const handleCopyConfigWrapper = async () => {
+    if (!copyConfigName.trim() || !copyTargetProgramId) return;
+    
+    try {
+      await handleCopyConfig(config, copyTargetProgramId);
+      setCopyConfigName('');
+      setCopyConfigDescription('');
+      setCopyIsDefault(false);
+      setCopyTargetProgramId('');
+      setShowCopyConfig(false);
+    } catch (err) {
+      console.error('Failed to copy config:', err);
+    }
+  };
+
   // Handle upload
   const handleUpload = async () => {
     if (!file) return;
     
     try {
-      await performUpload(config);
-      // Refresh sessions after upload
-      await loadSessions();
+      await performUpload(config, file, description);
+      // Clear form after successful upload
+      setFile(null);
+      setDescription('');
     } catch (err) {
       console.error('Upload failed:', err);
     }
@@ -168,9 +278,10 @@ const ActualsUploadPage: React.FC = () => {
     if (!file) return;
     
     try {
-      await performUpload(config);
-      // Refresh sessions after upload
-      await loadSessions();
+      await performReplaceUpload(config, file, description, selectedSessionToReplace);
+      // Clear form after successful upload
+      setFile(null);
+      setDescription('');
     } catch (err) {
       console.error('Replace upload failed:', err);
     }
@@ -179,107 +290,64 @@ const ActualsUploadPage: React.FC = () => {
   // Handle session click
   const handleSessionClick = async (sessionId: string) => {
     await loadSessionDetails(sessionId);
-    setActiveTab('matching');
   };
 
   // Handle session cancellation
   const handleSessionCancel = async (sessionId: string) => {
     try {
       await cancelSession(sessionId);
-      await loadSessions();
     } catch (err) {
       console.error('Failed to cancel session:', err);
     }
   };
 
-  // Handle match review
-  const handleReviewMatchClick = async (transaction: ActualsUploadTransaction, matches: any[]) => {
+  // Handle clear all uploads
+  const handleClearAllUploads = async () => {
+    console.log('Clear all uploads clicked, programId:', programId);
+    if (!programId) {
+      console.log('No programId, returning');
+      return;
+    }
+    
+    if (!window.confirm('Are you sure you want to clear all upload data for this program? This action cannot be undone.')) {
+      console.log('User cancelled the operation');
+      return;
+    }
+    
     try {
-      const result = await handleReviewMatch(transaction, matches);
-      if (result) {
-        setModalTransaction(transaction);
-        setModalMatches(result.potentialMatches);
-        setModalMatchIndex(0);
-        setModalMatch(result.potentialMatches[0] || null);
-        setShowMatchModal(true);
-      }
-    } catch (err) {
-      console.error('Failed to load match data:', err);
-    }
-  };
-
-  // Handle modal close
-  const handleCloseMatchModal = () => {
-    setShowMatchModal(false);
-    setModalTransaction(null);
-    setModalMatches([]);
-    setModalMatchIndex(0);
-    setModalMatch(null);
-  };
-
-  // Handle modal confirm
-  const handleModalConfirmClick = async () => {
-    if (modalTransaction && modalMatch) {
-      try {
-        await handleModalConfirm(modalTransaction, modalMatch);
-        handleCloseMatchModal();
-        // Refresh session details
-        if (currentSession) {
-          await loadSessionDetails(currentSession.id);
-        }
-      } catch (err) {
-        console.error('Failed to confirm match:', err);
-      }
-    }
-  };
-
-  // Handle modal reject
-  const handleModalRejectClick = async (ledgerEntry: any) => {
-    if (modalTransaction) {
-      try {
-        await handleModalReject(modalTransaction, ledgerEntry);
-        // Refresh session details
-        if (currentSession) {
-          await loadSessionDetails(currentSession.id);
-        }
-      } catch (err) {
-        console.error('Failed to reject match:', err);
-      }
-    }
-  };
-
-  // Handle modal undo reject
-  const handleModalUndoRejectClick = async (ledgerEntry: any) => {
-    if (modalTransaction) {
-      try {
-        await handleModalUndoReject(modalTransaction, ledgerEntry);
-        // Refresh session details
-        if (currentSession) {
-          await loadSessionDetails(currentSession.id);
-        }
-      } catch (err) {
-        console.error('Failed to undo reject:', err);
-      }
-    }
-  };
-
-  // Load batch data when transactions change
-  useEffect(() => {
-    if (transactions.length > 0 && activeTab === 'matching') {
-      fetchBatchData(transactions);
-    }
-  }, [transactions, activeTab]);
-
-  // Update session match counts when sessions change
-  useEffect(() => {
-    if (activeTab === 'sessions' && sessions.length > 0) {
-      sessions.forEach(session => {
-        if (!sessionMatchCounts[session.id]) {
-          updateSessionMatchCounts(session.id);
-        }
+      console.log('Starting clear operation...');
+      setLoading(true);
+      const url = `/api/import/${programId}/clear-all`;
+      console.log('Making request to:', url);
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
       });
+      
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
+        throw new Error(`Failed to clear upload data: ${response.status} ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('Success result:', result);
+      setToast({ message: `Cleared ${result.deletedSessions} sessions and ${result.deletedFiles} files`, type: 'success' });
+      
+      // Refresh the sessions list
+      console.log('Refreshing sessions...');
+      initialize(programId);
+    } catch (err: any) {
+      console.error('Failed to clear upload data:', err);
+      setError(err.message || 'Failed to clear upload data');
+      setShowErrorModal(true);
+    } finally {
+      setLoading(false);
     }
-  }, [activeTab, sessions]);
+  };
 
   return (
     <Layout>
@@ -327,6 +395,15 @@ const ActualsUploadPage: React.FC = () => {
               </button>
             )}
           </nav>
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={handleClearAllUploads}
+              className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md border border-red-200 hover:border-red-300 transition-colors"
+              disabled={loading}
+            >
+              {loading ? 'Clearing...' : 'Clear All Uploads'}
+            </button>
+          </div>
         </div>
 
         {/* Upload Tab */}
@@ -347,8 +424,8 @@ const ActualsUploadPage: React.FC = () => {
               forceReplace={forceReplace}
               showReplaceOptions={showReplaceOptions}
               sessions={sessions}
-              onReplaceModeChange={handleReplaceModeChange}
-              onSessionToReplaceChange={handleSessionToReplaceChange}
+              onReplaceModeChange={setReplaceMode}
+              onSessionToReplaceChange={setSelectedSessionToReplace}
               onPreserveConfirmedMatchesChange={setPreserveConfirmedMatches}
               onPreserveAllMatchesChange={setPreserveAllMatches}
               onForceReplaceChange={setForceReplace}
@@ -356,12 +433,12 @@ const ActualsUploadPage: React.FC = () => {
 
             <ConfigSection
               config={config}
-              setConfig={setConfig}
+              setConfig={handleConfigChange}
               savedConfigs={savedConfigs}
               selectedConfigId={selectedConfigId}
-              onConfigSelect={handleConfigSelect}
-              onSaveConfig={handleSaveConfig}
-              onCopyConfig={handleCopyConfig}
+              onConfigSelect={handleConfigSelectWrapper}
+              onSaveConfig={handleSaveConfigWrapper}
+              onCopyConfig={handleCopyConfigWrapper}
               showSaveConfig={showSaveConfig}
               setShowSaveConfig={setShowSaveConfig}
               showCopyConfig={showCopyConfig}
@@ -403,8 +480,8 @@ const ActualsUploadPage: React.FC = () => {
               isUploading={uploadLoading}
               uploadResult={uploadResult}
               uploadError={uploadError}
-              progress={uploadLoading ? 50 : 100}
-              status={uploadLoading ? 'Processing file...' : 'Complete'}
+              progress={uploadProgress}
+              status={uploadStatus}
             />
           </div>
         )}
@@ -416,7 +493,7 @@ const ActualsUploadPage: React.FC = () => {
             sessionMatchCounts={sessionMatchCounts}
             onSessionClick={handleSessionClick}
             onCancelSession={handleSessionCancel}
-            onForceSmartMatching={() => handleForceSmartMatching(programId!)}
+            onForceSmartMatching={() => forceSmartMatching(programId!)}
             loading={loading}
             error={error}
           />
@@ -435,30 +512,19 @@ const ActualsUploadPage: React.FC = () => {
             <TransactionMatchingTable
               transactions={transactions}
               currentSession={currentSession}
-              potentialMatchesMap={potentialMatchesMap}
-              onReviewMatch={handleReviewMatchClick}
-              onAddToLedger={addToLedger}
-              onIgnoreDuplicate={handleIgnoreDuplicate}
-              onRejectDuplicate={handleRejectDuplicate}
-              onAcceptAndReplaceOriginal={handleAcceptAndReplaceOriginal}
-              showAllDuplicates={showAllDuplicates}
-              onToggleShowAllDuplicates={() => setShowAllDuplicates(!showAllDuplicates)}
+              programId={programId!}
             />
           </div>
         )}
 
         {/* Match Review Modal */}
-        {showMatchModal && modalTransaction && (
-          <TransactionMatchModal
-            isOpen={showMatchModal}
-            onClose={handleCloseMatchModal}
-            transaction={modalTransaction}
-            potentialLedgerEntries={modalMatches}
-            rejectedLedgerEntries={rejectedLedgerEntries}
-            onConfirm={handleModalConfirmClick}
-            onReject={handleModalRejectClick}
-            onUndoReject={handleModalUndoRejectClick}
-            sessionFilename={currentSession?.originalFilename}
+        <TransactionMatchModal sessionFilename={currentSession?.originalFilename} />
+        
+        {/* Add to Ledger Modal */}
+        {showAddToLedgerModal && addToLedgerTransaction && (
+          <AddToLedgerModal
+            transaction={addToLedgerTransaction}
+            onClose={closeAddToLedgerModal}
           />
         )}
       </div>

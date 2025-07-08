@@ -100,6 +100,11 @@ export interface ActualsUploadSession {
   createdAt: string;
   updatedAt: string;
   replacedBySessionId?: string | null;
+  program?: {
+    id: string;
+    code: string;
+    name: string;
+  };
 }
 
 export interface ActualsUploadTransaction {
@@ -122,6 +127,14 @@ export interface ActualsUploadTransaction {
   duplicateOfId?: string | null;
   preservedFromSessionId?: string | null;
   rejectedMatches?: any[];
+  importSession?: {
+    id: string;
+    program: {
+      id: string;
+      code: string;
+      name: string;
+    };
+  };
 }
 
 export interface Program {

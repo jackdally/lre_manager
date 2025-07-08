@@ -966,6 +966,7 @@ export const useLedgerSetShowErrorModal = () => useLedgerStore(state => state.se
 export const useLedgerClearError = () => useLedgerStore(state => state.clearError);
 export const useLedgerClearToast = () => useLedgerStore(state => state.clearToast);
 export const useLedgerResetUI = () => useLedgerStore(state => state.resetUI);
+export const useLedgerSetHighlightId = () => useLedgerStore(state => state.setHighlightId);
 
 // Legacy selector for backward compatibility (but with useMemo to prevent infinite loops)
 export const useLedgerActions = () => {

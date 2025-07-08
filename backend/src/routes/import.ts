@@ -431,6 +431,76 @@ router.get('/template/netsuite', (req, res) => {
   res.json(template);
 });
 
+// Clear all import data for a program
+router.delete('/:programId/clear-all', async (req, res) => {
+  try {
+    const { programId } = req.params;
+    
+    // Import the repositories properly
+    const ImportSession = require('../entities/ImportSession').ImportSession;
+    const ImportTransaction = require('../entities/ImportTransaction').ImportTransaction;
+    const PotentialMatch = require('../entities/PotentialMatch').PotentialMatch;
+    const RejectedMatch = require('../entities/RejectedMatch').RejectedMatch;
+    
+    const sessionRepo = AppDataSource.getRepository(ImportSession);
+    const transactionRepo = AppDataSource.getRepository(ImportTransaction);
+    const potentialMatchRepo = AppDataSource.getRepository(PotentialMatch);
+    const rejectedMatchRepo = AppDataSource.getRepository(RejectedMatch);
+    
+    // Get all sessions for this program
+    const sessions = await sessionRepo.find({ 
+      where: { program: { id: programId } },
+      relations: ['program']
+    });
+
+    let deletedSessions = 0;
+    let deletedFiles = 0;
+
+    for (const session of sessions) {
+      // Delete the uploaded file
+      if (fs.existsSync(session.filename)) {
+        fs.unlinkSync(session.filename);
+        deletedFiles++;
+      }
+      
+      // Get all transaction IDs for this session
+      const transactions = await transactionRepo.find({
+        where: { importSession: { id: session.id } },
+        select: ['id']
+      });
+      const transactionIds = transactions.map(t => t.id);
+      
+      if (transactionIds.length > 0) {
+        // Delete all potential matches for these transactions
+        await potentialMatchRepo.delete({
+          transaction: { id: In(transactionIds) }
+        });
+        
+        // Delete all rejected matches for these transactions
+        await rejectedMatchRepo.delete({
+          transaction: { id: In(transactionIds) }
+        });
+      }
+      
+      // Delete all transactions for this session
+      await transactionRepo.delete({ importSession: { id: session.id } });
+      
+      // Delete the session itself
+      await sessionRepo.delete({ id: session.id });
+      deletedSessions++;
+    }
+
+    res.json({ 
+      message: `Cleared all import data for program ${programId}`,
+      deletedSessions,
+      deletedFiles
+    });
+  } catch (error: any) {
+    console.error('Clear all import data error:', error);
+    res.status(500).json({ error: error.message || 'Failed to clear import data' });
+  }
+});
+
 // Clean up import session and files
 router.delete('/session/:sessionId', async (req, res) => {
   try {

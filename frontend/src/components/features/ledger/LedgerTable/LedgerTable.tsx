@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useMemo } from 'react';
 import { InformationCircleIcon, DocumentMagnifyingGlassIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { Tooltip } from 'react-tooltip';
+import { useSearchParams } from 'react-router-dom';
 import LedgerBulkEditModal from './BulkEditModal';
 import LedgerBulkDeleteModal from './BulkDeleteModal';
 import LedgerErrorModal from './ErrorModal';
@@ -68,7 +69,8 @@ import {
   useLedgerSetShowErrorModal,
   useLedgerClearError,
   useLedgerClearToast,
-  useLedgerResetUI
+  useLedgerResetUI,
+  useLedgerSetHighlightId
 } from '../../../../store/ledgerStore';
 
 interface LedgerTableProps {
@@ -165,6 +167,10 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const clearError = useLedgerClearError();
   const clearToast = useLedgerClearToast();
   const resetUI = useLedgerResetUI();
+  const setHighlightId = useLedgerSetHighlightId();
+
+  // Get URL search parameters for highlighting
+  const [searchParams] = useSearchParams();
 
   // Custom hooks
   const potentialMatchModal = usePotentialMatchModal(programId);
@@ -193,6 +199,15 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   useEffect(() => {
     initialize(programId, showAll);
   }, [programId, showAll, initialize]);
+
+  // Handle highlight URL parameter
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight');
+    if (highlightId) {
+      setHighlightId(highlightId);
+      console.log(`[LedgerTable] Setting highlight ID from URL: ${highlightId}`);
+    }
+  }, [searchParams, setHighlightId]);
 
   // Sync external filter state with store - only on mount and when props change
   useEffect(() => {

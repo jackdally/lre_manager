@@ -584,7 +584,8 @@ export class ImportService {
       if (matches.length > 0) {
         const bestMatch = matches[0];
         transaction.status = TransactionStatus.MATCHED;
-        transaction.matchedLedgerEntry = bestMatch.ledgerEntry;
+        // Don't set matchedLedgerEntry for suggested matches - only for confirmed matches
+        // transaction.matchedLedgerEntry = bestMatch.ledgerEntry;
         transaction.matchConfidence = bestMatch.confidence;
         transaction.suggestedMatches = matches.map(m => ({
           id: m.ledgerEntry.id,
@@ -942,10 +943,45 @@ export class ImportService {
   }
 
   async getImportTransactions(sessionId: string): Promise<ImportTransaction[]> {
-    return await this.importTransactionRepo.find({
+    const transactions = await this.importTransactionRepo.find({
       where: { importSession: { id: sessionId } },
-      relations: ['matchedLedgerEntry', 'importSession']
+      relations: ['matchedLedgerEntry', 'importSession', 'importSession.program']
     });
+
+    console.log(`[getImportTransactions] Found ${transactions.length} transactions for session ${sessionId}`);
+
+    // For each transaction, populate the suggestedMatches field if it's in MATCHED status
+    for (const transaction of transactions) {
+      console.log(`[getImportTransactions] Processing transaction ${transaction.id} with status: ${transaction.status}`);
+      
+      if (transaction.status === TransactionStatus.MATCHED) {
+        // Get potential matches for this transaction
+        const potentialMatches = await this.potentialMatchRepo.find({
+          where: { transaction: { id: transaction.id } },
+          relations: ['ledgerEntry']
+        });
+
+        console.log(`[getImportTransactions] Transaction ${transaction.id} has ${potentialMatches.length} potential matches`);
+
+        // Transform to the format expected by frontend
+        transaction.suggestedMatches = potentialMatches.map(pm => ({
+          id: pm.ledgerEntry.id,
+          vendorName: pm.ledgerEntry.vendor_name,
+          description: pm.ledgerEntry.expense_description,
+          planned_amount: pm.ledgerEntry.planned_amount,
+          planned_date: pm.ledgerEntry.planned_date,
+          confidence: pm.confidence,
+          matchType: 'potential',
+          reasons: pm.reasons ? JSON.parse(pm.reasons) : []
+        }));
+      } else {
+        // Clear suggestedMatches for non-matched transactions
+        transaction.suggestedMatches = [];
+        console.log(`[getImportTransactions] Transaction ${transaction.id} (status: ${transaction.status}) - cleared suggestedMatches`);
+      }
+    }
+
+    return transactions;
   }
 
   async getImportSessions(programId: string): Promise<any[]> {
@@ -1082,7 +1118,8 @@ export class ImportService {
     // Update transaction status based on whether there are potential matches
     if (matches.length > 0) {
       transaction.status = TransactionStatus.MATCHED;
-      transaction.matchedLedgerEntry = matches[0].ledgerEntry;
+      // Don't set matchedLedgerEntry for suggested matches - only for confirmed matches
+      // transaction.matchedLedgerEntry = matches[0].ledgerEntry;
       transaction.matchConfidence = matches[0].confidence;
     } else {
       // Check if there are any remaining rejected matches for this transaction
@@ -1131,8 +1168,21 @@ export class ImportService {
       });
       await this.rejectedMatchRepo.save(rejectedMatch);
 
-      // The status should remain 'matched' even if all matches are rejected
+      // Check if there are any remaining potential matches for this transaction
+      const remainingPotentialMatches = await this.potentialMatchRepo.find({
+        where: { transaction: { id: transactionId } }
+      });
+
+      // If no more potential matches, update status to REJECTED
+      if (remainingPotentialMatches.length === 0) {
+        transaction.status = TransactionStatus.REJECTED;
+        console.log(`[rejectMatch] All potential matches rejected for transactionId=${transactionId}, setting status to REJECTED`);
+      } else {
+        console.log(`[rejectMatch] Transaction ${transactionId} still has ${remainingPotentialMatches.length} potential matches remaining`);
+      }
+
       await this.importTransactionRepo.save(transaction);
+      console.log(`[rejectMatch] Saved transaction ${transactionId} with final status: ${transaction.status}`);
 
       console.log(`[rejectMatch] Successfully rejected match: transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
     } catch (error) {
