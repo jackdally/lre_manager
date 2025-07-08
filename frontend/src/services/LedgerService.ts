@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { LedgerEntry } from '../components/features/ledger/LedgerTable';
+import type { LedgerEntry } from '../types/ledger';
 
 export interface BulkEditPayload {
   [field: string]: any;

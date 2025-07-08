@@ -6,7 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 import './mockSetup';
 
 // Now import the component
-import LedgerTable from '../index';
+import LedgerTable from '../LedgerTable';
 
 // Import axios mock
 import axios from 'axios';

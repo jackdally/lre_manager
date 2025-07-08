@@ -11,6 +11,7 @@ export interface LedgerEntry {
   actual_date: string | null;
   actual_amount: number | null;
   notes: string | null;
+  invoice_number: string | null;
   invoice_link_text: string | null;
   invoice_link_url: string | null;
   program: {
@@ -46,6 +47,7 @@ export interface LedgerEntryCreateRequest {
   actual_date?: string;
   actual_amount?: number;
   notes?: string;
+  invoice_number?: string;
   invoice_link_text?: string;
   invoice_link_url?: string;
 }

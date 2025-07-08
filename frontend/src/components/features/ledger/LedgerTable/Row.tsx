@@ -1,7 +1,7 @@
 import React from 'react';
 import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import LedgerTableCell from './Cell';
-import { LedgerEntry } from './index';
+import type { LedgerEntry } from '../../../../types/ledger';
 
 interface LedgerTableRowProps {
   entry: LedgerEntry;

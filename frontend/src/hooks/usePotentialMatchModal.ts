@@ -25,6 +25,10 @@ interface UsePotentialMatchModalReturn {
   rejectMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   undoReject: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   
+  // State setters for immediate updates
+  setPotentialMatches: (matches: PotentialMatchData[] | ((prev: PotentialMatchData[]) => PotentialMatchData[])) => void;
+  setRejectedMatches: (matches: PotentialMatchData[] | ((prev: PotentialMatchData[]) => PotentialMatchData[])) => void;
+  
   // Computed values
   currentMatches: PotentialMatchData[];
   hasMatches: boolean;
@@ -228,6 +232,8 @@ export const usePotentialMatchModal = (programId: string): UsePotentialMatchModa
     confirmMatch,
     rejectMatch,
     undoReject,
+    setPotentialMatches,
+    setRejectedMatches,
     currentMatches,
     hasMatches,
     totalMatches,

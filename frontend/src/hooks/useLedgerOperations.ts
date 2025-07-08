@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import axios from 'axios';
-import { LedgerEntry } from '../components/features/ledger/LedgerTable';
+import type { LedgerEntry } from '../types/ledger';
 
 interface UseLedgerOperationsOptions {
   programId: string;
@@ -59,8 +59,10 @@ export const useLedgerOperations = (options: UseLedgerOperationsOptions) => {
       }
       
       // Notify parent components
-      console.log(`🔄 Notifying parent components for ${operationName}`);
-      onChange?.();
+      if (!skipRefresh) {
+        console.log(`🔄 Notifying parent components for ${operationName}`);
+        onChange?.();
+      }
       onSuccess?.(operationName);
       
       return result;

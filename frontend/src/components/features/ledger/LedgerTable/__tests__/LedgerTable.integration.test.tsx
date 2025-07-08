@@ -7,7 +7,7 @@ import './mockSetup';
 import { mockUsePotentialMatchModal, mockUseDebouncedApi, mockUseApiCache, mockUsePerformanceMonitor, mockUseVirtualScroll, resetAllMocks } from './mockSetup';
 
 import axios from 'axios';
-import LedgerTable from '../index';
+import LedgerTable from '../LedgerTable';
 
 // Mock axios
 const mockedAxios = axios as jest.Mocked<typeof axios>;

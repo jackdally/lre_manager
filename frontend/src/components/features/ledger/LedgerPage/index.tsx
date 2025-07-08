@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../layout';
-import LedgerTable from '../LedgerTable';
+import LedgerTable from '../LedgerTable/LedgerTable';
 import BulkImportModal from '../BulkImport/BulkImportModal';
 import axios from 'axios';
 
@@ -33,6 +33,8 @@ const LedgerPage: React.FC = () => {
   const handleSetVendorFilter = (v: string | undefined) => setVendorFilter(v ?? '');
   const handleSetWbsCategoryFilter = (v: string | undefined) => setWbsCategoryFilter(v ?? '');
   const handleSetWbsSubcategoryFilter = (v: string | undefined) => setWbsSubcategoryFilter(v ?? '');
+
+
 
   return (
     <Layout>

@@ -17,17 +17,54 @@ const upload = multer({ dest: '/tmp' });
 // List ledger entries for a program (with pagination/filter)
 router.get('/:programId/ledger', async (req, res) => {
   const { programId } = req.params;
-  const { page = 1, pageSize = 20, search = '' } = req.query;
-  const skip = (Number(page) - 1) * Number(pageSize);
+  const { page = 1, limit = 20, search = '', filterType = 'all', vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
+  
   try {
+    // Build the where clause based on filters
+    let where: any = {
+      program: { id: programId }
+    };
+
+    // Add search filter
+    if (search) {
+      where.vendor_name = Like(`%${search}%`);
+    }
+
+    // Add filterType logic
+    if (filterType === 'emptyActuals') {
+      where.actual_amount = null;
+      where.actual_date = null;
+    } else if (filterType === 'currentMonthPlanned') {
+      // Get current month's start and end dates
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      where.planned_date = Between(startOfMonth.toISOString().slice(0, 10), endOfMonth.toISOString().slice(0, 10));
+    }
+    // filterType === 'all' returns all entries (no additional filtering)
+
+    // Add vendor filter
+    if (vendorFilter) {
+      where.vendor_name = vendorFilter;
+    }
+
+    // Add WBS category filter
+    if (wbsCategoryFilter) {
+      where.wbs_category = wbsCategoryFilter;
+    }
+
+    // Add WBS subcategory filter
+    if (wbsSubcategoryFilter) {
+      where.wbs_subcategory = wbsSubcategoryFilter;
+    }
+
     const [entries, total] = await ledgerRepo.findAndCount({
-      where: {
-        program: { id: programId },
-        vendor_name: Like(`%${search}%`),
-      },
+      where,
       order: { baseline_date: 'ASC' },
       skip,
-      take: Number(pageSize),
+      take: Number(limit),
       relations: ['program'],
     });
 
@@ -40,6 +77,7 @@ router.get('/:programId/ledger', async (req, res) => {
           matchedLedgerEntry: { id: entry.id },
           amount: entry.actual_amount,
           transactionDate: entry.actual_date,
+          status: In(['confirmed', 'added_to_ledger']), // Only show if confirmed or added
         },
         relations: ['importSession'],
         order: { createdAt: 'DESC' },
@@ -397,7 +435,7 @@ router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, re
     });
     
     // Get rejected matches for this ledger entry
-    const rejectedMatchRepo = AppDataSource.getRepository('RejectedMatch');
+    const rejectedMatchRepo = AppDataSource.getRepository(require('../entities/RejectedMatch').RejectedMatch);
     const rejectedMatches = await rejectedMatchRepo.find({
       where: {
         ledgerEntry: { id: ledgerEntryId }
@@ -440,7 +478,7 @@ router.get('/:programId/ledger/potential-match-ids', async (req, res) => {
         ledgerEntry: { program: { id: programId } },
         status: 'potential'
       },
-      relations: ['ledgerEntry']
+      relations: ['ledgerEntry', 'ledgerEntry.program']
     });
     
     // Extract unique ledger entry IDs
@@ -456,11 +494,12 @@ router.get('/:programId/ledger/potential-match-ids', async (req, res) => {
 router.get('/:programId/ledger/rejected-match-ids', async (req, res) => {
   const { programId } = req.params;
   try {
-    const rejectedMatchRepo = AppDataSource.getRepository('RejectedMatch');
+    const rejectedMatchRepo = AppDataSource.getRepository(require('../entities/RejectedMatch').RejectedMatch);
     const rejected = await rejectedMatchRepo
       .createQueryBuilder('rm')
       .leftJoin('rm.ledgerEntry', 'le')
-      .where('le.programId = :programId', { programId })
+      .leftJoin('le.program', 'p')
+      .where('p.id = :programId', { programId })
       .select('le.id', 'ledgerEntryId')
       .distinct(true)
       .getRawMany();

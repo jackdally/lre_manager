@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import Layout from '../../../layout';
-import LedgerTable from '../../ledger/LedgerTable';
+import LedgerTable from '../../ledger/LedgerTable/LedgerTable';
 import { ProgramSummaryBar } from './ProgramSummaryBar';
 import { SummaryMetrics } from './SummaryMetrics';
 import { AdditionalMetrics } from './AdditionalMetrics';
@@ -147,6 +147,8 @@ const ProgramDashboard: React.FC = () => {
     return () => window.removeEventListener('resize', updateSidebarWidth);
   }, []);
 
+
+
   if (loading) {
   return (
     <Layout>
@@ -215,18 +217,20 @@ const ProgramDashboard: React.FC = () => {
 
         {/* Ledger Table */}
         <div className="bg-white rounded-xl shadow">
+          
           <LedgerTable 
             programId={id!}
-                filterType={filterType}
+            showAll={false}
+            filterType={filterType}
             vendorFilter={vendorFilter}
             wbsCategoryFilter={wbsCategoryFilter}
             wbsSubcategoryFilter={wbsSubcategoryFilter}
-                setFilterType={setFilterType}
-                setVendorFilter={handleSetVendorFilter}
-                setWbsCategoryFilter={handleSetWbsCategoryFilter}
-                setWbsSubcategoryFilter={handleSetWbsSubcategoryFilter}
+            setFilterType={setFilterType}
+            setVendorFilter={handleSetVendorFilter}
+            setWbsCategoryFilter={handleSetWbsCategoryFilter}
+            setWbsSubcategoryFilter={handleSetWbsSubcategoryFilter}
           />
-            </div>
+        </div>
       </div>
     </Layout>
   );
