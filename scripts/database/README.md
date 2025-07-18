@@ -28,3 +28,25 @@ This folder contains SQL scripts for database operations and maintenance.
 **Usage**: This script is typically executed by the maintenance script `../maintenance/reset_wbs_templates.sh`
 
 **Note**: This script uses PostgreSQL-specific features like `gen_random_uuid()` and PL/pgSQL blocks for proper UUID generation and hierarchical data insertion.
+
+### `migrate_to_hierarchical_wbs.sql`
+
+**Purpose**: Migrates the database to support the new hierarchical WBS structure alongside the existing 2-tier structure.
+
+**What it does**:
+- Creates the new `wbs_element` table with hierarchical structure support
+- Adds `wbs_element_id` column to `ledger_entry` table for backward compatibility
+- Creates sample hierarchical WBS elements for existing programs
+- Updates existing ledger entries to reference the new WBS elements
+- Adds database indexes for performance optimization
+- Creates triggers for automatic timestamp updates
+
+**New Structure Features**:
+- **Unlimited Depth**: Supports unlimited levels of hierarchy
+- **Code-based Organization**: Each element has a unique code (e.g., "1.1", "2.3.1")
+- **Backward Compatibility**: Maintains existing ledger entries while adding new structure
+- **Performance Optimized**: Includes indexes for fast queries and joins
+
+**Usage**: This script is typically executed by the maintenance script `../maintenance/migrate_to_hierarchical_wbs.sh`
+
+**Safety**: The maintenance script creates a backup before running this migration.

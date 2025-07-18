@@ -29,6 +29,8 @@
   - Create WBS template CRUD operations
   - Design WBS template form with hierarchical structure
   - Add WBS template selection to program creation
+  - Implement automatic copying of WBS template elements to program WBS categories
+  - Remove WBS template display from program directory (templates are copied, not referenced)
 - [ ] **Task 26**: Implement Cost Category standardization
   - Create cost category management interface
   - Add cost category validation across all forms

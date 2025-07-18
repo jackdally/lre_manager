@@ -21,6 +21,7 @@ export interface ProgramCreateRequest {
   startDate?: string;
   endDate?: string;
   program_manager?: string;
+  wbsTemplateId?: string;
 }
 
 export interface ProgramUpdateRequest extends Partial<ProgramCreateRequest> {

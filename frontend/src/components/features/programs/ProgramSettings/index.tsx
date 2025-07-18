@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../layout';
+import WbsTreeView from '../WbsTreeView';
 
 // Types for WBS
 interface WbsSubcategory {
@@ -26,6 +27,8 @@ const ProgramSettingsPage: React.FC = () => {
   const [wbsEdit, setWbsEdit] = useState<WbsCategory[]>([]);
   const [wbsError, setWbsError] = useState<string | null>(null);
   const [wbsSuccess, setWbsSuccess] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'info' | 'wbs' | 'hierarchical-wbs'>('info');
+  const [selectedWbsElement, setSelectedWbsElement] = useState<any>(null);
 
   // Fetch program info and WBS
   useEffect(() => {
@@ -215,8 +218,45 @@ const ProgramSettingsPage: React.FC = () => {
           <div className="text-red-600 text-lg mb-4">{error}</div>
         ) : (
           <>
-            {/* Program Info Section */}
-            <section className="mb-10 bg-white rounded-xl shadow p-6">
+            {/* Tab Navigation */}
+            <div className="mb-6 border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('info')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'info'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Program Info
+                </button>
+                <button
+                  onClick={() => setActiveTab('wbs')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'wbs'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  WBS (2-Tier)
+                </button>
+                <button
+                  onClick={() => setActiveTab('hierarchical-wbs')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'hierarchical-wbs'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  WBS (Hierarchical)
+                </button>
+              </nav>
+            </div>
+
+            {/* Program Info Tab */}
+            {activeTab === 'info' && (
+              <section className="bg-white rounded-xl shadow p-6">
               <h2 className="text-xl font-bold mb-4">Program Information</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -282,8 +322,11 @@ const ProgramSettingsPage: React.FC = () => {
               </div>
               <button className="btn-primary mt-6" onClick={handleSaveProgram} disabled={savingInfo}>{savingInfo ? 'Saving...' : 'Save Program Info'}</button>
             </section>
-            {/* WBS Management Section */}
-            <section className="bg-white rounded-xl shadow p-6">
+            )}
+
+            {/* WBS (2-Tier) Tab */}
+            {activeTab === 'wbs' && (
+              <section className="bg-white rounded-xl shadow p-6">
               <h2 className="text-xl font-bold mb-4">WBS Categories & Subcategories</h2>
               {wbsError && <div className="text-red-600 mb-2">{wbsError}</div>}
               {wbsSuccess && <div className="text-green-600 mb-2">{wbsSuccess}</div>}
@@ -321,6 +364,40 @@ const ProgramSettingsPage: React.FC = () => {
               </div>
               <button className="btn-primary mt-6" onClick={handleSaveWBS} disabled={savingWBS}>{savingWBS ? 'Saving...' : 'Save WBS'}</button>
             </section>
+            )}
+
+            {/* Hierarchical WBS Tab */}
+            {activeTab === 'hierarchical-wbs' && (
+              <section className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-xl font-bold mb-4">Hierarchical WBS Structure</h2>
+                <div className="mb-4 text-sm text-gray-600">
+                  <p>This is the new hierarchical WBS structure that supports unlimited depth levels.</p>
+                  <p className="mt-2">Features:</p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Tree-like expandable interface</li>
+                    <li>Search by code or name</li>
+                    <li>Unlimited hierarchy levels</li>
+                    <li>Code-based organization (e.g., "1.1", "2.3.1")</li>
+                  </ul>
+                </div>
+                
+                {selectedWbsElement && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                    <h3 className="font-medium text-blue-900">Selected Element:</h3>
+                    <p className="text-sm text-blue-800">
+                      <span className="font-mono">{selectedWbsElement.code}</span> - {selectedWbsElement.name}
+                    </p>
+                    <p className="text-sm text-blue-700 mt-1">{selectedWbsElement.description}</p>
+                  </div>
+                )}
+
+                <WbsTreeView
+                  programId={id!}
+                  onElementSelect={setSelectedWbsElement}
+                  selectedElementId={selectedWbsElement?.id}
+                />
+              </section>
+            )}
           </>
         )}
       </div>

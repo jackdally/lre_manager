@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { Program } from './Program';
+import { WbsElement } from './WbsElement';
 
 @Entity()
 export class LedgerEntry {
@@ -12,11 +13,16 @@ export class LedgerEntry {
   @Column('text')
   expense_description!: string;
 
+  // Legacy fields for backward compatibility
   @Column()
   wbs_category!: string;
 
   @Column()
   wbs_subcategory!: string;
+
+  // New hierarchical WBS reference
+  @Column({ nullable: true })
+  wbsElementId?: string;
 
   @Column({ type: 'date', nullable: true })
   baseline_date!: string | null;
@@ -47,4 +53,7 @@ export class LedgerEntry {
 
   @ManyToOne(() => Program, { onDelete: 'CASCADE' })
   program!: Program;
+
+  @ManyToOne(() => WbsElement, { nullable: true })
+  wbsElement?: WbsElement;
 } 

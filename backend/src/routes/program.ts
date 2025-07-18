@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AppDataSource } from '../config/database';
 import { Program } from '../entities/Program';
+import { copyWbsTemplateToProgram } from '../services/wbsTemplateService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -98,7 +99,22 @@ router.post('/', async (req, res) => {
     const result = await programRepository.save(program);
     console.log('Saved program:', result);
     
-    res.status(201).json(result);
+    // Ensure we have a single program result
+    const savedProgram = Array.isArray(result) ? result[0] : result;
+    
+    // If a WBS template was selected, copy its elements to the program
+    if (req.body.wbsTemplateId) {
+      try {
+        await copyWbsTemplateToProgram(savedProgram.id, req.body.wbsTemplateId);
+        console.log('WBS template copied to program successfully');
+      } catch (error) {
+        console.error('Error copying WBS template to program:', error);
+        // Don't fail the program creation if WBS template copying fails
+        // The program is already created, just log the error
+      }
+    }
+    
+    res.status(201).json(savedProgram);
   } catch (error) {
     console.error('Error creating program:', error);
     res.status(500).json({ 

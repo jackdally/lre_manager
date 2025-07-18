@@ -6,6 +6,7 @@ import { AppDataSource } from './config/database';
 import { programRouter } from './routes/program';
 import { ledgerRouter } from './routes/ledger';
 import { wbsRouter } from './routes/wbs';
+import wbsElementsRouter from './routes/wbsElements';
 import { importRouter } from './routes/import';
 import settingsRouter from './routes/settings';
 import * as XLSX from 'xlsx';
@@ -44,6 +45,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use('/api/programs', programRouter);
 app.use('/api/programs', ledgerRouter);
 app.use('/api/programs', wbsRouter);
+app.use('/api/programs', wbsElementsRouter);
 app.use('/api/import', importRouter);
 app.use('/api/settings', settingsRouter);
 
