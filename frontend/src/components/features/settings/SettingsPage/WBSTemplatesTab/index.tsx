@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSettingsStore, WBSTemplate } from '../../../../../store/settingsStore';
 import Button from '../../../../common/Button';
 import Modal from '../../../../common/Modal';
@@ -7,7 +7,16 @@ import WBSPreview from './WBSPreview';
 import { ChevronDown, ChevronRight } from '../../../../common/icons';
 
 const WBSTemplatesTab: React.FC = () => {
-  const { wbsTemplates, addWbsTemplate, updateWbsTemplate, deleteWbsTemplate, setSelectedWbsTemplate } = useSettingsStore();
+  const { 
+    wbsTemplates, 
+    isLoading, 
+    error,
+    fetchWbsTemplates, 
+    createWbsTemplate, 
+    updateWbsTemplateApi, 
+    deleteWbsTemplateApi, 
+    setDefaultWbsTemplate 
+  } = useSettingsStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<WBSTemplate | null>(null);
   const [formData, setFormData] = useState({
@@ -16,6 +25,12 @@ const WBSTemplatesTab: React.FC = () => {
     structure: [] as any[],
   });
   const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(new Set());
+
+  // Load WBS templates on component mount
+  useEffect(() => {
+    fetchWbsTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   const handleOpenModal = (template?: WBSTemplate) => {
     if (template) {
@@ -36,38 +51,38 @@ const WBSTemplatesTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = () => {
-    if (editingTemplate) {
-      updateWbsTemplate(editingTemplate.id, formData);
-    } else {
-      const newTemplate: WBSTemplate = {
-        id: Date.now().toString(),
-        ...formData,
-        isDefault: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      addWbsTemplate(newTemplate);
-    }
-    setIsModalOpen(false);
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this WBS template?')) {
-      deleteWbsTemplate(id);
-    }
-  };
-
-  const handleSetDefault = (template: WBSTemplate) => {
-    // Update all templates to remove default flag
-    wbsTemplates.forEach(t => {
-      if (t.id !== template.id) {
-        updateWbsTemplate(t.id, { isDefault: false });
+  const handleSubmit = async () => {
+    try {
+      if (editingTemplate) {
+        await updateWbsTemplateApi(editingTemplate.id, formData);
+      } else {
+        await createWbsTemplate({
+          ...formData,
+          isDefault: false,
+        });
       }
-    });
-    // Set the selected template as default
-    updateWbsTemplate(template.id, { isDefault: true });
-    setSelectedWbsTemplate(template);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving template:', error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this WBS template?')) {
+      try {
+        await deleteWbsTemplateApi(id);
+      } catch (error) {
+        console.error('Error deleting template:', error);
+      }
+    }
+  };
+
+  const handleSetDefault = async (template: WBSTemplate) => {
+    try {
+      await setDefaultWbsTemplate(template.id);
+    } catch (error) {
+      console.error('Error setting default template:', error);
+    }
   };
 
   const togglePreview = (templateId: string) => {
@@ -93,6 +108,20 @@ const WBSTemplatesTab: React.FC = () => {
           Add Template
         </Button>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-red-800 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-8">
+          <div className="text-gray-500">Loading WBS templates...</div>
+        </div>
+      )}
 
       {/* Templates List */}
       <div className="space-y-4">

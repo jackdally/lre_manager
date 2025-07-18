@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { settingsApi } from '../services/settingsApi';
 
 // Types for settings
 export interface WBSTemplate {
@@ -107,6 +108,13 @@ export interface SettingsState {
   updateWbsTemplate: (id: string, template: Partial<WBSTemplate>) => void;
   deleteWbsTemplate: (id: string) => void;
   setSelectedWbsTemplate: (template: WBSTemplate | null) => void;
+  
+  // WBS Template API actions
+  fetchWbsTemplates: () => Promise<void>;
+  createWbsTemplate: (template: Omit<WBSTemplate, 'id' | 'createdAt' | 'updatedAt'>) => Promise<WBSTemplate>;
+  updateWbsTemplateApi: (id: string, template: Partial<WBSTemplate>) => Promise<WBSTemplate>;
+  deleteWbsTemplateApi: (id: string) => Promise<void>;
+  setDefaultWbsTemplate: (id: string) => Promise<void>;
   
   // Cost Categories
   setCostCategories: (categories: CostCategory[]) => void;
@@ -259,8 +267,8 @@ export const useSettingsStore = create<SettingsState>()(
   devtools(
     (set, get) => ({
       // Initial state
-      wbsTemplates: defaultWBSTemplates,
-      selectedWbsTemplate: defaultWBSTemplates.find(t => t.isDefault) || null,
+      wbsTemplates: [],
+      selectedWbsTemplate: null,
       costCategories: [],
       selectedCostCategory: null,
       vendors: [],
@@ -287,6 +295,89 @@ export const useSettingsStore = create<SettingsState>()(
         wbsTemplates: state.wbsTemplates.filter(t => t.id !== id)
       })),
       setSelectedWbsTemplate: (template) => set({ selectedWbsTemplate: template }),
+
+      // WBS Template API actions
+      fetchWbsTemplates: async () => {
+        const state = get();
+        if (state.isLoading) return; // Prevent multiple simultaneous requests
+        
+        set({ isLoading: true, error: null });
+        try {
+          const templates = await settingsApi.getWbsTemplates();
+          set({ wbsTemplates: templates, isLoading: false });
+          // Set default template if available
+          const defaultTemplate = templates.find(t => t.isDefault);
+          if (defaultTemplate) {
+            set({ selectedWbsTemplate: defaultTemplate });
+          }
+        } catch (error) {
+          set({ error: 'Failed to fetch WBS templates', isLoading: false });
+        }
+      },
+
+      createWbsTemplate: async (template: Omit<WBSTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
+        set({ isLoading: true, error: null });
+        try {
+          const newTemplate = await settingsApi.createWbsTemplate(template);
+          set((state) => ({ 
+            wbsTemplates: [...state.wbsTemplates, newTemplate],
+            isLoading: false 
+          }));
+          return newTemplate;
+        } catch (error) {
+          set({ error: 'Failed to create WBS template', isLoading: false });
+          throw error;
+        }
+      },
+
+      updateWbsTemplateApi: async (id: string, template: Partial<WBSTemplate>) => {
+        set({ isLoading: true, error: null });
+        try {
+          const updatedTemplate = await settingsApi.updateWbsTemplate(id, template);
+          set((state) => ({
+            wbsTemplates: state.wbsTemplates.map(t => 
+              t.id === id ? updatedTemplate : t
+            ),
+            isLoading: false
+          }));
+          return updatedTemplate;
+        } catch (error) {
+          set({ error: 'Failed to update WBS template', isLoading: false });
+          throw error;
+        }
+      },
+
+      deleteWbsTemplateApi: async (id: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          await settingsApi.deleteWbsTemplate(id);
+          set((state) => ({
+            wbsTemplates: state.wbsTemplates.filter(t => t.id !== id),
+            isLoading: false
+          }));
+        } catch (error) {
+          set({ error: 'Failed to delete WBS template', isLoading: false });
+          throw error;
+        }
+      },
+
+      setDefaultWbsTemplate: async (id: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          await settingsApi.setDefaultWbsTemplate(id);
+          // Update all templates to reflect the new default
+          set((state) => ({
+            wbsTemplates: state.wbsTemplates.map(t => ({
+              ...t,
+              isDefault: t.id === id
+            })),
+            isLoading: false
+          }));
+        } catch (error) {
+          set({ error: 'Failed to set default template', isLoading: false });
+          throw error;
+        }
+      },
 
       // Cost Category actions
       setCostCategories: (categories) => set({ costCategories: categories }),
