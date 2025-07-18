@@ -224,14 +224,14 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
     if (filters.wbsSubcategoryFilter !== wbsSubcategoryFilter) {
       setWbsSubcategoryFilterAction(wbsSubcategoryFilter);
     }
-  }, [filterType, vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter, filters.filterType, filters.vendorFilter, filters.wbsCategoryFilter, filters.wbsSubcategoryFilter, setFilterTypeAction, setVendorFilterAction, setWbsCategoryFilterAction, setWbsSubcategoryFilterAction]);
+  }, [filterType, vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter]); // Remove store filters from dependencies to prevent loops
 
-  // Sync store state with parent component
+  // Sync store state with parent component - only when dropdown options actually change
   useEffect(() => {
-    if (onOptionsUpdate) {
+    if (onOptionsUpdate && dropdownOptions.vendors.length > 0) {
       onOptionsUpdate(dropdownOptions);
     }
-  }, [dropdownOptions, onOptionsUpdate]);
+  }, [dropdownOptions.vendors, dropdownOptions.categories, dropdownOptions.subcategories, onOptionsUpdate]);
 
   // Handle search with debouncing
   const handleSearchChange = useCallback((newSearch: string) => {

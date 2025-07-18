@@ -128,27 +128,9 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
   
   }, [potentialMatchIds]);
   
-  // Add state to track if we need to refresh potential match IDs
-  const [isRefreshingPotentialMatches, setIsRefreshingPotentialMatches] = React.useState(false);
+  // Remove the problematic refresh function and useEffect that causes recursive calls
+  // The store already handles refreshing potential match IDs properly
   
-  // Function to refresh potential match IDs directly
-  const refreshPotentialMatchIdsDirectly = React.useCallback(async () => {
-    if (isRefreshingPotentialMatches) return;
-    
-    setIsRefreshingPotentialMatches(true);
-    try {
-      const res = await fetch(`/api/programs/${rest.programId}/ledger/potential-match-ids`);
-              if (res.ok) {
-          const ids = await res.json();
-          return ids;
-        }
-    } catch (error) {
-      console.error('Failed to refresh potential match IDs directly:', error);
-    } finally {
-      setIsRefreshingPotentialMatches(false);
-    }
-    return [];
-  }, [rest.programId, isRefreshingPotentialMatches]);
   // Destructure all other props from rest
   const {
     sortedEntries,
@@ -237,12 +219,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     }
   };
 
-  // Effect to ensure potential match IDs are refreshed when component mounts or programId changes
-  React.useEffect(() => {
-    if (programId && potentialMatchIds.length === 0) {
-      refreshPotentialMatchIdsDirectly();
-    }
-  }, [programId, potentialMatchIds.length, refreshPotentialMatchIdsDirectly]);
+  // Remove the problematic useEffect - the store handles potential match IDs refresh
 
   // Excel-like navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {

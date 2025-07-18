@@ -14,6 +14,62 @@ const ledgerRepo = AppDataSource.getRepository(LedgerEntry);
 const programRepo = AppDataSource.getRepository(Program);
 const upload = multer({ dest: '/tmp' });
 
+// Get all unique dropdown options for a program (vendors, categories, subcategories)
+router.get('/:programId/ledger/dropdown-options', async (req, res) => {
+  const { programId } = req.params;
+  
+  console.log('Dropdown options endpoint called with programId:', programId);
+  
+  try {
+    // Get all unique vendors
+    const vendors = await ledgerRepo
+      .createQueryBuilder('ledger')
+      .leftJoin('ledger.program', 'program')
+      .where('program.id = :programId', { programId })
+      .andWhere('ledger.vendor_name IS NOT NULL')
+      .andWhere('ledger.vendor_name != :emptyString', { emptyString: '' })
+      .select('ledger.vendor_name', 'vendor_name')
+      .distinct()
+      .orderBy('ledger.vendor_name', 'ASC')
+      .getRawMany();
+
+    // Get all unique categories
+    const categories = await ledgerRepo
+      .createQueryBuilder('ledger')
+      .leftJoin('ledger.program', 'program')
+      .where('program.id = :programId', { programId })
+      .andWhere('ledger.wbs_category IS NOT NULL')
+      .andWhere('ledger.wbs_category != :emptyString', { emptyString: '' })
+      .select('ledger.wbs_category', 'wbs_category')
+      .distinct()
+      .orderBy('ledger.wbs_category', 'ASC')
+      .getRawMany();
+
+    // Get all unique subcategories
+    const subcategories = await ledgerRepo
+      .createQueryBuilder('ledger')
+      .leftJoin('ledger.program', 'program')
+      .where('program.id = :programId', { programId })
+      .andWhere('ledger.wbs_subcategory IS NOT NULL')
+      .andWhere('ledger.wbs_subcategory != :emptyString', { emptyString: '' })
+      .select('ledger.wbs_subcategory', 'wbs_subcategory')
+      .distinct()
+      .orderBy('ledger.wbs_subcategory', 'ASC')
+      .getRawMany();
+
+    console.log('Found vendors:', vendors.length, 'categories:', categories.length, 'subcategories:', subcategories.length);
+
+    res.json({
+      vendors: vendors.map(v => v.vendor_name),
+      categories: categories.map(c => c.wbs_category),
+      subcategories: subcategories.map(s => s.wbs_subcategory)
+    });
+  } catch (err) {
+    console.error('Error in dropdown-options endpoint:', err);
+    res.status(500).json({ message: 'Error fetching dropdown options', error: err });
+  }
+});
+
 // List ledger entries for a program (with pagination/filter)
 router.get('/:programId/ledger', async (req, res) => {
   const { programId } = req.params;
@@ -21,52 +77,53 @@ router.get('/:programId/ledger', async (req, res) => {
   const skip = (Number(page) - 1) * Number(limit);
   
   try {
-    // Build the where clause based on filters
-    let where: any = {
-      program: { id: programId }
-    };
+    // Use query builder for more complex filtering
+    const queryBuilder = ledgerRepo.createQueryBuilder('ledger')
+      .leftJoinAndSelect('ledger.program', 'program')
+      .where('program.id = :programId', { programId });
 
     // Add search filter
     if (search) {
-      where.vendor_name = Like(`%${search}%`);
+      queryBuilder.andWhere('ledger.vendor_name LIKE :search', { search: `%${search}%` });
     }
 
     // Add filterType logic
     if (filterType === 'emptyActuals') {
-      where.actual_amount = null;
-      where.actual_date = null;
+      queryBuilder.andWhere('ledger.actual_amount IS NULL')
+                 .andWhere('ledger.actual_date IS NULL');
     } else if (filterType === 'currentMonthPlanned') {
       // Get current month's start and end dates
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       
-      where.planned_date = Between(startOfMonth.toISOString().slice(0, 10), endOfMonth.toISOString().slice(0, 10));
+      queryBuilder.andWhere('ledger.planned_date BETWEEN :startDate AND :endDate', {
+        startDate: startOfMonth.toISOString().slice(0, 10),
+        endDate: endOfMonth.toISOString().slice(0, 10)
+      });
     }
-    // filterType === 'all' returns all entries (no additional filtering)
 
-    // Add vendor filter
-    if (vendorFilter) {
-      where.vendor_name = vendorFilter;
+    // Add vendor filter (only if not already set by search)
+    if (vendorFilter && !search) {
+      queryBuilder.andWhere('ledger.vendor_name = :vendorFilter', { vendorFilter });
     }
 
     // Add WBS category filter
     if (wbsCategoryFilter) {
-      where.wbs_category = wbsCategoryFilter;
+      queryBuilder.andWhere('ledger.wbs_category = :wbsCategoryFilter', { wbsCategoryFilter });
     }
 
     // Add WBS subcategory filter
     if (wbsSubcategoryFilter) {
-      where.wbs_subcategory = wbsSubcategoryFilter;
+      queryBuilder.andWhere('ledger.wbs_subcategory = :wbsSubcategoryFilter', { wbsSubcategoryFilter });
     }
 
-    const [entries, total] = await ledgerRepo.findAndCount({
-      where,
-      order: { baseline_date: 'ASC' },
-      skip,
-      take: Number(limit),
-      relations: ['program'],
-    });
+    // Add ordering and pagination
+    queryBuilder.orderBy('ledger.baseline_date', 'ASC')
+                .skip(skip)
+                .take(Number(limit));
+
+    const [entries, total] = await queryBuilder.getManyAndCount();
 
     // For each entry, find the related ImportTransaction (if any) and its ImportSession
     const importTransactionRepo = AppDataSource.getRepository(require('../entities/ImportTransaction').ImportTransaction);

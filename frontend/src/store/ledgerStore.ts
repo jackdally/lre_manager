@@ -91,6 +91,7 @@ interface LedgerStoreState {
   
   // Data fetching
   fetchEntries: () => Promise<void>;
+  fetchDropdownOptions: () => Promise<void>;
   refreshPotentialMatchIds: () => Promise<void>;
   refreshRejectedMatchIds: () => Promise<void>;
   
@@ -259,8 +260,15 @@ export const useLedgerStore = create<LedgerStoreState>()(
           if (currentState.programId !== programId || currentState.showAll !== showAll) {
             set({ programId, showAll });
             get().fetchEntries();
-            get().refreshPotentialMatchIds();
-            get().refreshRejectedMatchIds();
+            get().fetchDropdownOptions(); // Fetch all dropdown options
+            // Only refresh potential match IDs if we have entries
+            setTimeout(() => {
+              const state = get();
+              if (state.entries.length > 0) {
+                get().refreshPotentialMatchIds();
+                get().refreshRejectedMatchIds();
+              }
+            }, 100);
           }
         },
 
@@ -289,15 +297,10 @@ export const useLedgerStore = create<LedgerStoreState>()(
             if (response.data) {
               const { entries: newEntries, total: newTotal } = response.data as { entries: LedgerEntry[]; total: number };
               
-              // Update dropdown options
-              const vendors = Array.from(new Set(newEntries.map((entry: LedgerEntry) => entry.vendor_name).filter(Boolean))).sort();
-              const categories = Array.from(new Set(newEntries.map((entry: LedgerEntry) => entry.wbs_category).filter(Boolean))).sort();
-              const subcategories = Array.from(new Set(newEntries.map((entry: LedgerEntry) => entry.wbs_subcategory).filter(Boolean))).sort();
-              
+              // Don't update dropdown options from filtered results
               set({
                 entries: newEntries,
                 total: newTotal,
-                dropdownOptions: { vendors, categories, subcategories },
                 ui: { ...ui, loading: false },
               });
             }
@@ -310,6 +313,26 @@ export const useLedgerStore = create<LedgerStoreState>()(
                 showErrorModal: true,
               },
             });
+          }
+        },
+
+        // Fetch dropdown options separately (all unique values, not filtered)
+        fetchDropdownOptions: async () => {
+          const { programId } = get();
+          if (!programId) return;
+
+          try {
+            const response = await axios.get(`/api/programs/${programId}/ledger/dropdown-options`);
+            if (response.data) {
+              const { vendors, categories, subcategories } = response.data as {
+                vendors: string[];
+                categories: string[];
+                subcategories: string[];
+              };
+              set({ dropdownOptions: { vendors, categories, subcategories } });
+            }
+          } catch (error) {
+            console.error('Failed to fetch dropdown options:', error);
           }
         },
 
@@ -905,6 +928,9 @@ export const useLedgerShowAll = () => useLedgerStore(state => state.showAll);
 // Individual action selectors - each action is a stable reference
 export const useLedgerInitialize = () => useLedgerStore(state => state.initialize);
 export const useLedgerFetchEntries = () => useLedgerStore(state => state.fetchEntries);
+export const useLedgerFetchDropdownOptions = () => useLedgerStore(state => state.fetchDropdownOptions);
+export const useLedgerRefreshPotentialMatchIds = () => useLedgerStore(state => state.refreshPotentialMatchIds);
+export const useLedgerRefreshRejectedMatchIds = () => useLedgerStore(state => state.refreshRejectedMatchIds);
 
 // Filter actions
 export const useLedgerSetFilterType = () => useLedgerStore(state => state.setFilterType);

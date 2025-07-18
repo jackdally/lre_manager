@@ -10,10 +10,10 @@ const LedgerPage: React.FC = () => {
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
   
-  // New filter states for dropdown filters
-  const [vendorFilter, setVendorFilter] = useState<string>('');
-  const [wbsCategoryFilter, setWbsCategoryFilter] = useState<string>('');
-  const [wbsSubcategoryFilter, setWbsSubcategoryFilter] = useState<string>('');
+  // New filter states for dropdown filters - initialize with undefined to match store
+  const [vendorFilter, setVendorFilter] = useState<string | undefined>(undefined);
+  const [wbsCategoryFilter, setWbsCategoryFilter] = useState<string | undefined>(undefined);
+  const [wbsSubcategoryFilter, setWbsSubcategoryFilter] = useState<string | undefined>(undefined);
   
   // Dropdown options state
   const [dropdownOptions, setDropdownOptions] = useState<{
@@ -29,10 +29,10 @@ const LedgerPage: React.FC = () => {
   if (!id) return <div>Missing program ID</div>;
   const programId = id;
 
-  // Wrap setters to accept string | undefined
-  const handleSetVendorFilter = (v: string | undefined) => setVendorFilter(v ?? '');
-  const handleSetWbsCategoryFilter = (v: string | undefined) => setWbsCategoryFilter(v ?? '');
-  const handleSetWbsSubcategoryFilter = (v: string | undefined) => setWbsSubcategoryFilter(v ?? '');
+  // Wrap setters to accept string | undefined - no need to convert empty strings
+  const handleSetVendorFilter = (v: string | undefined) => setVendorFilter(v);
+  const handleSetWbsCategoryFilter = (v: string | undefined) => setWbsCategoryFilter(v);
+  const handleSetWbsSubcategoryFilter = (v: string | undefined) => setWbsSubcategoryFilter(v);
 
 
 
