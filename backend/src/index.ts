@@ -10,6 +10,7 @@ import wbsElementsRouter from './routes/wbsElements';
 import { importRouter } from './routes/import';
 import settingsRouter from './routes/settings';
 import wbsReportingRouter from './routes/wbsReporting';
+import costCategoriesRouter from './routes/costCategories';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 
@@ -50,6 +51,7 @@ app.use('/api/programs', wbsElementsRouter);
 app.use('/api/programs', wbsReportingRouter);
 app.use('/api/import', importRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/cost-categories', costCategoriesRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {
@@ -57,6 +59,7 @@ app.get('/api/ledger/template', (req, res) => {
     'vendor_name',
     'expense_description',
     'wbsElementCode',
+    'costCategoryCode',
     'baseline_date',
     'baseline_amount',
     'planned_date',

@@ -33,7 +33,7 @@ const LedgerTableCell: React.FC<LedgerTableCellProps> = ({
 
   if (editing) {
     // Render edit mode based on field type
-    if (field === 'wbs_category' || field === 'wbs_subcategory' || field === 'vendor_name') {
+    if (field === 'vendor_name') {
       return (
         <select
           className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}

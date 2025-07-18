@@ -14,6 +14,13 @@ interface BulkEditModalProps {
     parentId?: string;
   }>;
   vendorOptions: string[];
+  costCategoryOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
+  }>;
   isCleared: (field: string) => boolean;
   handleBulkEditFieldChange: (e: React.ChangeEvent<any>) => void;
   handleBulkEditClearToggle: (field: string) => void;
@@ -28,6 +35,7 @@ const LedgerBulkEditModal: React.FC<BulkEditModalProps> = ({
   clearedFields,
   wbsElementOptions,
   vendorOptions,
+  costCategoryOptions,
   isCleared,
   handleBulkEditFieldChange,
   handleBulkEditClearToggle,
@@ -78,6 +86,26 @@ const LedgerBulkEditModal: React.FC<BulkEditModalProps> = ({
                   <option value="">-- Select --</option>
                   {(vendorOptions || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
+                <button type="button" className={`ml-1 ${isCleared('vendor_name') ? 'text-green-600' : 'text-gray-400'} hover:text-red-500`} title="Clear" onClick={() => handleBulkEditClearToggle('vendor_name')}>🗑️</button>
+              </div>
+            </div>
+            <div>
+              <label className="block font-medium text-left mb-1">Cost Category</label>
+              <div className="flex items-center gap-2">
+                <select
+                  name="costCategoryId"
+                  className={`input input-xs w-full rounded-md ${isCleared('costCategoryId') ? 'bg-green-100 border-green-400' : bulkEditFields.costCategoryId ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+                  value={isCleared('costCategoryId') ? '' : bulkEditFields.costCategoryId || ''}
+                  onChange={handleBulkEditFieldChange}
+                >
+                  <option value="">-- Select Cost Category --</option>
+                  {(costCategoryOptions || []).map(category => (
+                    <option key={category.id} value={category.id}>
+                      {category.code} - {category.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className={`ml-1 ${isCleared('costCategoryId') ? 'text-green-600' : 'text-gray-400'} hover:text-red-500`} title="Clear" onClick={() => handleBulkEditClearToggle('costCategoryId')}>🗑️</button>
               </div>
             </div>
             <div></div>

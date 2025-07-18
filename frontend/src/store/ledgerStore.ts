@@ -18,6 +18,7 @@ export interface LedgerFilters {
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
   wbsElementFilter?: string;
+  costCategoryFilter?: string;
   search: string;
 }
 
@@ -55,6 +56,13 @@ export interface LedgerDropdownOptions {
     description: string;
     level: number;
     parentId?: string;
+  }>;
+  costCategories: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
   }>;
 }
 
@@ -104,6 +112,7 @@ interface LedgerStoreState {
   setFilterType: (type: 'all' | 'currentMonthPlanned' | 'emptyActuals') => void;
   setVendorFilter: (vendor: string | undefined) => void;
   setWbsElementFilter: (elementId: string | undefined) => void;
+  setCostCategoryFilter: (categoryId: string | undefined) => void;
   setSearch: (search: string) => void;
   setPage: (page: number) => void;
   setShowAll: (showAll: boolean) => void;
@@ -197,7 +206,11 @@ export const useLedgerStore = create<LedgerStoreState>()(
         // Enhanced state
         entries: [],
         total: 0,
-        dropdownOptions: { vendors: [], categories: [], subcategories: [] },
+        dropdownOptions: { 
+          vendors: [], 
+          wbsElements: [], 
+          costCategories: [] 
+        },
         filters: {
           filterType: 'all',
           vendorFilter: undefined,
@@ -291,6 +304,17 @@ export const useLedgerStore = create<LedgerStoreState>()(
             if (response.data) {
               const { entries: newEntries, total: newTotal } = response.data as { entries: LedgerEntry[]; total: number };
               
+              // Debug: Log the first entry to see if relationships are loaded
+              if (newEntries.length > 0) {
+                console.log('Entries refreshed:', {
+                  id: newEntries[0].id,
+                  costCategoryId: newEntries[0].costCategoryId,
+                  costCategory: newEntries[0].costCategory,
+                  wbsElementId: newEntries[0].wbsElementId,
+                  wbsElement: newEntries[0].wbsElement
+                });
+              }
+              
               // Don't update dropdown options from filtered results
               set({
                 entries: newEntries,
@@ -320,9 +344,10 @@ export const useLedgerStore = create<LedgerStoreState>()(
           if (!programId) return;
 
           try {
-            const response = await axios.get(`/api/programs/${programId}/ledger/dropdown-options`);
-            if (response.data) {
-              const { vendors, wbsElements } = response.data as {
+            const dropdownResponse = await axios.get(`/api/programs/${programId}/ledger/dropdown-options`);
+            
+            if (dropdownResponse.data) {
+              const { vendors, wbsElements, costCategories } = dropdownResponse.data as {
                 vendors: string[];
                 wbsElements: Array<{
                   id: string;
@@ -332,8 +357,22 @@ export const useLedgerStore = create<LedgerStoreState>()(
                   level: number;
                   parentId?: string;
                 }>;
+                costCategories: Array<{
+                  id: string;
+                  code: string;
+                  name: string;
+                  description: string;
+                  isActive: boolean;
+                }>;
               };
-              set({ dropdownOptions: { vendors, wbsElements } });
+              
+              set({ 
+                dropdownOptions: { 
+                  vendors, 
+                  wbsElements,
+                  costCategories: costCategories || []
+                } 
+              });
             }
           } catch (error) {
             console.error('Failed to fetch dropdown options:', error);
@@ -392,6 +431,14 @@ export const useLedgerStore = create<LedgerStoreState>()(
           const currentFilters = get().filters;
           if (currentFilters.wbsElementFilter !== elementId) {
             set({ filters: { ...currentFilters, wbsElementFilter: elementId } });
+            get().fetchEntries();
+          }
+        },
+
+        setCostCategoryFilter: (categoryId: string | undefined) => {
+          const currentFilters = get().filters;
+          if (currentFilters.costCategoryFilter !== categoryId) {
+            set({ filters: { ...currentFilters, costCategoryFilter: categoryId } });
             get().fetchEntries();
           }
         },
@@ -468,6 +515,8 @@ export const useLedgerStore = create<LedgerStoreState>()(
           const entry = entries.find(e => e.id === rowId);
           if (!entry) return;
 
+
+
           const numberFields = ['baseline_amount', 'planned_amount', 'actual_amount'];
           let oldValue = entry[field as keyof LedgerEntry];
           let newValue = value;
@@ -487,7 +536,10 @@ export const useLedgerStore = create<LedgerStoreState>()(
               set({ ui: { ...ui, editingCell: null, cellEditValue: '' } });
               return;
             }
-            if (!requiredFields.includes(field) && (newValue === '' || newValue === undefined)) {
+            // For dropdown fields, treat empty string as null for consistency
+            if (['wbsElementId', 'costCategoryId'].includes(field) && (newValue === '' || newValue === undefined)) {
+              newValue = null;
+            } else if (!requiredFields.includes(field) && (newValue === '' || newValue === undefined)) {
               newValue = null;
             }
           }
@@ -499,14 +551,22 @@ export const useLedgerStore = create<LedgerStoreState>()(
           }
 
           try {
-            // Update local state immediately
-            const updatedEntries = entries.map(entry =>
-              entry.id === rowId ? { ...entry, [field]: newValue } : entry
-            );
-            set({ entries: updatedEntries });
-
-            // Call API
+            console.log('Saving cell edit:', { rowId, field, newValue });
+            
+            // Call API first
             await axios.put(`/api/programs/${programId}/ledger/${rowId}`, { [field]: newValue });
+
+            // For dropdown fields, refresh the data to get updated relationships
+            if (['wbsElementId', 'costCategoryId'].includes(field)) {
+              console.log('Refreshing entries after dropdown update');
+              get().fetchEntries();
+            } else {
+              // For other fields, update local state immediately
+              const updatedEntries = entries.map(entry =>
+                entry.id === rowId ? { ...entry, [field]: newValue } : entry
+              );
+              set({ entries: updatedEntries });
+            }
 
             set({ ui: { ...ui, editingCell: null, cellEditValue: '' } });
           } catch (error: any) {
@@ -939,6 +999,7 @@ export const useLedgerRefreshRejectedMatchIds = () => useLedgerStore(state => st
 export const useLedgerSetFilterType = () => useLedgerStore(state => state.setFilterType);
 export const useLedgerSetVendorFilter = () => useLedgerStore(state => state.setVendorFilter);
 export const useLedgerSetWbsElementFilter = () => useLedgerStore(state => state.setWbsElementFilter);
+export const useLedgerSetCostCategoryFilter = () => useLedgerStore(state => state.setCostCategoryFilter);
 export const useLedgerSetSearch = () => useLedgerStore(state => state.setSearch);
 export const useLedgerSetPage = () => useLedgerStore(state => state.setPage);
 export const useLedgerSetShowAll = () => useLedgerStore(state => state.setShowAll);

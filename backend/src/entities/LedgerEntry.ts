@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Program } from './Program';
 import { WbsElement } from './WbsElement';
+import { CostCategory } from './CostCategory';
 
 @Entity()
 export class LedgerEntry {
@@ -48,5 +49,13 @@ export class LedgerEntry {
   program!: Program;
 
   @ManyToOne(() => WbsElement, { nullable: true })
+  @JoinColumn({ name: 'wbsElementId' })
   wbsElement?: WbsElement;
+
+  @Column({ name: 'cost_category_id', nullable: true })
+  costCategoryId?: string;
+
+  @ManyToOne(() => CostCategory, { nullable: true })
+  @JoinColumn({ name: 'cost_category_id' })
+  costCategory?: CostCategory;
 } 

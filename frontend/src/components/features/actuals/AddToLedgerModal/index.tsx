@@ -20,11 +20,32 @@ const AddToLedgerModal: React.FC<AddToLedgerModalProps> = ({
 }) => {
   const [wbsElementId, setWbsElementId] = useState<string>('');
   const [selectedWbsElement, setSelectedWbsElement] = useState<WbsElement | null>(null);
+  const [costCategoryId, setCostCategoryId] = useState<string>('');
+  const [costCategories, setCostCategories] = useState<Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
+  }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addToLedger = useActualsAddToLedger();
   const setToast = useActualsSetToast();
   const programId = useActualsProgramId();
+
+  // Fetch cost categories on component mount
+  useEffect(() => {
+    const fetchCostCategories = async () => {
+      try {
+        const response = await axios.get('/api/cost-categories/active');
+        setCostCategories(Array.isArray(response.data) ? response.data : []);
+      } catch (error) {
+        console.error('Failed to fetch cost categories:', error);
+      }
+    };
+    fetchCostCategories();
+  }, []);
 
   // Helper for formatting
   const formatCurrency = (val: number | string | undefined | null) => {
@@ -45,7 +66,8 @@ const AddToLedgerModal: React.FC<AddToLedgerModalProps> = ({
     try {
       await addToLedger(
         transaction.id,
-        wbsElementId
+        wbsElementId,
+        costCategoryId || undefined
       );
 
       setToast({ message: 'Transaction added to ledger successfully', type: 'success' });
@@ -99,6 +121,26 @@ const AddToLedgerModal: React.FC<AddToLedgerModalProps> = ({
                 <div><span className="font-medium">Description:</span> {selectedWbsElement.description}</div>
               </div>
             )}
+          </div>
+
+          <div>
+            <label htmlFor="costCategory" className="block text-sm font-medium text-gray-700 mb-2">
+              Cost Category
+            </label>
+            <select
+              id="costCategory"
+              value={costCategoryId}
+              onChange={(e) => setCostCategoryId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isSubmitting}
+            >
+              <option value="">-- Select Cost Category (Optional) --</option>
+              {costCategories.map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.code} - {category.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex gap-3 pt-4">

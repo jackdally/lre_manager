@@ -70,11 +70,25 @@ export async function importLedgerFromFile(filePath: string, ext: string, progra
         throw new Error(`WBS element with code '${row.wbsElementCode}' not found for this program`);
       }
 
+      // Find cost category by code if provided
+      let costCategoryId = null;
+      if (row.costCategoryCode) {
+        const costCategoryRepo = AppDataSource.getRepository(require('../entities/CostCategory').CostCategory);
+        const costCategory = await costCategoryRepo.findOne({
+          where: { code: row.costCategoryCode, isActive: true }
+        });
+        if (!costCategory) {
+          throw new Error(`Cost category with code '${row.costCategoryCode}' not found or not active`);
+        }
+        costCategoryId = costCategory.id;
+      }
+
       // Create entry
       const entry = ledgerRepo.create({
         vendor_name: row.vendor_name,
         expense_description: row.expense_description,
         wbsElementId: wbsElement.id,
+        costCategoryId: costCategoryId,
         baseline_date: row.baseline_date || null,
         baseline_amount: row.baseline_amount ? Number(row.baseline_amount) : null,
         planned_date: row.planned_date || null,

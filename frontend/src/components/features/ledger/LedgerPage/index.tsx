@@ -13,6 +13,7 @@ const LedgerPage: React.FC = () => {
   // New filter states for dropdown filters - initialize with undefined to match store
   const [vendorFilter, setVendorFilter] = useState<string | undefined>(undefined);
   const [wbsElementFilter, setWbsElementFilter] = useState<string | undefined>(undefined);
+  const [costCategoryFilter, setCostCategoryFilter] = useState<string | undefined>(undefined);
   
   // Dropdown options state
   const [dropdownOptions, setDropdownOptions] = useState<{
@@ -64,9 +65,11 @@ const LedgerPage: React.FC = () => {
           filterType={filterType}
           vendorFilter={vendorFilter}
           wbsElementFilter={wbsElementFilter}
+          costCategoryFilter={costCategoryFilter}
           setFilterType={setFilterType}
           setVendorFilter={handleSetVendorFilter}
           setWbsElementFilter={handleSetWbsElementFilter}
+          setCostCategoryFilter={setCostCategoryFilter}
           onOptionsUpdate={handleOptionsUpdate}
         />
         

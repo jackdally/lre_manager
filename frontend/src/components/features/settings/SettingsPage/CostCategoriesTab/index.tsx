@@ -1,13 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSettingsStore, CostCategory } from '../../../../../store/settingsStore';
 import Button from '../../../../common/Button';
 import Modal from '../../../../common/Modal';
 
 const CostCategoriesTab: React.FC = () => {
-  const costCategories = useSettingsStore(state => state.costCategories);
-  const addCostCategory = useSettingsStore(state => state.addCostCategory);
-  const updateCostCategory = useSettingsStore(state => state.updateCostCategory);
-  const deleteCostCategory = useSettingsStore(state => state.deleteCostCategory);
+  const {
+    costCategories,
+    isLoading,
+    error,
+    costCategoriesLoaded,
+    fetchCostCategories,
+    createCostCategoryApi,
+    updateCostCategoryApi,
+    deleteCostCategoryApi,
+    setError
+  } = useSettingsStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CostCategory | null>(null);
@@ -17,6 +24,14 @@ const CostCategoriesTab: React.FC = () => {
     description: '',
     isActive: true,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch cost categories on component mount
+  useEffect(() => {
+    if (!costCategoriesLoaded) {
+      fetchCostCategories();
+    }
+  }, [fetchCostCategories, costCategoriesLoaded]);
 
   const handleOpenModal = (category?: CostCategory) => {
     if (category) {
@@ -37,26 +52,51 @@ const CostCategoriesTab: React.FC = () => {
       });
     }
     setIsModalOpen(true);
+    setError(null); // Clear any previous errors
   };
 
-  const handleSubmit = () => {
-    if (editingCategory) {
-      updateCostCategory(editingCategory.id, formData);
-    } else {
-      const newCategory: CostCategory = {
-        id: Date.now().toString(),
-        ...formData,
-      };
-      addCostCategory(newCategory);
+  const handleSubmit = async () => {
+    if (!formData.name.trim() || !formData.code.trim()) {
+      return;
     }
-    setIsModalOpen(false);
+
+    setIsSubmitting(true);
+    try {
+      if (editingCategory) {
+        await updateCostCategoryApi(editingCategory.id, formData);
+      } else {
+        await createCostCategoryApi(formData);
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      // Error is already handled by the store
+      console.error('Error saving cost category:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this cost category?')) {
-      deleteCostCategory(id);
+      try {
+        await deleteCostCategoryApi(id);
+      } catch (error) {
+        // Error is already handled by the store
+        console.error('Error deleting cost category:', error);
+      }
     }
   };
+
+  if (isLoading && costCategories.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">Loading cost categories...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -71,6 +111,34 @@ const CostCategoriesTab: React.FC = () => {
           Add Category
         </Button>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error</h3>
+              <div className="mt-2 text-sm text-red-700">{error}</div>
+            </div>
+            <div className="ml-auto pl-3">
+              <button
+                onClick={() => setError(null)}
+                className="inline-flex text-red-400 hover:text-red-600"
+              >
+                <span className="sr-only">Dismiss</span>
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Categories List */}
       <div className="space-y-4">
@@ -141,7 +209,7 @@ const CostCategoriesTab: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Category Name
+              Category Name *
             </label>
             <input
               type="text"
@@ -154,7 +222,7 @@ const CostCategoriesTab: React.FC = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Category Code
+              Category Code *
             </label>
             <input
               type="text"
@@ -195,14 +263,15 @@ const CostCategoriesTab: React.FC = () => {
             <Button
               variant="secondary"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!formData.name.trim() || !formData.code.trim()}
+              disabled={!formData.name.trim() || !formData.code.trim() || isSubmitting}
             >
-              {editingCategory ? 'Update' : 'Create'}
+              {isSubmitting ? 'Saving...' : (editingCategory ? 'Update' : 'Create')}
             </Button>
           </div>
         </div>

@@ -12,6 +12,8 @@ interface LedgerTableHeaderProps {
   setVendorFilter: (v: string | undefined) => void;
   wbsElementFilter: string | undefined;
   setWbsElementFilter: (v: string | undefined) => void;
+  costCategoryFilter: string | undefined;
+  setCostCategoryFilter: (v: string | undefined) => void;
   vendorOptions: string[];
   wbsElementOptions: Array<{
     id: string;
@@ -20,6 +22,13 @@ interface LedgerTableHeaderProps {
     description: string;
     level: number;
     parentId?: string;
+  }>;
+  costCategoryOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
   }>;
 }
 
@@ -35,12 +44,15 @@ const LedgerTableHeader: React.FC<LedgerTableHeaderProps> = ({
   setVendorFilter,
   wbsElementFilter,
   setWbsElementFilter,
+  costCategoryFilter,
+  setCostCategoryFilter,
   vendorOptions,
   wbsElementOptions,
+  costCategoryOptions,
 }) => {
   return (
     <div className="flex flex-col gap-4 mb-4">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium mb-1">Vendor</label>
           <select
@@ -63,6 +75,21 @@ const LedgerTableHeader: React.FC<LedgerTableHeaderProps> = ({
             {(wbsElementOptions || []).map(element => (
               <option key={element.id} value={element.id}>
                 {element.code} - {element.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium mb-1">Cost Category</label>
+          <select
+            className="input input-sm w-full"
+            value={costCategoryFilter || ''}
+            onChange={e => setCostCategoryFilter(e.target.value || undefined)}
+          >
+            <option value="">All Cost Categories</option>
+            {(costCategoryOptions || []).map(category => (
+              <option key={category.id} value={category.id}>
+                {category.code} - {category.name}
               </option>
             ))}
           </select>

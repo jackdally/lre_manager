@@ -28,6 +28,7 @@ import {
   useLedgerSetFilterType,
   useLedgerSetVendorFilter,
   useLedgerSetWbsElementFilter,
+  useLedgerSetCostCategoryFilter,
   useLedgerSetSearch,
   useLedgerSetPage,
   useLedgerSetShowAll,
@@ -80,9 +81,11 @@ interface LedgerTableProps {
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
   wbsElementFilter?: string;
+  costCategoryFilter?: string;
   setFilterType: (type: 'all' | 'currentMonthPlanned' | 'emptyActuals') => void;
   setVendorFilter: (vendor: string | undefined) => void;
   setWbsElementFilter: (elementId: string | undefined) => void;
+  setCostCategoryFilter: (categoryId: string | undefined) => void;
 }
 
 const PAGE_SIZE = 10;
@@ -101,9 +104,11 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   filterType, 
   vendorFilter, 
   wbsElementFilter, 
+  costCategoryFilter,
   setFilterType, 
   setVendorFilter, 
-  setWbsElementFilter 
+  setWbsElementFilter,
+  setCostCategoryFilter
 }) => {
   // Zustand store state
   const entries = useLedgerEntries();
@@ -114,12 +119,26 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const storeProgramId = useLedgerProgramId();
   const storeShowAll = useLedgerShowAll();
 
+  // Debug: Log when entries change
+  useEffect(() => {
+    if (entries.length > 0) {
+      console.log('LedgerTable received updated entries:', {
+        id: entries[0].id,
+        costCategoryId: entries[0].costCategoryId,
+        costCategory: entries[0].costCategory,
+        wbsElementId: entries[0].wbsElementId,
+        wbsElement: entries[0].wbsElement
+      });
+    }
+  }, [entries]);
+
   // Zustand store actions - use individual hooks to avoid stale closures
   const initialize = useLedgerInitialize();
   const fetchEntries = useLedgerFetchEntries();
   const setFilterTypeAction = useLedgerSetFilterType();
   const setVendorFilterAction = useLedgerSetVendorFilter();
   const setWbsElementFilterAction = useLedgerSetWbsElementFilter();
+  const setCostCategoryFilterAction = useLedgerSetCostCategoryFilter();
   const setSearch = useLedgerSetSearch();
   const setPage = useLedgerSetPage();
   const setShowAllAction = useLedgerSetShowAll();
@@ -215,7 +234,10 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
     if (filters.wbsElementFilter !== wbsElementFilter) {
       setWbsElementFilterAction(wbsElementFilter);
     }
-  }, [filterType, vendorFilter, wbsElementFilter]); // Remove store filters from dependencies to prevent loops
+    if (filters.costCategoryFilter !== costCategoryFilter) {
+      setCostCategoryFilterAction(costCategoryFilter);
+    }
+  }, [filterType, vendorFilter, wbsElementFilter, costCategoryFilter]); // Remove store filters from dependencies to prevent loops
 
   // Sync store state with parent component - only when dropdown options actually change
   useEffect(() => {
@@ -251,6 +273,9 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   // Handle cell input blur or Enter
   const handleCellInputBlur = useCallback(async (rowId: string, field: string, currentValue?: string) => {
     const valueToSave = currentValue !== undefined ? currentValue : ui.cellEditValue;
+    
+
+    
     try {
       await saveCellEdit(rowId, field, valueToSave);
     } catch (error) {
@@ -450,8 +475,11 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         setVendorFilter={setVendorFilterAction}
         wbsElementFilter={filters.wbsElementFilter}
         setWbsElementFilter={setWbsElementFilterAction}
+        costCategoryFilter={filters.costCategoryFilter}
+        setCostCategoryFilter={setCostCategoryFilter}
         vendorOptions={dropdownOptions.vendors}
         wbsElementOptions={dropdownOptions.wbsElements}
+        costCategoryOptions={dropdownOptions.costCategories}
       />
 
       {ui.showErrorModal && ui.error && (
@@ -470,6 +498,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
           clearedFields={ui.clearedFields}
           wbsElementOptions={dropdownOptions.wbsElements}
           vendorOptions={dropdownOptions.vendors}
+          costCategoryOptions={dropdownOptions.costCategories}
           isCleared={(field: string) => ui.clearedFields[field]}
           handleBulkEditFieldChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
             const { name, value } = e.target;

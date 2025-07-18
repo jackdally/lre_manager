@@ -82,6 +82,7 @@ export interface SettingsState {
   // Cost Categories
   costCategories: CostCategory[];
   selectedCostCategory: CostCategory | null;
+  costCategoriesLoaded: boolean; // Add flag to track if categories have been loaded
   
   // Vendors
   vendors: Vendor[];
@@ -123,6 +124,13 @@ export interface SettingsState {
   updateCostCategory: (id: string, category: Partial<CostCategory>) => void;
   deleteCostCategory: (id: string) => void;
   setSelectedCostCategory: (category: CostCategory | null) => void;
+  
+  // Cost Category API actions
+  fetchCostCategories: () => Promise<void>;
+  createCostCategoryApi: (category: Omit<CostCategory, 'id'>) => Promise<CostCategory>;
+  updateCostCategoryApi: (id: string, category: Partial<CostCategory>) => Promise<CostCategory>;
+  deleteCostCategoryApi: (id: string) => Promise<void>;
+  resetCostCategoriesLoaded: () => void;
   
   // Vendors
   setVendors: (vendors: Vendor[]) => void;
@@ -274,6 +282,7 @@ export const useSettingsStore = create<SettingsState>()(
       wbsTemplatesLoaded: false, // Initialize the new flag
       costCategories: [],
       selectedCostCategory: null,
+      costCategoriesLoaded: false, // Initialize the new flag
       vendors: [],
       selectedVendor: null,
       currencies: defaultCurrencies,
@@ -398,6 +407,69 @@ export const useSettingsStore = create<SettingsState>()(
       })),
       setSelectedCostCategory: (category) => set({ selectedCostCategory: category }),
 
+      // Cost Category API actions
+      fetchCostCategories: async () => {
+        const state = get();
+        if (state.isLoading || state.costCategoriesLoaded) return; // Prevent multiple simultaneous requests or unnecessary calls
+        
+        set({ isLoading: true, error: null });
+        try {
+          const categories = await settingsApi.getCostCategories();
+          set({ costCategories: categories, isLoading: false, costCategoriesLoaded: true });
+        } catch (error) {
+          console.error('Error fetching cost categories:', error);
+          set({ error: 'Failed to fetch cost categories', isLoading: false });
+        }
+      },
+
+      createCostCategoryApi: async (category: Omit<CostCategory, 'id'>) => {
+        set({ isLoading: true, error: null });
+        try {
+          const newCategory = await settingsApi.createCostCategory(category);
+          set((state) => ({ 
+            costCategories: [...state.costCategories, newCategory],
+            isLoading: false 
+          }));
+          return newCategory;
+        } catch (error) {
+          set({ error: 'Failed to create cost category', isLoading: false });
+          throw error;
+        }
+      },
+
+      updateCostCategoryApi: async (id: string, category: Partial<CostCategory>) => {
+        set({ isLoading: true, error: null });
+        try {
+          const updatedCategory = await settingsApi.updateCostCategory(id, category);
+          set((state) => ({
+            costCategories: state.costCategories.map(c => 
+              c.id === id ? updatedCategory : c
+            ),
+            isLoading: false
+          }));
+          return updatedCategory;
+        } catch (error) {
+          set({ error: 'Failed to update cost category', isLoading: false });
+          throw error;
+        }
+      },
+
+      deleteCostCategoryApi: async (id: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          await settingsApi.deleteCostCategory(id);
+          set((state) => ({
+            costCategories: state.costCategories.filter(c => c.id !== id),
+            isLoading: false
+          }));
+        } catch (error) {
+          set({ error: 'Failed to delete cost category', isLoading: false });
+          throw error;
+        }
+      },
+
+      resetCostCategoriesLoaded: () => set({ costCategoriesLoaded: false }),
+
       // Vendor actions
       setVendors: (vendors) => set({ vendors }),
       addVendor: (vendor) => set((state) => ({ 
@@ -438,6 +510,7 @@ export const useSettingsStore = create<SettingsState>()(
         wbsTemplatesLoaded: false, // Reset the new flag
         costCategories: [],
         selectedCostCategory: null,
+        costCategoriesLoaded: false, // Reset the new flag
         vendors: [],
         selectedVendor: null,
         currencies: defaultCurrencies,

@@ -11,6 +11,14 @@ export interface LedgerEntry {
     level: number;
     parentId?: string;
   };
+  costCategoryId?: string;
+  costCategory?: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
+  };
   baseline_date: string | null;
   baseline_amount: number | null;
   planned_date: string | null;
@@ -46,6 +54,7 @@ export interface LedgerEntryCreateRequest {
   vendor_name: string;
   expense_description: string;
   wbsElementId: string;
+  costCategoryId?: string;
   baseline_date?: string;
   baseline_amount?: number;
   planned_date?: string;

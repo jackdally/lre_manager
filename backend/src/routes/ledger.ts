@@ -40,7 +40,14 @@ router.get('/:programId/ledger/dropdown-options', async (req, res) => {
       order: { code: 'ASC' }
     });
 
-    console.log('Found vendors:', vendors.length, 'wbs elements:', wbsElements.length);
+    // Get all active cost categories
+    const costCategoryRepo = AppDataSource.getRepository(require('../entities/CostCategory').CostCategory);
+    const costCategories = await costCategoryRepo.find({
+      where: { isActive: true },
+      order: { code: 'ASC' }
+    });
+
+    console.log('Found vendors:', vendors.length, 'wbs elements:', wbsElements.length, 'cost categories:', costCategories.length);
 
     res.json({
       vendors: vendors.map(v => v.vendor_name),
@@ -51,6 +58,13 @@ router.get('/:programId/ledger/dropdown-options', async (req, res) => {
         description: el.description,
         level: el.level,
         parentId: el.parentId
+      })),
+      costCategories: costCategories.map(category => ({
+        id: category.id,
+        code: category.code,
+        name: category.name,
+        description: category.description,
+        isActive: category.isActive
       }))
     });
   } catch (err) {
@@ -70,6 +84,7 @@ router.get('/:programId/ledger', async (req, res) => {
     const queryBuilder = ledgerRepo.createQueryBuilder('ledger')
       .leftJoinAndSelect('ledger.program', 'program')
       .leftJoinAndSelect('ledger.wbsElement', 'wbsElement')
+      .leftJoinAndSelect('ledger.costCategory', 'costCategory')
       .where('program.id = :programId', { programId });
 
     // Add search filter
@@ -101,6 +116,11 @@ router.get('/:programId/ledger', async (req, res) => {
     // Add WBS element filter
     if (req.query.wbsElementFilter) {
       queryBuilder.andWhere('ledger.wbsElementId = :wbsElementFilter', { wbsElementFilter: req.query.wbsElementFilter });
+    }
+
+    // Add cost category filter
+    if (req.query.costCategoryFilter) {
+      queryBuilder.andWhere('ledger.costCategoryId = :costCategoryFilter', { costCategoryFilter: req.query.costCategoryFilter });
     }
 
     // Add ordering and pagination
@@ -176,6 +196,17 @@ router.post('/:programId/ledger', async (req, res) => {
       return res.status(400).json({ message: 'Invalid WBS element ID or element does not belong to this program' });
     }
     
+    // Validate cost category if provided
+    if (req.body.costCategoryId) {
+      const costCategoryRepo = AppDataSource.getRepository(require('../entities/CostCategory').CostCategory);
+      const costCategory = await costCategoryRepo.findOne({
+        where: { id: req.body.costCategoryId, isActive: true }
+      });
+      if (!costCategory) {
+        return res.status(400).json({ message: 'Invalid cost category ID or category is not active' });
+      }
+    }
+    
     const entry = ledgerRepo.create({ ...req.body, program });
     const saved = await ledgerRepo.save(entry);
     res.status(201).json(saved);
@@ -192,6 +223,18 @@ router.put('/:programId/ledger/:id', async (req, res) => {
     ['baseline_date', 'planned_date', 'actual_date'].forEach(field => {
       if (req.body[field] === '') req.body[field] = null;
     });
+    
+    // Validate cost category if provided
+    if (req.body.costCategoryId) {
+      const costCategoryRepo = AppDataSource.getRepository(require('../entities/CostCategory').CostCategory);
+      const costCategory = await costCategoryRepo.findOne({
+        where: { id: req.body.costCategoryId, isActive: true }
+      });
+      if (!costCategory) {
+        return res.status(400).json({ message: 'Invalid cost category ID or category is not active' });
+      }
+    }
+    
     const entry = await ledgerRepo.findOne({
       where: { id, program: { id: programId } },
       relations: ['program'],
@@ -420,11 +463,12 @@ router.post('/:programId/import/ledger', upload.single('file'), async (req: Requ
 
 // Download import template
 router.get('/import/template', (req, res) => {
-  // Update the template columns to include invoice_link_text and invoice_link_url
+  // Update the template columns to include cost categories
   const columns = [
     'vendor_name',
     'expense_description',
-    'wbsElementId',
+    'wbsElementCode',
+    'costCategoryCode',
     'baseline_date',
     'baseline_amount',
     'planned_date',

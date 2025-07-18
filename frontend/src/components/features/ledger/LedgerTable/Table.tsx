@@ -47,6 +47,13 @@ interface LedgerTableTableProps {
       level: number;
       parentId?: string;
     }>;
+    costCategories: Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      isActive: boolean;
+    }>;
   };
   
   // Handlers
@@ -269,6 +276,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
               <th className="px-2 py-2">WBS Element</th>
               <th className="px-2 py-2">Vendor</th>
               <th className="px-2 py-2 w-64 max-w-xl">Description</th>
+              <th className="px-2 py-2">Cost Category</th>
               <th className="px-2 py-2 w-28 max-w-[7rem]">Invoice Link</th>
               <th className="px-2 py-2 text-right">Baseline Date</th>
               <th className="px-2 py-2 text-right">Baseline Amount</th>
@@ -283,7 +291,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center">
+                <td colSpan={15} className="px-4 py-8 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                     <span className="text-gray-600">Loading entries...</span>
@@ -293,7 +301,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
             )}
             {searchLoading && !loading && (
               <tr>
-                <td colSpan={14} className="px-4 py-4 text-center">
+                <td colSpan={15} className="px-4 py-4 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                     <span className="text-gray-600 text-sm">Searching...</span>
@@ -303,7 +311,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
             )}
             {!loading && !searchLoading && sortedEntries.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={15} className="px-4 py-8 text-center text-gray-500">
                   No entries found.
                 </td>
               </tr>
@@ -334,8 +342,10 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                       <select
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbsElementId', e.target.value)}
+                        onChange={(e) => {
+                          // For dropdowns, save immediately when selection changes
+                          handleCellInputBlur(entry.id, 'wbsElementId', e.target.value);
+                        }}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbsElementId')}
                         autoFocus
                       >
@@ -361,8 +371,10 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                       <select
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'vendor_name', e.target.value)}
+                        onChange={(e) => {
+                          // For dropdowns, save immediately when selection changes
+                          handleCellInputBlur(entry.id, 'vendor_name', e.target.value);
+                        }}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'vendor_name')}
                         autoFocus
                       >
@@ -393,8 +405,37 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                       entry.expense_description
                     )}
                   </td>
+                  {/* Cost Category (dropdown) */}
+                  <td 
+                    className="px-2 py-1" 
+                    onClick={() => handleCellClick(entry.id, 'costCategoryId', entry.costCategoryId)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 5)}
+                    tabIndex={0}
+                  >
+                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'costCategoryId' ? (
+                      <select
+                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+                        value={cellEditValue}
+                        onChange={(e) => {
+                          // For dropdowns, save immediately when selection changes
+                          handleCellInputBlur(entry.id, 'costCategoryId', e.target.value);
+                        }}
+                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'costCategoryId')}
+                        autoFocus
+                      >
+                        <option value="">-- Select Cost Category --</option>
+                        {(dropdownOptions.costCategories || []).map(category => (
+                          <option key={category.id} value={category.id}>
+                            {category.code} - {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      entry.costCategory ? `${entry.costCategory.code} - ${entry.costCategory.name}` : '--'
+                    )}
+                  </td>
                   {/* Invoice Link (popover edit) */}
-                  <td className="px-2 py-1 w-28 max-w-[7rem] relative" onClick={e => { e.stopPropagation(); handlePopoverOpen(entry.id, entry.invoice_link_text ?? '', entry.invoice_link_url ?? '', e); }}>
+                  <td className="px-2 py-1 w-28 max-w-[7rem] relative" onClick={e => { e.stopPropagation(); handlePopoverOpen(entry.id, entry.invoice_link_text ?? '', entry.invoice_link_url ?? '', e); }} onKeyDown={(e) => handleKeyDown(e, idx, 6)} tabIndex={0}>
                     {entry.invoice_link_text && entry.invoice_link_url ? (
                       <a href={entry.invoice_link_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{entry.invoice_link_text}</a>
                     ) : (
@@ -431,7 +472,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'baseline_date', entry.baseline_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 6)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 8)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'baseline_date' ? (
@@ -452,7 +493,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'baseline_amount', entry.baseline_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 7)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 9)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'baseline_amount' ? (
@@ -473,7 +514,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'planned_date', entry.planned_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 8)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 11)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'planned_date' ? (
@@ -494,7 +535,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'planned_amount', entry.planned_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 9)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 12)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'planned_amount' ? (
@@ -515,7 +556,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'actual_date', entry.actual_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 10)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 13)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'actual_date' ? (
@@ -536,7 +577,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'actual_amount', entry.actual_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 11)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 14)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'actual_amount' ? (
@@ -557,7 +598,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1" 
                     onClick={() => handleCellClick(entry.id, 'notes', entry.notes)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 12)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 15)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'notes' ? (
@@ -972,4 +1013,4 @@ const arePropsEqual = (prevProps: Omit<LedgerTableTableProps, 'potentialMatchIds
   );
 };
 
-export default React.memo(LedgerTableTable, arePropsEqual); 
+export default LedgerTableTable; 

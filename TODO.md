@@ -5,10 +5,9 @@
 - [ ] Task 11: Implement proper state synchronization between actuals and ledger stores
 - [ ] Task 12: Add loading states and progress indicators for modal operations 
 - [ ] Task 36: Update the Ledger Table UI/UX to be much more polished and modern. The in-line editing is good, but can be much better. The dropdowns do not match the theme and feel of the rest of the application. This needs to be upgraded in a big way. The WBS Element dropdown, for example, needs to be in a tree structure and the overall UX when editing cells needs to be cleaner and not shift around the sizing of the cells so much.
-- [x] Task 37: Ask if we should be using the ledger routes for the bulk import template instead of the index file
-  - **Decision**: Using index.ts template endpoint (simpler, no routing conflicts)
-  - **Implementation**: Updated template to use `wbsElementCode` instead of `wbsElementId` for user-friendly imports
-  - **Benefits**: Users can now use readable WBS codes (e.g., "1.1.1", "1.2.3") instead of UUIDs
+- [ ] Task 38: Update "ImportConfig" and "ImportSession" to use the "upload" terminology
+- [ ] Task 39: fix the dropdowns in the ledger table that don't update unless you refresh the page or click a different cell.
+
 
 ## Medium Priority
 - [ ] Task 13: Fix Counting bug on Actuals Upload sessions (rejected, matched, unmatched)
@@ -36,10 +35,15 @@
   - Add WBS template selection to program creation
   - Implement automatic copying of WBS template elements to program WBS categories
   - Remove WBS template display from program directory (templates are copied, not referenced)
-- [ ] **Task 26**: Implement Cost Category standardization
-  - Create cost category management interface
-  - Add cost category validation across all forms
-  - Implement cost category dropdowns in ledger and actuals
+- [x] **Task 26**: Implement Cost Category standardization
+  - [x] Task 26.1: Create CostCategory entity and database table
+  - [x] Task 26.2: Create cost category CRUD API endpoints
+  - [x] Task 26.3: Create cost category management interface in Settings
+  - [x] Task 26.4: Add cost category validation across all forms
+  - [x] Task 26.5: Implement cost category dropdowns in ledger and actuals
+  - [x] Task 26.6: Update import templates to use cost categories
+  - [x] Task 26.7: Add cost category filtering and search
+  - [x] Task 26.8: Create default cost categories and migration script
 
 ### Phase 2: Vendor Management System (Week 3-4)
 - [ ] **Task 27**: Create vendor database structure
@@ -109,6 +113,10 @@
   - **Root Cause**: Initialization used 100ms timeout that fired before entries loaded, causing potential match refresh to be skipped
   - **Solution**: Changed to trigger potential match refresh immediately after entries are successfully loaded
   - **Files Modified**: `frontend/src/store/ledgerStore.ts`, `frontend/src/components/features/ledger/LedgerTable/Table.tsx`
+- [x] Task 37: Ask if we should be using the ledger routes for the bulk import template instead of the index file
+  - **Decision**: Using index.ts template endpoint (simpler, no routing conflicts)
+  - **Implementation**: Updated template to use `wbsElementCode` instead of `wbsElementId` for user-friendly imports
+  - **Benefits**: Users can now use readable WBS codes (e.g., "1.1.1", "1.2.3") instead of UUIDs
 
 ---
-*Last updated: [7/17/2025]* 
+*Last updated: [7/18/2025]* 

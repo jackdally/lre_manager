@@ -30,10 +30,12 @@ const ProgramDashboard: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
   const [vendorFilter, setVendorFilter] = useState<string>('');
   const [wbsElementFilter, setWbsElementFilter] = useState<string>('');
+  const [costCategoryFilter, setCostCategoryFilter] = useState<string>('');
 
   // Filter handlers
   const handleSetVendorFilter = (v: string | undefined) => setVendorFilter(v ?? '');
   const handleSetWbsElementFilter = (v: string | undefined) => setWbsElementFilter(v ?? '');
+  const handleSetCostCategoryFilter = (v: string | undefined) => setCostCategoryFilter(v ?? '');
 
   const getPrevUtcMonth = () => {
     const now = new Date();
@@ -222,9 +224,11 @@ const ProgramDashboard: React.FC = () => {
             filterType={filterType}
             vendorFilter={vendorFilter}
             wbsElementFilter={wbsElementFilter}
+            costCategoryFilter={costCategoryFilter}
             setFilterType={setFilterType}
             setVendorFilter={handleSetVendorFilter}
             setWbsElementFilter={handleSetWbsElementFilter}
+            setCostCategoryFilter={handleSetCostCategoryFilter}
           />
         </div>
       </div>
