@@ -3,7 +3,7 @@
 ## Current Issues Analysis
 
 ### 1. **Monolithic Components** 🚨
-- `ImportPage.tsx` (83KB, 1877 lines) - Too large, handles multiple concerns
+- `ActualsUploadPage.tsx` (83KB, 1877 lines) - Too large, handles multiple concerns
 - `LedgerTable.tsx` (73KB, 1325 lines) - Complex table with many features
 - `ProgramDashboard.tsx` (62KB, 1315 lines) - Dashboard with multiple widgets
 - `ProgramDirectory.tsx` (37KB, 793 lines) - Program listing with complex logic
@@ -60,15 +60,19 @@ src/
 │   │   │   │   ├── LedgerTable.tsx
 │   │   │   │   ├── LedgerFilters.tsx
 │   │   │   │   └── LedgerSummary.tsx
-│   │   │   └── LedgerEntry/
-│   │   │       ├── EntryForm.tsx
-│   │   │       └── EntryDetails.tsx
-│   │   └── import/
-│   │       ├── ImportPage/
+│   │   │   ├── LedgerEntry/
+│   │   │   │   ├── EntryForm.tsx
+│   │   │   │   └── EntryDetails.tsx
+│   │   │   └── BulkImport/
+│   │   │       ├── BulkImportModal.tsx
+│   │   │       ├── TemplateDownload.tsx
+│   │   │       └── ImportProgress.tsx
+│   │   └── actuals/
+│   │       ├── ActualsUploadPage/
 │   │       │   ├── index.tsx
 │   │       │   ├── FileUpload.tsx
-│   │       │   ├── ImportConfig.tsx
-│   │       │   └── ImportProgress.tsx
+│   │       │   ├── UploadConfig.tsx
+│   │       │   └── UploadProgress.tsx
 │   │       ├── TransactionMatchModal/
 │   │       │   ├── index.tsx
 │   │       │   ├── MatchList.tsx
@@ -85,13 +89,13 @@ src/
 │   ├── useApi.ts
 │   ├── usePrograms.ts
 │   ├── useLedger.ts
-│   ├── useImport.ts
+│   ├── useActuals.ts
 │   └── useAuth.ts
 ├── services/                      # API service layer
 │   ├── api.ts
 │   ├── programs.ts
 │   ├── ledger.ts
-│   └── import.ts
+│   └── actuals.ts
 ├── utils/                         # Utility functions
 │   ├── formatters.ts
 │   ├── validators.ts
@@ -101,7 +105,7 @@ src/
 │   ├── api.ts
 │   ├── programs.ts
 │   ├── ledger.ts
-│   └── import.ts
+│   └── actuals.ts
 ├── styles/                        # Global styles
 │   ├── globals.css
 │   ├── components.css
@@ -124,18 +128,18 @@ src/
 ├── controllers/                   # Request handlers
 │   ├── programController.ts
 │   ├── ledgerController.ts
-│   ├── importController.ts
+│   ├── actualsController.ts
 │   └── wbsController.ts
 ├── services/                      # Business logic
 │   ├── programService.ts
 │   ├── ledgerService.ts
-│   ├── importService.ts
+│   ├── actualsService.ts
 │   ├── wbsService.ts
 │   └── cacheService.ts
 ├── routes/                        # Route definitions
 │   ├── programRoutes.ts
 │   ├── ledgerRoutes.ts
-│   ├── importRoutes.ts
+│   ├── actualsRoutes.ts
 │   ├── wbsRoutes.ts
 │   └── healthRoutes.ts
 ├── middleware/                    # Express middleware
@@ -155,7 +159,7 @@ src/
 ├── repositories/                  # Custom repositories
 │   ├── ProgramRepository.ts
 │   ├── LedgerRepository.ts
-│   └── ImportRepository.ts
+│   └── ActualsRepository.ts
 ├── utils/                         # Utility functions
 │   ├── logger.ts
 │   ├── validators.ts
@@ -237,7 +241,7 @@ scripts/
    ```
 
 2. **Break Down Large Components**
-   - Split `ImportPage.tsx` into smaller components
+   - Split `ActualsUploadPage.tsx` into smaller components
    - Extract reusable UI components
    - Create custom hooks for complex logic
 

@@ -14,7 +14,7 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 3. Make your changes
 4. Run tests:
    ```bash
-   ./scripts/test.sh
+   ./scripts/testing/test.sh
    ```
 5. Commit your changes:
    ```bash

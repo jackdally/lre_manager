@@ -159,6 +159,8 @@ export class ImportService {
     for (const tx of transactionsToReplace) {
       tx.status = TransactionStatus.REPLACED;
       await this.importTransactionRepo.save(tx);
+      // Clean up potential matches for replaced transactions
+      await this.cleanupPotentialMatchesForTransaction(tx.id);
     }
 
     // Now process the new file in the new session
@@ -172,6 +174,8 @@ export class ImportService {
       for (const t of notFinal) {
         t.status = TransactionStatus.REPLACED;
         await this.importTransactionRepo.save(t);
+        // Clean up potential matches for replaced transactions
+        await this.cleanupPotentialMatchesForTransaction(t.id);
       }
     }
     // Now all transactions are in a final state, safe to mark session as replaced
@@ -580,7 +584,8 @@ export class ImportService {
       if (matches.length > 0) {
         const bestMatch = matches[0];
         transaction.status = TransactionStatus.MATCHED;
-        transaction.matchedLedgerEntry = bestMatch.ledgerEntry;
+        // Don't set matchedLedgerEntry for suggested matches - only for confirmed matches
+        // transaction.matchedLedgerEntry = bestMatch.ledgerEntry;
         transaction.matchConfidence = bestMatch.confidence;
         transaction.suggestedMatches = matches.map(m => ({
           id: m.ledgerEntry.id,
@@ -598,6 +603,8 @@ export class ImportService {
         const rejectedMatches = await this.rejectedMatchRepo.find({ where: { transaction: { id: transaction.id } } });
         if (rejectedMatches.length > 0) {
           transaction.status = TransactionStatus.REJECTED;
+          // Clean up potential matches for rejected transactions
+          await this.cleanupPotentialMatchesForTransaction(transaction.id);
         } else {
           transaction.status = TransactionStatus.UNMATCHED;
         }
@@ -936,10 +943,45 @@ export class ImportService {
   }
 
   async getImportTransactions(sessionId: string): Promise<ImportTransaction[]> {
-    return await this.importTransactionRepo.find({
+    const transactions = await this.importTransactionRepo.find({
       where: { importSession: { id: sessionId } },
-      relations: ['matchedLedgerEntry', 'importSession']
+      relations: ['matchedLedgerEntry', 'importSession', 'importSession.program']
     });
+
+    console.log(`[getImportTransactions] Found ${transactions.length} transactions for session ${sessionId}`);
+
+    // For each transaction, populate the suggestedMatches field if it's in MATCHED status
+    for (const transaction of transactions) {
+      console.log(`[getImportTransactions] Processing transaction ${transaction.id} with status: ${transaction.status}`);
+      
+      if (transaction.status === TransactionStatus.MATCHED) {
+        // Get potential matches for this transaction
+        const potentialMatches = await this.potentialMatchRepo.find({
+          where: { transaction: { id: transaction.id } },
+          relations: ['ledgerEntry']
+        });
+
+        console.log(`[getImportTransactions] Transaction ${transaction.id} has ${potentialMatches.length} potential matches`);
+
+        // Transform to the format expected by frontend
+        transaction.suggestedMatches = potentialMatches.map(pm => ({
+          id: pm.ledgerEntry.id,
+          vendorName: pm.ledgerEntry.vendor_name,
+          description: pm.ledgerEntry.expense_description,
+          planned_amount: pm.ledgerEntry.planned_amount,
+          planned_date: pm.ledgerEntry.planned_date,
+          confidence: pm.confidence,
+          matchType: 'potential',
+          reasons: pm.reasons ? JSON.parse(pm.reasons) : []
+        }));
+      } else {
+        // Clear suggestedMatches for non-matched transactions
+        transaction.suggestedMatches = [];
+        console.log(`[getImportTransactions] Transaction ${transaction.id} (status: ${transaction.status}) - cleared suggestedMatches`);
+      }
+    }
+
+    return transactions;
   }
 
   async getImportSessions(programId: string): Promise<any[]> {
@@ -1034,26 +1076,83 @@ export class ImportService {
       await this.rejectedMatchRepo.remove(rejected);
     }
     
-    // Log all remaining rejected matches for this transaction
-    const remainingRejected = await this.rejectedMatchRepo.find({
-      where: { transaction: { id: transactionId } },
-      relations: ['ledgerEntry']
+    // Get the transaction
+    const transaction = await this.importTransactionRepo.findOne({ 
+      where: { id: transactionId }, 
+      relations: ['importSession', 'importSession.program'] 
     });
-
-    // After undoing reject, re-run smart matching for the session
-    const transaction = await this.importTransactionRepo.findOne({ where: { id: transactionId }, relations: ['importSession'] });
-    if (transaction && transaction.importSession) {
-      await this.performSmartMatching(transaction.importSession.id);
+    
+    if (!transaction) {
+      throw new Error('Transaction not found');
     }
+
+    // Always re-run smart matching for this specific transaction to re-add the undone match
+    // Get all ledger entries for the program
+    const ledgerEntries = await this.ledgerRepo.find({
+      where: { program: { id: transaction.importSession.program.id } }
+    });
+    
+    // Find potential matches for this transaction
+    const matches = await this.findMatches(transaction, ledgerEntries, transaction.importSession.importConfig);
+    
+    // Create new potential matches
+    for (const match of matches) {
+      const existing = await this.potentialMatchRepo.findOne({
+        where: {
+          transaction: { id: transaction.id },
+          ledgerEntry: { id: match.ledgerEntry.id }
+        }
+      });
+      if (!existing) {
+        const pm = this.potentialMatchRepo.create({
+          transaction,
+          ledgerEntry: match.ledgerEntry,
+          confidence: match.confidence,
+          status: 'potential',
+          reasons: JSON.stringify(match.reasons),
+        });
+        await this.potentialMatchRepo.save(pm);
+      }
+    }
+    
+    // Update transaction status based on whether there are potential matches
+    if (matches.length > 0) {
+      transaction.status = TransactionStatus.MATCHED;
+      // Don't set matchedLedgerEntry for suggested matches - only for confirmed matches
+      // transaction.matchedLedgerEntry = matches[0].ledgerEntry;
+      transaction.matchConfidence = matches[0].confidence;
+    } else {
+      // Check if there are any remaining rejected matches for this transaction
+      const remainingRejected = await this.rejectedMatchRepo.find({
+        where: { transaction: { id: transactionId } },
+        relations: ['ledgerEntry']
+      });
+      
+      if (remainingRejected.length > 0) {
+        transaction.status = TransactionStatus.REJECTED;
+      } else {
+        transaction.status = TransactionStatus.UNMATCHED;
+      }
+      transaction.matchedLedgerEntry = null;
+      transaction.matchConfidence = null;
+    }
+    
+    await this.importTransactionRepo.save(transaction);
   }
 
   async rejectMatch(transactionId: string, ledgerEntryId: string): Promise<void> {
     try {
-      const transaction = await this.importTransactionRepo.findOne({ where: { id: transactionId }, relations: ['importSession'] });
+      const transaction = await this.importTransactionRepo.findOne({ 
+        where: { id: transactionId }, 
+        relations: ['importSession'] 
+      });
       if (!transaction) throw new Error('Transaction not found');
 
       // Remove the specific potential match for this transaction/ledgerEntry
-      const deleteResult = await this.potentialMatchRepo.delete({ transaction: { id: transactionId }, ledgerEntry: { id: ledgerEntryId } });
+      const deleteResult = await this.potentialMatchRepo.delete({ 
+        transaction: { id: transactionId }, 
+        ledgerEntry: { id: ledgerEntryId } 
+      });
       if (deleteResult.affected === 0) {
         console.warn(`[rejectMatch] No PotentialMatch found for transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
       }
@@ -1061,6 +1160,7 @@ export class ImportService {
       // Add a record to the RejectedMatch table
       const ledgerEntry = await this.ledgerRepo.findOneBy({ id: ledgerEntryId });
       if (!ledgerEntry) throw new Error('Ledger entry not found');
+      
       const rejectedMatch = this.rejectedMatchRepo.create({
         transaction,
         ledgerEntry
@@ -1068,17 +1168,27 @@ export class ImportService {
       });
       await this.rejectedMatchRepo.save(rejectedMatch);
 
-      // The status should remain 'matched' even if all matches are rejected
-      await this.importTransactionRepo.save(transaction);
+      // Check if there are any remaining potential matches for this transaction
+      const remainingPotentialMatches = await this.potentialMatchRepo.find({
+        where: { transaction: { id: transactionId } }
+      });
 
-      // After rejecting, re-run smart matching for the session
-      if (transaction.importSession) {
-        await this.performSmartMatching(transaction.importSession.id);
+      // If no more potential matches, update status to REJECTED
+      if (remainingPotentialMatches.length === 0) {
+        transaction.status = TransactionStatus.REJECTED;
+        console.log(`[rejectMatch] All potential matches rejected for transactionId=${transactionId}, setting status to REJECTED`);
+      } else {
+        console.log(`[rejectMatch] Transaction ${transactionId} still has ${remainingPotentialMatches.length} potential matches remaining`);
       }
+
+      await this.importTransactionRepo.save(transaction);
+      console.log(`[rejectMatch] Saved transaction ${transactionId} with final status: ${transaction.status}`);
+
+      console.log(`[rejectMatch] Successfully rejected match: transactionId=${transactionId}, ledgerEntryId=${ledgerEntryId}`);
     } catch (error) {
       const err = error as any;
       console.error('[rejectMatch] Error:', err && err.stack ? err.stack : err);
-      throw error;
+      throw new Error(`Failed to reject match: ${err.message || 'Unknown error'}`);
     }
   }
 
@@ -1105,6 +1215,18 @@ export class ImportService {
     return this.rejectedMatchRepo.find({ where: { transaction: { id: transactionId } }, relations: ['ledgerEntry'] });
   }
 
+  // Helper method to clean up potential matches for final state transactions
+  private async cleanupPotentialMatchesForTransaction(transactionId: string): Promise<void> {
+    try {
+      const deleteResult = await this.potentialMatchRepo.delete({ transaction: { id: transactionId } });
+      if (deleteResult.affected && deleteResult.affected > 0) {
+        console.log(`[cleanupPotentialMatches] Cleaned up ${deleteResult.affected} potential matches for transaction ${transactionId}`);
+      }
+    } catch (error) {
+      console.error(`[cleanupPotentialMatches] Error cleaning up potential matches for transaction ${transactionId}:`, error);
+    }
+  }
+
   public async ignoreDuplicate(transactionId: string): Promise<void> {
     const tx = await this.importTransactionRepo.findOneBy({ id: transactionId });
     if (!tx) throw new Error('Transaction not found');
@@ -1118,6 +1240,8 @@ export class ImportService {
     if (!tx) throw new Error('Transaction not found');
     tx.status = TransactionStatus.REJECTED;
     await this.importTransactionRepo.save(tx);
+    // Clean up potential matches for rejected transactions
+    await this.cleanupPotentialMatchesForTransaction(transactionId);
     // Optionally, add an audit log here
   }
 
@@ -1129,6 +1253,8 @@ export class ImportService {
     if (!original) throw new Error('Original transaction not found');
     tx.duplicateType = DuplicateType.NONE;
     original.status = TransactionStatus.REPLACED;
+    // Clean up potential matches for the replaced original transaction
+    await this.cleanupPotentialMatchesForTransaction(original.id);
     // If the original has a matched ledger entry, clear actuals and invoice info
     if (original.matchedLedgerEntry) {
       const ledgerEntry = await this.ledgerRepo.findOneBy({ id: original.matchedLedgerEntry.id });

@@ -14,9 +14,9 @@ The application has two distinct features that are both called "import" but serv
 ### **Feature 2: Monthly Actual Uploads (Navigation)**
 - **Purpose**: Upload monthly actual transactions and match to ledger
 - **When**: Monthly/regular basis
-- **What**: Actual expenses from accounting system
+- **What**: Upload actuals from accounting system
 - **Current Name**: "Upload Actuals" in navigation
-- **User Need**: "I need to upload this month's actual expenses and match them to my ledger"
+- **User Need**: "I need to upload this month's actuals and match them to my ledger"
 
 ## 🎯 Proposed Solution
 
@@ -24,8 +24,8 @@ The application has two distinct features that are both called "import" but serv
 
 | Current Name | Proposed Name | Purpose | Location |
 |--------------|---------------|---------|----------|
-| "Upload Actuals" | "Actual Expenses" | Monthly transaction uploads | Navigation |
-| "Import" (Ledger) | "Bulk Add" | Initial ledger setup | Ledger page button |
+| "Upload Actuals" | "Upload Actuals" | Monthly transaction uploads | Navigation |
+| "Import" (Ledger) | "Bulk Import" | Initial ledger setup | Ledger page button |
 | ImportPage.tsx | ActualsUploadPage.tsx | Monthly uploads | Component file |
 | /import route | /actuals route | Monthly uploads | URL |
 
@@ -47,7 +47,7 @@ The application has two distinct features that are both called "import" but serv
 📁 Programs
 🏠 Program Home
 📒 Ledger
-💰 Actual Expenses  ← Clear purpose
+💰 Upload Actuals  ← Clear purpose
 📊 BOE
 ⚠️ Risks & Opportunities
 ⚙️ Program Settings
@@ -57,15 +57,15 @@ The application has two distinct features that are both called "import" but serv
 
 **Current:**
 ```jsx
-<button className="btn btn-primary" onClick={() => setShowImportModal(true)}>
-  Import
+<button className="btn btn-primary" onClick={() => setShowBulkImportModal(true)}>
+  Bulk Import
 </button>
 ```
 
 **Proposed:**
 ```jsx
-<button className="btn btn-primary" onClick={() => setShowBulkAddModal(true)}>
-  Bulk Add
+<button className="btn btn-primary" onClick={() => setShowBulkImportModal(true)}>
+  Bulk Import
 </button>
 ```
 
@@ -134,17 +134,17 @@ The application has two distinct features that are both called "import" but serv
    // Proposed
    <Link to={`/programs/${programId}/actuals`}>
      <span>💰</span>
-     {sidebarOpen && <span>Actual Expenses</span>}
+     {sidebarOpen && <span>Upload Actuals</span>}
    </Link>
    ```
 
 3. **Update Ledger Page**
    ```typescript
    // Current
-   <button onClick={() => setShowImportModal(true)}>Import</button>
+   <button onClick={() => setShowBulkImportModal(true)}>Bulk Import</button>
    
    // Proposed
-   <button onClick={() => setShowBulkAddModal(true)}>Bulk Add</button>
+   <button onClick={() => setShowBulkImportModal(true)}>Bulk Import</button>
    ```
 
 ### **Phase 3: Update Backend Routes**
@@ -171,10 +171,10 @@ The application has two distinct features that are both called "import" but serv
 1. **Update Modal Titles**
    ```typescript
    // Current
-   <h3>Import Ledger Data</h3>
+   <h3>Bulk Import Ledger Entries</h3>
    
    // Proposed
-   <h3>Bulk Add Ledger Entries</h3>
+   <h3>Bulk Import Ledger Entries</h3>
    ```
 
 2. **Update Help Text**
@@ -183,7 +183,7 @@ The application has two distinct features that are both called "import" but serv
    <p>Upload your NetSuite export to match transactions</p>
    
    // Proposed
-   <p>Upload monthly actual expenses to match with your ledger</p>
+   <p>Upload monthly actuals to match with your ledger</p>
    ```
 
 ## 📋 Detailed Migration Steps
@@ -229,7 +229,7 @@ import ActualsUploadPage from './components/features/actuals/ActualsUploadPage';
 // To:
 <Link to={`/programs/${programId}/actuals`}>
   <span>💰</span>
-  {sidebarOpen && <span>Actual Expenses</span>}
+  {sidebarOpen && <span>Upload Actuals</span>}
 </Link>
 ```
 
@@ -237,9 +237,9 @@ import ActualsUploadPage from './components/features/actuals/ActualsUploadPage';
 ```typescript
 // In LedgerPage.tsx
 // From:
-<button onClick={() => setShowImportModal(true)}>Import</button>
+<button onClick={() => setShowBulkImportModal(true)}>Bulk Import</button>
 // To:
-<button onClick={() => setShowBulkAddModal(true)}>Bulk Add</button>
+<button onClick={() => setShowBulkImportModal(true)}>Bulk Import</button>
 ```
 
 ## 🎨 User Experience Improvements
@@ -249,9 +249,9 @@ import ActualsUploadPage from './components/features/actuals/ActualsUploadPage';
 **Actual Expenses Page:**
 - Icon: 💰 (money bag)
 - Color: Green (money/expenses)
-- Purpose: "Upload monthly actual expenses"
+- Purpose: "Upload monthly actuals"
 
-**Bulk Add Ledger:**
+**Bulk Import Ledger:**
 - Icon: 📋 (clipboard)
 - Color: Blue (data entry)
 - Purpose: "Add multiple ledger entries at once"
@@ -260,12 +260,12 @@ import ActualsUploadPage from './components/features/actuals/ActualsUploadPage';
 
 **Actual Expenses:**
 ```
-"Upload your monthly actual expense reports from NetSuite, 
+"Upload your monthly actuals from NetSuite, 
 QuickBooks, or other accounting systems. The system will 
 automatically match transactions to your existing ledger entries."
 ```
 
-**Bulk Add Ledger:**
+**Bulk Import Ledger:**
 ```
 "Import your initial program budget and planned expenses. 
 Use this to quickly set up your program's baseline and 
@@ -275,10 +275,10 @@ planned spending categories."
 ### **3. Better Button Labels**
 
 **Navigation:**
-- "Actual Expenses" (instead of "Upload Actuals")
+- "Upload Actuals" (instead of "Actual Expenses")
 
 **Ledger Page:**
-- "Bulk Add" (instead of "Import")
+- "Bulk Import" (instead of "Import")
 - "Download Template" (for the template download)
 
 ## 🔄 Migration Script
