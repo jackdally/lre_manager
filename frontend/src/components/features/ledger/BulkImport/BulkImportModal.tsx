@@ -17,11 +17,39 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
   const [bulkImportResult, setBulkImportResult] = useState<any>(null);
   const [bulkImporting, setBulkImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setSelectedFile(file);
     setBulkImportResult(null);
+  };
+
+  const handleDownloadTemplate = async () => {
+    setDownloading(true);
+    try {
+      const response = await axios.get('/api/ledger/template', {
+        responseType: 'blob',
+      });
+      
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data as BlobPart], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'ledger_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      alert('Failed to download template. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleBulkImport = async () => {
@@ -66,16 +94,16 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
         </div>
 
         <div className="mb-6">
-          <a 
-            href="/api/ledger/template" 
-            className="text-blue-600 hover:text-blue-800 underline flex items-center gap-2"
-            download
+          <button 
+            onClick={handleDownloadTemplate}
+            disabled={downloading}
+            className="text-blue-600 hover:text-blue-800 underline flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
-            Download Template
-          </a>
+            {downloading ? 'Downloading...' : 'Download Template'}
+          </button>
         </div>
 
         <div className="mb-6">

@@ -261,14 +261,6 @@ export const useLedgerStore = create<LedgerStoreState>()(
             set({ programId, showAll });
             get().fetchEntries();
             get().fetchDropdownOptions(); // Fetch all dropdown options
-            // Only refresh potential match IDs if we have entries
-            setTimeout(() => {
-              const state = get();
-              if (state.entries.length > 0) {
-                get().refreshPotentialMatchIds();
-                get().refreshRejectedMatchIds();
-              }
-            }, 100);
           }
         },
 
@@ -303,6 +295,10 @@ export const useLedgerStore = create<LedgerStoreState>()(
                 total: newTotal,
                 ui: { ...ui, loading: false },
               });
+              
+              // Refresh potential and rejected match IDs after entries are loaded
+              get().refreshPotentialMatchIds();
+              get().refreshRejectedMatchIds();
             }
           } catch (error: any) {
             set({

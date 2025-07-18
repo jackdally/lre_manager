@@ -622,26 +622,8 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td className="px-2 py-1">
                     <div className="flex items-center justify-center">
                       {(() => {
-                        // Robust potential match check with fallback
-                        let hasPotentialMatch = potentialMatchIds.some(id => String(id).trim() === String(entry.id).trim());
-                        
-                        // Fallback: If store is empty but we know there should be potential matches
-                        if (!hasPotentialMatch && potentialMatchIds.length === 0) {
-                          // These are the IDs from the API response that should have potential matches
-                          const apiResponseIds = [
-                            "24a48c12-140b-4cad-8b7a-0abb98073a5b",
-                            "16178618-fc11-4817-9a80-71427f205ec9",
-                            "ac31c4a1-0958-44dc-90d5-8d8ad6b14a31",
-                            "795c956c-2073-483d-9d4d-b88dba8b4d15",
-                            "65ffd8c0-808e-4ed2-9eac-3d9126261490",
-                            "9e3f3ff3-c8b1-4ef8-a908-0c47599c9bf7",
-                            "c6b2743f-14e8-47fa-92de-042fc4ee0794",
-                            "0b958157-26f8-4b5c-961e-9b2ecd79d61d",
-                            "63b920e8-026b-4476-be51-3fce99e398b2"
-                          ];
-                          hasPotentialMatch = apiResponseIds.includes(entry.id);
-                        }
-                        
+                        // FIX #3: Clean potential match check without hardcoded fallback
+                        const hasPotentialMatch = potentialMatchIds.some(id => String(id).trim() === String(entry.id).trim());
                         const hasRejectedMatches = entriesWithRejectedMatches.has(entry.id);
                         const hasActuals = entry.actual_amount !== null && entry.actual_amount !== undefined && entry.actual_date !== null && entry.actual_date !== undefined;
                         // 4. If an entry had a match confirmed, show "View Upload"
@@ -807,26 +789,44 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                         const result = await undoReject(undoId, potentialLedgerEntryId as string);
                         
                         if (result?.success) {
-                          // Update the rejected matches state for the upload column
-                          setEntriesWithRejectedMatches(prev => {
-                            const newSet = new Set(prev);
-                            // Only remove from rejected if this was the last rejected match for this ledger entry
-                            const remainingRejectedForEntry = potentialRejected.filter(m => 
-                              m.ledgerEntry?.id === potentialLedgerEntryId && m.id !== undoId
-                            );
-                            if (remainingRejectedForEntry.length === 0) {
-                              newSet.delete(potentialLedgerEntryId);
-                            }
-                            return newSet;
-                          });
+                          // FIX #2: Atomic state updates - update all related state in a coordinated way
                           
-                          // Add back to potential match IDs if not already there
-                          setPotentialMatchIds(prev => {
-                            if (!prev.includes(potentialLedgerEntryId)) {
-                              return [...prev, potentialLedgerEntryId];
+                          // First, refresh both potential and rejected match IDs from backend
+                          try {
+                            const [potentialRes, rejectedRes] = await Promise.all([
+                              fetch(`/api/programs/${programId}/ledger/potential-match-ids`),
+                              fetch(`/api/programs/${programId}/ledger/rejected-match-ids`)
+                            ]);
+                            
+                            if (potentialRes.ok && rejectedRes.ok) {
+                              const potentialIds = await potentialRes.json();
+                              const rejectedIds = await rejectedRes.json();
+                              
+                              // Update both states atomically with fresh data from backend
+                              setPotentialMatchIds(potentialIds);
+                              setEntriesWithRejectedMatches(new Set(rejectedIds));
                             }
-                            return prev;
-                          });
+                          } catch (error) {
+                            console.error('Failed to refresh match IDs after undo:', error);
+                            // Fallback to local state updates if API calls fail
+                            setEntriesWithRejectedMatches(prev => {
+                              const newSet = new Set(prev);
+                              const remainingRejectedForEntry = potentialRejected.filter(m => 
+                                m.ledgerEntry?.id === potentialLedgerEntryId && m.id !== undoId
+                              );
+                              if (remainingRejectedForEntry.length === 0) {
+                                newSet.delete(potentialLedgerEntryId);
+                              }
+                              return newSet;
+                            });
+                            
+                            setPotentialMatchIds(prev => {
+                              if (!prev.includes(potentialLedgerEntryId)) {
+                                return [...prev, potentialLedgerEntryId];
+                              }
+                              return prev;
+                            });
+                          }
                           
                           setToast({ message: 'Rejection undone successfully', type: 'success' });
                           

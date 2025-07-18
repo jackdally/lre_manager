@@ -1,8 +1,14 @@
 # TODO List
 
 ## High Priority
-- [ ] Task 2: Fix bug on Ledger that makes Upload column "Potential Matches" disappear when undoing a rejected match
-- [ ] Task 17: Fix Download Template button on Ledger Page
+- [x] Task 2: Fix bug on Ledger that makes Upload column "Potential Matches" disappear when undoing a rejected match (COMPLETED)
+  - **Fix #1**: Added refresh of potential match IDs after successful undo reject operation
+  - **Fix #2**: Implemented atomic state updates with parallel API calls for potential and rejected match IDs
+  - **Fix #3**: Removed hardcoded fallback IDs that were causing maintenance issues
+  - **Fix #4**: Fixed critical timing issue where potential match refresh was skipped due to race condition
+  - **Root Cause**: Initialization used 100ms timeout that fired before entries loaded, causing potential match refresh to be skipped
+  - **Solution**: Changed to trigger potential match refresh immediately after entries are successfully loaded
+  - **Files Modified**: `frontend/src/store/ledgerStore.ts`, `frontend/src/components/features/ledger/LedgerTable/Table.tsx`
 
 ## Medium Priority
 - [ ] Task 10: Add proper error handling and user feedback for modal operations
@@ -32,6 +38,7 @@
 - [x] Task 8: Fix status display logic in TransactionMatchingTable to properly show "rejected" status
 - [x] Task 9: Fix actions column logic to prevent it from going blank after rejecting matches
 - [x] Task 1: Fix bug on Ledger that makes filters non-functional
+- [x] Task 17: Fix Download Template button on Ledger Page
 
 ---
 *Last updated: [7/7/2025]* 
