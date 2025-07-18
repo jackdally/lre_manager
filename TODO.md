@@ -1,25 +1,80 @@
 # TODO List
 
 ## High Priority
-- [x] Task 2: Fix bug on Ledger that makes Upload column "Potential Matches" disappear when undoing a rejected match (COMPLETED)
-  - **Fix #1**: Added refresh of potential match IDs after successful undo reject operation
-  - **Fix #2**: Implemented atomic state updates with parallel API calls for potential and rejected match IDs
-  - **Fix #3**: Removed hardcoded fallback IDs that were causing maintenance issues
-  - **Fix #4**: Fixed critical timing issue where potential match refresh was skipped due to race condition
-  - **Root Cause**: Initialization used 100ms timeout that fired before entries loaded, causing potential match refresh to be skipped
-  - **Solution**: Changed to trigger potential match refresh immediately after entries are successfully loaded
-  - **Files Modified**: `frontend/src/store/ledgerStore.ts`, `frontend/src/components/features/ledger/LedgerTable/Table.tsx`
-
-## Medium Priority
 - [ ] Task 10: Add proper error handling and user feedback for modal operations
 - [ ] Task 11: Implement proper state synchronization between actuals and ledger stores
 - [ ] Task 12: Add loading states and progress indicators for modal operations
 
-## Low Priority
+## Medium Priority
 - [ ] Task 13: Fix Counting bug on Actuals Upload sessions (rejected, matched, unmatched)
 - [ ] Task 14: Add unit tests for the new actuals store
 - [ ] Task 15: Optimize performance by implementing proper memoization
+
+## Low Priority
 - [ ] Task 16: Remove Clear All Uploads button for standard users. This is a dangerous button to have in the UI.
+- [ ] Task 19: Add keyboard shortcuts for common actions
+- [ ] Task 20: Implement auto-save functionality for form inputs
+- [ ] Task 21: Fix 3 dot menu on Programs page hiding the pop-up menu within the container instead of being outside of the container.
+- [ ] Task 22: Fix Programs card view showing the incorrect "Last Closed Month"
+- [ ] Task 23: Add banner showing that program is missing actuals for most recent month (like the card view) into the table view
+
+## Shared Settings & Modules Implementation Plan
+
+### Phase 1: Global Configuration Foundation (Week 1-2)
+- [x] **Task 24**: Create Settings page with navigation and basic layout
+  - Add Settings route to App.tsx
+  - Create SettingsPage component with tab navigation
+  - Implement basic settings store with Zustand
+- [ ] **Task 25**: Implement WBS (Work Breakdown Structure) templates
+  - Create WBS template CRUD operations
+  - Design WBS template form with hierarchical structure
+  - Add WBS template selection to program creation
+- [ ] **Task 26**: Implement Cost Category standardization
+  - Create cost category management interface
+  - Add cost category validation across all forms
+  - Implement cost category dropdowns in ledger and actuals
+
+### Phase 2: Vendor Management System (Week 3-4)
+- [ ] **Task 27**: Create vendor database structure
+  - Design vendor data model (name, contact, categories, performance)
+  - Implement vendor CRUD operations
+  - Add vendor search and filtering capabilities
+- [ ] **Task 28**: Implement vendor categorization and tagging
+  - Create vendor category management
+  - Add vendor tagging system
+  - Implement vendor performance tracking
+- [ ] **Task 29**: Integrate vendor dropdowns across the application
+  - Add vendor selection to ledger entries
+  - Implement vendor selection in actuals upload
+  - Create vendor autocomplete components
+
+### Phase 3: Advanced Configuration (Week 5-6)
+- [ ] **Task 30**: Implement currency and exchange rate management
+  - Create currency configuration interface
+  - Add exchange rate API integration
+  - Implement multi-currency support in calculations
+- [ ] **Task 31**: Add fiscal year and reporting period settings
+  - Create fiscal year configuration
+  - Implement reporting period management
+  - Add date range validation across the application
+- [ ] **Task 32**: Implement user preference management
+  - Create user settings interface
+  - Add theme and display preferences
+  - Implement user-specific defaults
+
+### Phase 4: Integration and Polish (Week 7-8)
+- [ ] **Task 33**: Integrate settings across all existing features
+  - Update ledger forms to use new settings
+  - Update actuals forms to use new settings
+  - Update program forms to use new settings
+- [ ] **Task 34**: Add settings validation and error handling
+  - Implement settings validation rules
+  - Add error handling for settings operations
+  - Create settings backup and restore functionality
+- [ ] **Task 35**: Create settings documentation and help
+  - Add inline help for settings pages
+  - Create settings user guide
+  - Add settings migration tools
 
 ## Completed
 - [x] Created actuals store with centralized state management
@@ -39,6 +94,14 @@
 - [x] Task 9: Fix actions column logic to prevent it from going blank after rejecting matches
 - [x] Task 1: Fix bug on Ledger that makes filters non-functional
 - [x] Task 17: Fix Download Template button on Ledger Page
+- [x] Task 2: Fix bug on Ledger that makes Upload column "Potential Matches" disappear when undoing a rejected match (COMPLETED)
+  - **Fix #1**: Added refresh of potential match IDs after successful undo reject operation
+  - **Fix #2**: Implemented atomic state updates with parallel API calls for potential and rejected match IDs
+  - **Fix #3**: Removed hardcoded fallback IDs that were causing maintenance issues
+  - **Fix #4**: Fixed critical timing issue where potential match refresh was skipped due to race condition
+  - **Root Cause**: Initialization used 100ms timeout that fired before entries loaded, causing potential match refresh to be skipped
+  - **Solution**: Changed to trigger potential match refresh immediately after entries are successfully loaded
+  - **Files Modified**: `frontend/src/store/ledgerStore.ts`, `frontend/src/components/features/ledger/LedgerTable/Table.tsx`
 
 ---
-*Last updated: [7/7/2025]* 
+*Last updated: [7/17/2025]* 
