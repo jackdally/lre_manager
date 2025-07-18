@@ -4,6 +4,7 @@ import Button from '../../../../common/Button';
 import Modal from '../../../../common/Modal';
 import WBSStructureEditor from './WBSStructureEditor';
 import WBSPreview from './WBSPreview';
+import { ChevronDown, ChevronRight } from '../../../../common/icons';
 
 const WBSTemplatesTab: React.FC = () => {
   const { wbsTemplates, addWbsTemplate, updateWbsTemplate, deleteWbsTemplate, setSelectedWbsTemplate } = useSettingsStore();
@@ -14,6 +15,7 @@ const WBSTemplatesTab: React.FC = () => {
     description: '',
     structure: [] as any[],
   });
+  const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(new Set());
 
   const handleOpenModal = (template?: WBSTemplate) => {
     if (template) {
@@ -68,6 +70,16 @@ const WBSTemplatesTab: React.FC = () => {
     setSelectedWbsTemplate(template);
   };
 
+  const togglePreview = (templateId: string) => {
+    const newExpanded = new Set(expandedPreviews);
+    if (newExpanded.has(templateId)) {
+      newExpanded.delete(templateId);
+    } else {
+      newExpanded.add(templateId);
+    }
+    setExpandedPreviews(newExpanded);
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -117,8 +129,26 @@ const WBSTemplatesTab: React.FC = () => {
                     Updated {new Date(template.updatedAt).toLocaleDateString()}
                   </div>
                   
-                  {/* WBS Structure Preview */}
-                  <WBSPreview structure={template.structure} />
+                  {/* Collapsible WBS Structure Preview */}
+                  <div className="border-t border-gray-200 pt-3">
+                    <button
+                      onClick={() => togglePreview(template.id)}
+                      className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      {expandedPreviews.has(template.id) ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                      {expandedPreviews.has(template.id) ? 'Hide Preview' : 'Show Preview'}
+                    </button>
+                    
+                    {expandedPreviews.has(template.id) && (
+                      <div className="mt-3">
+                        <WBSPreview structure={template.structure} />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   {!template.isDefault && (
