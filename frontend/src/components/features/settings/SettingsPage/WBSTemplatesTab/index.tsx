@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useSettingsStore, WBSTemplate } from '../../../../../store/settingsStore';
 import Button from '../../../../common/Button';
 import Modal from '../../../../common/Modal';
+import WBSStructureEditor from './WBSStructureEditor';
+import WBSPreview from './WBSPreview';
 
 const WBSTemplatesTab: React.FC = () => {
-  const { wbsTemplates, addWbsTemplate, updateWbsTemplate, deleteWbsTemplate } = useSettingsStore();
+  const { wbsTemplates, addWbsTemplate, updateWbsTemplate, deleteWbsTemplate, setSelectedWbsTemplate } = useSettingsStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<WBSTemplate | null>(null);
   const [formData, setFormData] = useState({
@@ -54,6 +56,18 @@ const WBSTemplatesTab: React.FC = () => {
     }
   };
 
+  const handleSetDefault = (template: WBSTemplate) => {
+    // Update all templates to remove default flag
+    wbsTemplates.forEach(t => {
+      if (t.id !== template.id) {
+        updateWbsTemplate(t.id, { isDefault: false });
+      }
+    });
+    // Set the selected template as default
+    updateWbsTemplate(template.id, { isDefault: true });
+    setSelectedWbsTemplate(template);
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -98,12 +112,24 @@ const WBSTemplatesTab: React.FC = () => {
                     )}
                   </div>
                   <p className="text-gray-600 mb-2">{template.description}</p>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 mb-3">
                     {template.structure.length} elements • 
                     Updated {new Date(template.updatedAt).toLocaleDateString()}
                   </div>
+                  
+                  {/* WBS Structure Preview */}
+                  <WBSPreview structure={template.structure} />
                 </div>
                 <div className="flex gap-2">
+                  {!template.isDefault && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleSetDefault(template)}
+                    >
+                      Set Default
+                    </Button>
+                  )}
                   <Button
                     variant="secondary"
                     size="sm"
@@ -115,6 +141,7 @@ const WBSTemplatesTab: React.FC = () => {
                     variant="danger"
                     size="sm"
                     onClick={() => handleDelete(template.id)}
+                    disabled={template.isDefault}
                   >
                     Delete
                   </Button>
@@ -156,6 +183,19 @@ const WBSTemplatesTab: React.FC = () => {
               rows={3}
               placeholder="Enter template description"
             />
+          </div>
+
+          {/* WBS Structure Editor */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              WBS Structure
+            </label>
+            <div className="border border-gray-300 rounded-md p-4 bg-gray-50">
+              <WBSStructureEditor
+                structure={formData.structure}
+                onChange={(structure) => setFormData({ ...formData, structure })}
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

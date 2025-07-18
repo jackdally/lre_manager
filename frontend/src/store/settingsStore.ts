@@ -158,12 +158,109 @@ const defaultCurrencies: Currency[] = [
   { code: 'GBP', name: 'British Pound', symbol: '£', exchangeRate: 0.73, isDefault: false },
 ];
 
+// Default WBS Templates
+const defaultWBSTemplates: WBSTemplate[] = [
+  {
+    id: '1',
+    name: 'Standard Project WBS',
+    description: 'A standard work breakdown structure for typical projects',
+    isDefault: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    structure: [
+      {
+        id: '1.1',
+        code: '1.0',
+        name: 'Project Management',
+        description: 'Project management and oversight activities',
+        level: 1,
+        children: [
+          {
+            id: '1.1.1',
+            code: '1.1',
+            name: 'Planning',
+            description: 'Project planning and scheduling',
+            level: 2,
+            children: [],
+          },
+          {
+            id: '1.1.2',
+            code: '1.2',
+            name: 'Monitoring & Control',
+            description: 'Project monitoring and control activities',
+            level: 2,
+            children: [],
+          },
+        ],
+      },
+      {
+        id: '1.2',
+        code: '2.0',
+        name: 'Technical Development',
+        description: 'Technical development and implementation',
+        level: 1,
+        children: [
+          {
+            id: '1.2.1',
+            code: '2.1',
+            name: 'Design',
+            description: 'System design and architecture',
+            level: 2,
+            children: [],
+          },
+          {
+            id: '1.2.2',
+            code: '2.2',
+            name: 'Implementation',
+            description: 'System implementation and coding',
+            level: 2,
+            children: [],
+          },
+          {
+            id: '1.2.3',
+            code: '2.3',
+            name: 'Testing',
+            description: 'System testing and validation',
+            level: 2,
+            children: [],
+          },
+        ],
+      },
+      {
+        id: '1.3',
+        code: '3.0',
+        name: 'Integration & Deployment',
+        description: 'System integration and deployment activities',
+        level: 1,
+        children: [
+          {
+            id: '1.3.1',
+            code: '3.1',
+            name: 'Integration',
+            description: 'System integration activities',
+            level: 2,
+            children: [],
+          },
+          {
+            id: '1.3.2',
+            code: '3.2',
+            name: 'Deployment',
+            description: 'System deployment and go-live',
+            level: 2,
+            children: [],
+          },
+        ],
+      },
+    ],
+  },
+];
+
 export const useSettingsStore = create<SettingsState>()(
   devtools(
     (set, get) => ({
       // Initial state
-      wbsTemplates: [],
-      selectedWbsTemplate: null,
+      wbsTemplates: defaultWBSTemplates,
+      selectedWbsTemplate: defaultWBSTemplates.find(t => t.isDefault) || null,
       costCategories: [],
       selectedCostCategory: null,
       vendors: [],
