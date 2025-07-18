@@ -177,13 +177,13 @@ router.post('/transaction/:transactionId/confirm-match', async (req, res) => {
 router.post('/transaction/:transactionId/add-to-ledger', async (req, res) => {
   try {
     const { transactionId } = req.params;
-    const { wbsCategory, wbsSubcategory } = req.body;
+    const { wbsElementId } = req.body;
 
-    if (!wbsCategory || !wbsSubcategory) {
-      return res.status(400).json({ error: 'WBS category and subcategory are required' });
+    if (!wbsElementId) {
+      return res.status(400).json({ error: 'WBS element ID is required' });
     }
 
-    await importService.addUnmatchedToLedger(transactionId, wbsCategory, wbsSubcategory);
+    await importService.addUnmatchedToLedger(transactionId, wbsElementId);
     res.json({ message: 'Transaction added to ledger successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to add transaction to ledger' });

@@ -29,13 +29,11 @@ const ProgramDashboard: React.FC = () => {
   // LedgerTable filter state
   const [filterType, setFilterType] = useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
   const [vendorFilter, setVendorFilter] = useState<string>('');
-  const [wbsCategoryFilter, setWbsCategoryFilter] = useState<string>('');
-  const [wbsSubcategoryFilter, setWbsSubcategoryFilter] = useState<string>('');
+  const [wbsElementFilter, setWbsElementFilter] = useState<string>('');
 
   // Filter handlers
   const handleSetVendorFilter = (v: string | undefined) => setVendorFilter(v ?? '');
-  const handleSetWbsCategoryFilter = (v: string | undefined) => setWbsCategoryFilter(v ?? '');
-  const handleSetWbsSubcategoryFilter = (v: string | undefined) => setWbsSubcategoryFilter(v ?? '');
+  const handleSetWbsElementFilter = (v: string | undefined) => setWbsElementFilter(v ?? '');
 
   const getPrevUtcMonth = () => {
     const now = new Date();
@@ -85,11 +83,11 @@ const ProgramDashboard: React.FC = () => {
       // Create category breakdown from ledger data
       const categoryMap = new Map<string, { actual: number; planned: number }>();
       ledgerData.forEach((entry: any) => {
-        if (entry.wbs_category) {
-          if (!categoryMap.has(entry.wbs_category)) {
-            categoryMap.set(entry.wbs_category, { actual: 0, planned: 0 });
+        if (entry.wbsElement && entry.wbsElement.name) {
+          if (!categoryMap.has(entry.wbsElement.name)) {
+            categoryMap.set(entry.wbsElement.name, { actual: 0, planned: 0 });
           }
-          const category = categoryMap.get(entry.wbs_category)!;
+          const category = categoryMap.get(entry.wbsElement.name)!;
           category.actual += entry.actual_amount || 0;
           category.planned += entry.planned_amount || 0;
         }
@@ -223,12 +221,10 @@ const ProgramDashboard: React.FC = () => {
             showAll={false}
             filterType={filterType}
             vendorFilter={vendorFilter}
-            wbsCategoryFilter={wbsCategoryFilter}
-            wbsSubcategoryFilter={wbsSubcategoryFilter}
+            wbsElementFilter={wbsElementFilter}
             setFilterType={setFilterType}
             setVendorFilter={handleSetVendorFilter}
-            setWbsCategoryFilter={handleSetWbsCategoryFilter}
-            setWbsSubcategoryFilter={handleSetWbsSubcategoryFilter}
+            setWbsElementFilter={handleSetWbsElementFilter}
           />
         </div>
       </div>

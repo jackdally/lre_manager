@@ -86,10 +86,11 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
           <h4 className="font-semibold mb-2">Required Format:</h4>
           <ul className="list-disc pl-5 space-y-1 text-sm">
             <li>File must be in Excel (.xlsx, .xls) or CSV format</li>
-            <li><b>Required columns:</b> vendor_name, expense_description, wbs_category, wbs_subcategory</li>
+            <li><b>Required columns:</b> vendor_name, expense_description, wbsElementCode</li>
             <li><b>Optional columns:</b> baseline_date, baseline_amount, planned_date, planned_amount, actual_date, actual_amount, notes, <b>invoice_link_text</b>, <b>invoice_link_url</b></li>
             <li>Dates must be in YYYY-MM-DD format</li>
             <li>Amounts must be numeric values</li>
+            <li>wbsElementCode must be a valid WBS Element code from the program's WBS structure (e.g., "1.1.1", "1.2.3")</li>
           </ul>
         </div>
 

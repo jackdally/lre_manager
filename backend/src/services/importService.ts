@@ -899,7 +899,7 @@ export class ImportService {
     await this.importTransactionRepo.save(transaction);
   }
 
-  async addUnmatchedToLedger(transactionId: string, wbsCategory: string, wbsSubcategory: string): Promise<void> {
+  async addUnmatchedToLedger(transactionId: string, wbsElementId: string): Promise<void> {
     const transaction = await this.importTransactionRepo.findOne({
       where: { id: transactionId },
       relations: ['importSession', 'importSession.program']
@@ -909,12 +909,20 @@ export class ImportService {
       throw new Error('Transaction not found');
     }
 
+    // Validate WBS element exists and belongs to this program
+    const wbsElementRepo = AppDataSource.getRepository(require('../entities/WbsElement').WbsElement);
+    const wbsElement = await wbsElementRepo.findOne({
+      where: { id: wbsElementId, program: { id: transaction.importSession.program.id } }
+    });
+    if (!wbsElement) {
+      throw new Error('Invalid WBS element ID or element does not belong to this program');
+    }
+
     // Create new ledger entry
     const ledgerEntry = this.ledgerRepo.create({
       vendor_name: transaction.vendorName,
       expense_description: transaction.description,
-      wbs_category: wbsCategory,
-      wbs_subcategory: wbsSubcategory,
+      wbsElementId: wbsElementId,
       baseline_date: null,
       baseline_amount: null,
       planned_date: null,

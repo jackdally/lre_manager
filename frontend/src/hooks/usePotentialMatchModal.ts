@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { PotentialMatchData } from '../types/actuals';
+import { PotentialMatchData, RejectedMatchData } from '../types/actuals';
 
 interface UsePotentialMatchModalReturn {
   // Modal state
@@ -10,7 +10,7 @@ interface UsePotentialMatchModalReturn {
   
   // Data state
   potentialMatches: PotentialMatchData[];
-  rejectedMatches: PotentialMatchData[];
+  rejectedMatches: RejectedMatchData[];
   isLoading: boolean;
   
   // Actions
@@ -27,10 +27,10 @@ interface UsePotentialMatchModalReturn {
   
   // State setters for immediate updates
   setPotentialMatches: (matches: PotentialMatchData[] | ((prev: PotentialMatchData[]) => PotentialMatchData[])) => void;
-  setRejectedMatches: (matches: PotentialMatchData[] | ((prev: PotentialMatchData[]) => PotentialMatchData[])) => void;
+  setRejectedMatches: (matches: RejectedMatchData[] | ((prev: RejectedMatchData[]) => RejectedMatchData[])) => void;
   
   // Computed values
-  currentMatches: PotentialMatchData[];
+  currentMatches: PotentialMatchData[] | RejectedMatchData[];
   hasMatches: boolean;
   totalMatches: number;
 }
@@ -41,7 +41,7 @@ export const usePotentialMatchModal = (programId: string): UsePotentialMatchModa
   const [currentIndex, setCurrentIndex] = useState(0);
   const [ledgerEntryId, setLedgerEntryId] = useState<string | null>(null);
   const [potentialMatches, setPotentialMatches] = useState<PotentialMatchData[]>([]);
-  const [rejectedMatches, setRejectedMatches] = useState<PotentialMatchData[]>([]);
+  const [rejectedMatches, setRejectedMatches] = useState<RejectedMatchData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Computed values
@@ -161,7 +161,7 @@ export const usePotentialMatchModal = (programId: string): UsePotentialMatchModa
           setPotentialMatches(prev => prev.filter(match => match.id !== transactionId));
           
           // Add to rejected matches
-          setRejectedMatches(prev => [...prev, { ...rejectedMatch, status: 'rejected' }]);
+          setRejectedMatches(prev => [...prev, { ...rejectedMatch, status: 'rejected' } as RejectedMatchData]);
           
           // Adjust index if needed
           const newPotentialMatches = potentialMatches.filter(match => match.id !== transactionId);
@@ -199,7 +199,7 @@ export const usePotentialMatchModal = (programId: string): UsePotentialMatchModa
           setRejectedMatches(prev => prev.filter(match => match.id !== transactionId));
           
           // Add back to potential matches
-          setPotentialMatches(prev => [...prev, { ...undoneMatch, status: 'potential' }]);
+          setPotentialMatches(prev => [...prev, { ...undoneMatch, status: 'potential' } as PotentialMatchData]);
           
           // Switch to matched tab and reset index
           setCurrentTab('matched');

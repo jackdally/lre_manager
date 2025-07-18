@@ -5,8 +5,14 @@ interface BulkEditModalProps {
   selectedCount: number;
   bulkEditFields: any;
   clearedFields: { [field: string]: boolean };
-  wbsCategoryOptions: string[];
-  wbsSubcategoryOptions: string[];
+  wbsElementOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  }>;
   vendorOptions: string[];
   isCleared: (field: string) => boolean;
   handleBulkEditFieldChange: (e: React.ChangeEvent<any>) => void;
@@ -20,8 +26,7 @@ const LedgerBulkEditModal: React.FC<BulkEditModalProps> = ({
   selectedCount,
   bulkEditFields,
   clearedFields,
-  wbsCategoryOptions,
-  wbsSubcategoryOptions,
+  wbsElementOptions,
   vendorOptions,
   isCleared,
   handleBulkEditFieldChange,
@@ -42,33 +47,25 @@ const LedgerBulkEditModal: React.FC<BulkEditModalProps> = ({
         <form onSubmit={e => { e.preventDefault(); handleBulkEditSave(); }}>
           <div className="grid grid-cols-4 gap-x-6 gap-y-4 mb-6 items-center">
             <div>
-              <label className="block font-medium text-left mb-1">WBS Category</label>
+              <label className="block font-medium text-left mb-1">WBS Element</label>
               <div className="flex items-center gap-2">
                 <select
-                  name="wbs_category"
-                  className={`input input-xs w-full rounded-md ${isCleared('wbs_category') ? 'bg-green-100 border-green-400' : bulkEditFields.wbs_category ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                  value={isCleared('wbs_category') ? '' : bulkEditFields.wbs_category || ''}
+                  name="wbsElementId"
+                  className={`input input-xs w-full rounded-md ${isCleared('wbsElementId') ? 'bg-green-100 border-green-400' : bulkEditFields.wbsElementId ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+                  value={isCleared('wbsElementId') ? '' : bulkEditFields.wbsElementId || ''}
                   onChange={handleBulkEditFieldChange}
                 >
-                  <option value="">-- Select --</option>
-                  {wbsCategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  <option value="">-- Select WBS Element --</option>
+                  {(wbsElementOptions || []).map(element => (
+                    <option key={element.id} value={element.id}>
+                      {element.code} - {element.name}
+                    </option>
+                  ))}
                 </select>
+                <button type="button" className={`ml-1 ${isCleared('wbsElementId') ? 'text-green-600' : 'text-gray-400'} hover:text-red-500`} title="Clear" onClick={() => handleBulkEditClearToggle('wbsElementId')}>🗑️</button>
               </div>
             </div>
-            <div>
-              <label className="block font-medium text-left mb-1">WBS Subcategory</label>
-              <div className="flex items-center gap-2">
-                <select
-                  name="wbs_subcategory"
-                  className={`input input-xs w-full rounded-md ${isCleared('wbs_subcategory') ? 'bg-green-100 border-green-400' : bulkEditFields.wbs_subcategory ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                  value={isCleared('wbs_subcategory') ? '' : bulkEditFields.wbs_subcategory || ''}
-                  onChange={handleBulkEditFieldChange}
-                >
-                  <option value="">-- Select --</option>
-                  {wbsSubcategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </div>
-            </div>
+            <div></div>
             <div>
               <label className="block font-medium text-left mb-1">Vendor</label>
               <div className="flex items-center gap-2">
@@ -79,7 +76,7 @@ const LedgerBulkEditModal: React.FC<BulkEditModalProps> = ({
                   onChange={handleBulkEditFieldChange}
                 >
                   <option value="">-- Select --</option>
-                  {vendorOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {(vendorOptions || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
             </div>

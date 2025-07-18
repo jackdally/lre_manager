@@ -15,8 +15,7 @@ export const programSchema = Joi.object({
 export const ledgerEntrySchema = Joi.object({
   vendor_name: Joi.string().required(),
   expense_description: Joi.string().required(),
-  wbs_category: Joi.string().required(),
-  wbs_subcategory: Joi.string().required(),
+  wbsElementCode: Joi.string().required(),
   baseline_date: Joi.date().optional(),
   baseline_amount: Joi.number().positive().optional(),
   planned_date: Joi.date().optional(),

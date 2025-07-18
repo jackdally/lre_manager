@@ -2,8 +2,15 @@ export interface LedgerEntry {
   id: string;
   vendor_name: string;
   expense_description: string;
-  wbs_category: string;
-  wbs_subcategory: string;
+  wbsElementId: string;
+  wbsElement: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  };
   baseline_date: string | null;
   baseline_amount: number | null;
   planned_date: string | null;
@@ -38,8 +45,7 @@ export interface LedgerEntry {
 export interface LedgerEntryCreateRequest {
   vendor_name: string;
   expense_description: string;
-  wbs_category: string;
-  wbs_subcategory: string;
+  wbsElementId: string;
   baseline_date?: string;
   baseline_amount?: number;
   planned_date?: string;

@@ -56,16 +56,25 @@ export async function importLedgerFromFile(filePath: string, ext: string, progra
     const row = rows[i];
     try {
       // Required fields
-      const required = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory'];
+      const required = ['vendor_name', 'expense_description', 'wbsElementCode'];
       for (const f of required) {
         if (!row[f]) throw new Error(`Missing required field: ${f}`);
       }
+
+      // Find WBS element by code
+      const wbsElementRepo = AppDataSource.getRepository(require('../entities/WbsElement').WbsElement);
+      const wbsElement = await wbsElementRepo.findOne({
+        where: { code: row.wbsElementCode, program: { id: programId } }
+      });
+      if (!wbsElement) {
+        throw new Error(`WBS element with code '${row.wbsElementCode}' not found for this program`);
+      }
+
       // Create entry
       const entry = ledgerRepo.create({
         vendor_name: row.vendor_name,
         expense_description: row.expense_description,
-        wbs_category: row.wbs_category,
-        wbs_subcategory: row.wbs_subcategory,
+        wbsElementId: wbsElement.id,
         baseline_date: row.baseline_date || null,
         baseline_amount: row.baseline_amount ? Number(row.baseline_amount) : null,
         planned_date: row.planned_date || null,
@@ -73,6 +82,8 @@ export async function importLedgerFromFile(filePath: string, ext: string, progra
         actual_date: row.actual_date || null,
         actual_amount: row.actual_amount ? Number(row.actual_amount) : null,
         notes: row.notes || null,
+        invoice_link_text: row.invoice_link_text || null,
+        invoice_link_url: row.invoice_link_url || null,
         program: program,
       });
       await ledgerRepo.save(entry);

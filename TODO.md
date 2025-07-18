@@ -4,6 +4,11 @@
 - [ ] Task 10: Add proper error handling and user feedback for modal operations
 - [ ] Task 11: Implement proper state synchronization between actuals and ledger stores
 - [ ] Task 12: Add loading states and progress indicators for modal operations 
+- [ ] Task 36: Update the Ledger Table UI/UX to be much more polished and modern. The in-line editing is good, but can be much better. The dropdowns do not match the theme and feel of the rest of the application. This needs to be upgraded in a big way. The WBS Element dropdown, for example, needs to be in a tree structure and the overall UX when editing cells needs to be cleaner and not shift around the sizing of the cells so much.
+- [x] Task 37: Ask if we should be using the ledger routes for the bulk import template instead of the index file
+  - **Decision**: Using index.ts template endpoint (simpler, no routing conflicts)
+  - **Implementation**: Updated template to use `wbsElementCode` instead of `wbsElementId` for user-friendly imports
+  - **Benefits**: Users can now use readable WBS codes (e.g., "1.1.1", "1.2.3") instead of UUIDs
 
 ## Medium Priority
 - [ ] Task 13: Fix Counting bug on Actuals Upload sessions (rejected, matched, unmatched)

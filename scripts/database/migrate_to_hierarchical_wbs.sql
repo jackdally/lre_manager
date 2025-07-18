@@ -46,48 +46,58 @@ CREATE TRIGGER trigger_update_wbs_element_updated_at
 
 -- Insert some sample hierarchical WBS elements for existing programs
 -- This will create a basic structure that can be expanded later
+-- Only insert if no WBS elements exist for the program to prevent duplicates
 DO $$
 DECLARE
     program_record RECORD;
     root_element_id uuid;
     child_element_id uuid;
+    existing_count integer;
 BEGIN
     FOR program_record IN SELECT id, code, name FROM program LOOP
-        -- Create root level elements (similar to the default WBS template)
+        -- Check if WBS elements already exist for this program
+        SELECT COUNT(*) INTO existing_count 
+        FROM wbs_element 
+        WHERE "programId" = program_record.id;
         
-        -- Project Management
-        INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
-        VALUES (gen_random_uuid(), '1.0', 'Project Management', 'Project management and oversight activities', 1, NULL, program_record.id)
-        RETURNING id INTO root_element_id;
-        
-        -- Add children to Project Management
-        INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
-        VALUES 
-            (gen_random_uuid(), '1.1', 'Planning', 'Project planning and scheduling', 2, root_element_id, program_record.id),
-            (gen_random_uuid(), '1.2', 'Monitoring & Control', 'Project monitoring and control activities', 2, root_element_id, program_record.id);
-        
-        -- Technical Development
-        INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
-        VALUES (gen_random_uuid(), '2.0', 'Technical Development', 'Technical development activities', 1, NULL, program_record.id)
-        RETURNING id INTO root_element_id;
-        
-        -- Add children to Technical Development
-        INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
-        VALUES 
-            (gen_random_uuid(), '2.1', 'Design', 'System and component design', 2, root_element_id, program_record.id),
-            (gen_random_uuid(), '2.2', 'Implementation', 'System implementation and coding', 2, root_element_id, program_record.id),
-            (gen_random_uuid(), '2.3', 'Testing', 'System testing and validation', 2, root_element_id, program_record.id);
-        
-        -- Integration & Deployment
-        INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
-        VALUES (gen_random_uuid(), '3.0', 'Integration & Deployment', 'System integration and deployment activities', 1, NULL, program_record.id)
-        RETURNING id INTO root_element_id;
-        
-        -- Add children to Integration & Deployment
-        INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
-        VALUES 
-            (gen_random_uuid(), '3.1', 'Integration', 'System integration activities', 2, root_element_id, program_record.id),
-            (gen_random_uuid(), '3.2', 'Deployment', 'System deployment and delivery', 2, root_element_id, program_record.id);
+        -- Only create elements if none exist
+        IF existing_count = 0 THEN
+            -- Create root level elements (similar to the default WBS template)
+            
+            -- Project Management
+            INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
+            VALUES (gen_random_uuid(), '1.0', 'Project Management', 'Project management and oversight activities', 1, NULL, program_record.id)
+            RETURNING id INTO root_element_id;
+            
+            -- Add children to Project Management
+            INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
+            VALUES 
+                (gen_random_uuid(), '1.1', 'Planning', 'Project planning and scheduling', 2, root_element_id, program_record.id),
+                (gen_random_uuid(), '1.2', 'Monitoring & Control', 'Project monitoring and control activities', 2, root_element_id, program_record.id);
+            
+            -- Technical Development
+            INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
+            VALUES (gen_random_uuid(), '2.0', 'Technical Development', 'Technical development activities', 1, NULL, program_record.id)
+            RETURNING id INTO root_element_id;
+            
+            -- Add children to Technical Development
+            INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
+            VALUES 
+                (gen_random_uuid(), '2.1', 'Design', 'System and component design', 2, root_element_id, program_record.id),
+                (gen_random_uuid(), '2.2', 'Implementation', 'System implementation and coding', 2, root_element_id, program_record.id),
+                (gen_random_uuid(), '2.3', 'Testing', 'System testing and validation', 2, root_element_id, program_record.id);
+            
+            -- Integration & Deployment
+            INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
+            VALUES (gen_random_uuid(), '3.0', 'Integration & Deployment', 'System integration and deployment activities', 1, NULL, program_record.id)
+            RETURNING id INTO root_element_id;
+            
+            -- Add children to Integration & Deployment
+            INSERT INTO wbs_element (id, code, name, description, level, "parentId", "programId")
+            VALUES 
+                (gen_random_uuid(), '3.1', 'Integration', 'System integration activities', 2, root_element_id, program_record.id),
+                (gen_random_uuid(), '3.2', 'Deployment', 'System deployment and delivery', 2, root_element_id, program_record.id);
+        END IF;
     END LOOP;
 END $$;
 

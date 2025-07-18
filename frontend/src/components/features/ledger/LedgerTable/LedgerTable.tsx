@@ -27,8 +27,7 @@ import {
   useLedgerFetchEntries,
   useLedgerSetFilterType,
   useLedgerSetVendorFilter,
-  useLedgerSetWbsCategoryFilter,
-  useLedgerSetWbsSubcategoryFilter,
+  useLedgerSetWbsElementFilter,
   useLedgerSetSearch,
   useLedgerSetPage,
   useLedgerSetShowAll,
@@ -77,15 +76,13 @@ interface LedgerTableProps {
   programId: string;
   showAll?: boolean;
   onChange?: () => void;
-  onOptionsUpdate?: (options: { vendors: string[], categories: string[], subcategories: string[] }) => void;
+  onOptionsUpdate?: (options: { vendors: string[], wbsElements: Array<{ id: string; code: string; name: string; description: string; level: number; parentId?: string; }> }) => void;
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
-  wbsCategoryFilter?: string;
-  wbsSubcategoryFilter?: string;
+  wbsElementFilter?: string;
   setFilterType: (type: 'all' | 'currentMonthPlanned' | 'emptyActuals') => void;
   setVendorFilter: (vendor: string | undefined) => void;
-  setWbsCategoryFilter: (cat: string | undefined) => void;
-  setWbsSubcategoryFilter: (subcat: string | undefined) => void;
+  setWbsElementFilter: (elementId: string | undefined) => void;
 }
 
 const PAGE_SIZE = 10;
@@ -103,12 +100,10 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   onOptionsUpdate, 
   filterType, 
   vendorFilter, 
-  wbsCategoryFilter, 
-  wbsSubcategoryFilter, 
+  wbsElementFilter, 
   setFilterType, 
   setVendorFilter, 
-  setWbsCategoryFilter, 
-  setWbsSubcategoryFilter 
+  setWbsElementFilter 
 }) => {
   // Zustand store state
   const entries = useLedgerEntries();
@@ -124,8 +119,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const fetchEntries = useLedgerFetchEntries();
   const setFilterTypeAction = useLedgerSetFilterType();
   const setVendorFilterAction = useLedgerSetVendorFilter();
-  const setWbsCategoryFilterAction = useLedgerSetWbsCategoryFilter();
-  const setWbsSubcategoryFilterAction = useLedgerSetWbsSubcategoryFilter();
+  const setWbsElementFilterAction = useLedgerSetWbsElementFilter();
   const setSearch = useLedgerSetSearch();
   const setPage = useLedgerSetPage();
   const setShowAllAction = useLedgerSetShowAll();
@@ -218,20 +212,20 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
     if (filters.vendorFilter !== vendorFilter) {
       setVendorFilterAction(vendorFilter);
     }
-    if (filters.wbsCategoryFilter !== wbsCategoryFilter) {
-      setWbsCategoryFilterAction(wbsCategoryFilter);
+    if (filters.wbsElementFilter !== wbsElementFilter) {
+      setWbsElementFilterAction(wbsElementFilter);
     }
-    if (filters.wbsSubcategoryFilter !== wbsSubcategoryFilter) {
-      setWbsSubcategoryFilterAction(wbsSubcategoryFilter);
-    }
-  }, [filterType, vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter]); // Remove store filters from dependencies to prevent loops
+  }, [filterType, vendorFilter, wbsElementFilter]); // Remove store filters from dependencies to prevent loops
 
   // Sync store state with parent component - only when dropdown options actually change
   useEffect(() => {
     if (onOptionsUpdate && dropdownOptions.vendors.length > 0) {
-      onOptionsUpdate(dropdownOptions);
+      onOptionsUpdate({
+        vendors: dropdownOptions.vendors,
+        wbsElements: dropdownOptions.wbsElements
+      });
     }
-  }, [dropdownOptions.vendors, dropdownOptions.categories, dropdownOptions.subcategories, onOptionsUpdate]);
+  }, [dropdownOptions.vendors, dropdownOptions.wbsElements, onOptionsUpdate]);
 
   // Handle search with debouncing
   const handleSearchChange = useCallback((newSearch: string) => {
@@ -454,13 +448,10 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         onBulkDelete={() => setShowBulkDeleteModal(true)}
         vendorFilter={filters.vendorFilter}
         setVendorFilter={setVendorFilterAction}
-        wbsCategoryFilter={filters.wbsCategoryFilter}
-        setWbsCategoryFilter={setWbsCategoryFilterAction}
-        wbsSubcategoryFilter={filters.wbsSubcategoryFilter}
-        setWbsSubcategoryFilter={setWbsSubcategoryFilterAction}
+        wbsElementFilter={filters.wbsElementFilter}
+        setWbsElementFilter={setWbsElementFilterAction}
         vendorOptions={dropdownOptions.vendors}
-        wbsCategoryOptions={dropdownOptions.categories}
-        wbsSubcategoryOptions={dropdownOptions.subcategories}
+        wbsElementOptions={dropdownOptions.wbsElements}
       />
 
       {ui.showErrorModal && ui.error && (
@@ -477,8 +468,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
           selectedCount={ui.selectedRows.length}
           bulkEditFields={ui.bulkEditFields}
           clearedFields={ui.clearedFields}
-          wbsCategoryOptions={dropdownOptions.categories}
-          wbsSubcategoryOptions={dropdownOptions.subcategories}
+          wbsElementOptions={dropdownOptions.wbsElements}
           vendorOptions={dropdownOptions.vendors}
           isCleared={(field: string) => ui.clearedFields[field]}
           handleBulkEditFieldChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -532,8 +522,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         loadingPotential={potentialMatchModal?.isLoading || false}
         loading={ui.loading}
         searchLoading={ui.searchLoading}
-        wbsCategoryOptions={dropdownOptions.categories}
-        wbsSubcategoryOptions={dropdownOptions.subcategories}
+        dropdownOptions={dropdownOptions}
         vendorOptions={dropdownOptions.vendors}
         handleSelectAll={selectAll}
         handleSelectRow={selectRow}
@@ -580,8 +569,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         programId={programId}
         filterType={filters.filterType}
         vendorFilter={filters.vendorFilter}
-        wbsCategoryFilter={filters.wbsCategoryFilter}
-        wbsSubcategoryFilter={filters.wbsSubcategoryFilter}
+        wbsElementFilter={filters.wbsElementFilter}
         setShowPotentialModal={potentialMatchModal?.closeModal || (() => {})}
         potentialTab={potentialMatchModal?.currentTab || 'matched'}
         potentialMatched={potentialMatchModal?.potentialMatches || []}

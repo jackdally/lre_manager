@@ -14,8 +14,14 @@ interface LedgerTableRowProps {
   cellEditValue: any;
   hasPotentialMatches: boolean;
   hasRejectedMatches: boolean;
-  wbsCategoryOptions: string[];
-  wbsSubcategoryOptions: string[];
+  wbsElementOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  }>;
   vendorOptions: string[];
   formatCurrency: (val: any) => string;
   onSelect: (id: string) => void;
@@ -39,8 +45,7 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
   cellEditValue,
   hasPotentialMatches,
   hasRejectedMatches,
-  wbsCategoryOptions,
-  wbsSubcategoryOptions,
+  wbsElementOptions,
   vendorOptions,
   formatCurrency,
   onSelect,
@@ -59,7 +64,7 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
     
     if (isEditingThisCell) {
       console.log('🟢 Rendering edit input for field:', field);
-      if (field === 'wbs_category' || field === 'wbs_subcategory' || field === 'vendor_name') {
+      if (field === 'wbsElementId' || field === 'vendor_name') {
         return (
           <select
             className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
@@ -70,7 +75,12 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
             autoFocus
           >
             <option value="">-- Select --</option>
-            {options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {field === 'wbsElementId' && wbsElementOptions?.map(element => (
+              <option key={element.id} value={element.id}>
+                {element.code} - {element.name}
+              </option>
+            ))}
+            {field === 'vendor_name' && options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         );
       } else if (field === 'expense_description') {
@@ -145,26 +155,15 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
         />
       </td>
       
-      {/* WBS Category */}
+      {/* WBS Element */}
       <td 
         className="px-2 py-1" 
         onClick={() => {
-          console.log('🔵 WBS Category clicked:', { id: entry.id, value: entry.wbs_category });
-          onCellClick(entry.id, 'wbs_category', entry.wbs_category);
+          console.log('🔵 WBS Element clicked:', { id: entry.id, value: entry.wbsElement?.code });
+          onCellClick(entry.id, 'wbsElementId', entry.wbsElement?.id);
         }}
       >
-        {renderCell('wbs_category', entry.wbs_category, wbsCategoryOptions)}
-      </td>
-      
-      {/* WBS Subcategory */}
-      <td 
-        className="px-2 py-1" 
-        onClick={() => {
-          console.log('🔵 WBS Subcategory clicked:', { id: entry.id, value: entry.wbs_subcategory });
-          onCellClick(entry.id, 'wbs_subcategory', entry.wbs_subcategory);
-        }}
-      >
-        {renderCell('wbs_subcategory', entry.wbs_subcategory, wbsSubcategoryOptions)}
+        {renderCell('wbsElementId', entry.wbsElement ? `${entry.wbsElement.code} - ${entry.wbsElement.name}` : '', undefined)}
       </td>
       
       {/* Vendor */}

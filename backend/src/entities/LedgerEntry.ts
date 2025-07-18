@@ -13,14 +13,7 @@ export class LedgerEntry {
   @Column('text')
   expense_description!: string;
 
-  // Legacy fields for backward compatibility
-  @Column()
-  wbs_category!: string;
-
-  @Column()
-  wbs_subcategory!: string;
-
-  // New hierarchical WBS reference
+  // Hierarchical WBS reference
   @Column({ nullable: true })
   wbsElementId?: string;
 

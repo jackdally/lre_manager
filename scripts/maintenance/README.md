@@ -9,6 +9,7 @@ This folder contains scripts for cleaning up and maintaining the development and
 - `clean.sh`: General cleanup script for various temporary or unnecessary files.
 - `reset_wbs_templates.sh`: Resets WBS templates to the default template in the database.
 - `migrate_to_hierarchical_wbs.sh`: Migrates database to support hierarchical WBS structure.
+- `cleanup_duplicate_wbs_elements.sh`: Removes duplicate WBS elements from the database.
 
 ## WBS Template Reset
 
@@ -67,4 +68,34 @@ This folder contains scripts for cleaning up and maintaining the development and
 - You can gradually migrate ledger entries to use the new structure
 - The WbsTreeView component can be integrated into program settings
 
-**Safety**: Creates a backup before running the migration. 
+**Safety**: Creates a backup before running the migration.
+
+## WBS Element Cleanup
+
+### `cleanup_duplicate_wbs_elements.sh`
+
+**Purpose**: Removes duplicate WBS elements that may have been created by running the migration multiple times.
+
+**What it does**:
+- Creates a database backup before cleanup
+- Identifies duplicate WBS elements by code, name, and program
+- Keeps the earliest created element and removes duplicates
+- Verifies the cleanup was successful
+- Shows final element counts by program
+
+**Prerequisites**:
+- Docker containers must be running
+- PostgreSQL database container must be accessible
+
+**Usage**:
+```bash
+# From the project root
+./scripts/maintenance/cleanup_duplicate_wbs_elements.sh
+```
+
+**After running**:
+- Restart the backend container to pick up the changes
+- The duplicate WBS elements have been removed
+- The WBS reporting should now show clean, non-duplicate data
+
+**Safety**: Creates a backup before running the cleanup. 

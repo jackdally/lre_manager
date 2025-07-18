@@ -9,6 +9,7 @@ import { wbsRouter } from './routes/wbs';
 import wbsElementsRouter from './routes/wbsElements';
 import { importRouter } from './routes/import';
 import settingsRouter from './routes/settings';
+import wbsReportingRouter from './routes/wbsReporting';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 
@@ -46,6 +47,7 @@ app.use('/api/programs', programRouter);
 app.use('/api/programs', ledgerRouter);
 app.use('/api/programs', wbsRouter);
 app.use('/api/programs', wbsElementsRouter);
+app.use('/api/programs', wbsReportingRouter);
 app.use('/api/import', importRouter);
 app.use('/api/settings', settingsRouter);
 
@@ -54,8 +56,7 @@ app.get('/api/ledger/template', (req, res) => {
   const headers = [
     'vendor_name',
     'expense_description',
-    'wbs_category',
-    'wbs_subcategory',
+    'wbsElementCode',
     'baseline_date',
     'baseline_amount',
     'planned_date',
@@ -72,6 +73,9 @@ app.get('/api/ledger/template', (req, res) => {
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   res.setHeader('Content-Disposition', 'attachment; filename="ledger_template.xlsx"');
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.send(buffer);
 });
 

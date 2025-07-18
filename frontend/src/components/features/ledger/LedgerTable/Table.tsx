@@ -5,38 +5,7 @@ import type { LedgerEntry } from '../../../../types/ledger';
 import { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
 import { useLedgerUI } from '../../../../store/ledgerStore';
 
-// Type for potential match objects
-export interface PotentialMatch {
-  id: string;
-  vendorName: string;
-  description: string;
-  amount: number;
-  transactionDate: string;
-  status: string;
-  actualsUploadSession?: {
-    id: string;
-    originalFilename: string;
-    description: string;
-    createdAt: string;
-  } | null;
-  matchConfidence?: number;
-  confidence?: number;
-  // Add the ledgerEntry property that the API now returns
-  ledgerEntry?: {
-    id: string;
-    vendor_name: string;
-    expense_description: string;
-    planned_amount: number;
-    planned_date: string;
-    wbs_category: string;
-    wbs_subcategory: string;
-    actual_amount?: number;
-    actual_date?: string;
-    notes?: string;
-    invoice_link_text?: string;
-    invoice_link_url?: string;
-  };
-}
+
 
 interface LedgerTableTableProps {
   // Data
@@ -67,9 +36,18 @@ interface LedgerTableTableProps {
   searchLoading?: boolean;
   
   // Options
-  wbsCategoryOptions: string[];
-  wbsSubcategoryOptions: string[];
   vendorOptions: string[];
+  dropdownOptions: {
+    vendors: string[];
+    wbsElements: Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      level: number;
+      parentId?: string;
+    }>;
+  };
   
   // Handlers
   handleSelectAll: () => void;
@@ -103,13 +81,12 @@ interface LedgerTableTableProps {
   // Add filter props
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
-  wbsCategoryFilter?: string;
-  wbsSubcategoryFilter?: string;
+  wbsElementFilter?: string;
   potentialTab: 'matched' | 'rejected';
-  potentialMatched: PotentialMatch[];
-  setPotentialMatched: (matches: PotentialMatch[] | ((prev: PotentialMatch[]) => PotentialMatch[])) => void;
-  potentialRejected: PotentialMatch[];
-  setPotentialRejected: (matches: PotentialMatch[] | ((prev: PotentialMatch[]) => PotentialMatch[])) => void;
+  potentialMatched: PotentialMatchData[];
+  setPotentialMatched: (matches: PotentialMatchData[] | ((prev: PotentialMatchData[]) => PotentialMatchData[])) => void;
+  potentialRejected: RejectedMatchData[];
+  setPotentialRejected: (matches: RejectedMatchData[] | ((prev: RejectedMatchData[]) => RejectedMatchData[])) => void;
   setToast: (toast: any) => void;
   setEntriesWithRejectedMatches: (set: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setPotentialMatchIds: (ids: string[] | ((prev: string[]) => string[])) => void;
@@ -154,9 +131,8 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     loadingPotential,
     loading = false,
     searchLoading = false,
-    wbsCategoryOptions,
-    wbsSubcategoryOptions,
     vendorOptions,
+    dropdownOptions,
     handleSelectAll,
     handleSelectRow,
     handleCellClick,
@@ -184,8 +160,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     programId,
     filterType,
     vendorFilter,
-    wbsCategoryFilter,
-    wbsSubcategoryFilter,
+    wbsElementFilter,
     setShowPotentialModal,
     potentialTab,
     potentialMatched,
@@ -291,8 +266,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
           <thead>
             <tr className="bg-gray-50">
               <th className="px-2 py-2"><input type="checkbox" checked={selectedRows.length === sortedEntries.length && sortedEntries.length > 0} onChange={handleSelectAll} /></th>
-              <th className="px-2 py-2">WBS Category</th>
-              <th className="px-2 py-2">WBS Subcategory</th>
+              <th className="px-2 py-2">WBS Element</th>
               <th className="px-2 py-2">Vendor</th>
               <th className="px-2 py-2 w-64 max-w-xl">Description</th>
               <th className="px-2 py-2 w-28 max-w-[7rem]">Invoice Link</th>
@@ -349,50 +323,31 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   }
                 >
                   <td className="px-2 py-1"><input type="checkbox" checked={selectedRows.includes(entry.id)} onChange={() => handleSelectRow(entry.id)} /></td>
-                  {/* WBS Category (dropdown) */}
+                  {/* WBS Element (dropdown) */}
                   <td 
                     className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'wbs_category', entry.wbs_category)}
+                    onClick={() => handleCellClick(entry.id, 'wbsElementId', entry.wbsElementId)}
                     onKeyDown={(e) => handleKeyDown(e, idx, 1)}
                     tabIndex={0}
                   >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'wbs_category' ? (
+                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'wbsElementId' ? (
                       <select
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
                         onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbs_category', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbs_category')}
+                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbsElementId', e.target.value)}
+                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbsElementId')}
                         autoFocus
                       >
-                        <option value="">-- Select --</option>
-                        {wbsCategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        <option value="">-- Select WBS Element --</option>
+                        {(dropdownOptions.wbsElements || []).map(element => (
+                          <option key={element.id} value={element.id}>
+                            {element.code} - {element.name}
+                          </option>
+                        ))}
                       </select>
                     ) : (
-                      entry.wbs_category
-                    )}
-                  </td>
-                  {/* WBS Subcategory (dropdown) */}
-                  <td 
-                    className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'wbs_subcategory', entry.wbs_subcategory)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 2)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'wbs_subcategory' ? (
-                      <select
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbs_subcategory', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbs_subcategory')}
-                        autoFocus
-                      >
-                        <option value="">-- Select --</option>
-                        {wbsSubcategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    ) : (
-                      entry.wbs_subcategory
+                      entry.wbsElement ? `${entry.wbsElement.code} - ${entry.wbsElement.name}` : '--'
                     )}
                   </td>
                   {/* Vendor (dropdown) */}
@@ -412,7 +367,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                         autoFocus
                       >
                         <option value="">-- Select --</option>
-                        {vendorOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        {(vendorOptions || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                       </select>
                     ) : (
                       entry.vendor_name
@@ -759,8 +714,14 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                         return localDate.toLocaleDateString();
                       })()
                     }</span></div>
-                    <div><b className="text-gray-600">WBS Category:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.wbs_category || '--'}</span></div>
-                    <div><b className="text-gray-600">WBS Subcategory:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.wbs_subcategory || '--'}</span></div>
+                    <div><b className="text-gray-600">WBS Element:</b> <span className="text-gray-900">
+                      {(() => {
+                        const entry = sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId);
+                        return entry?.wbsElement ? 
+                          `${entry.wbsElement.code} - ${entry.wbsElement.name}` : 
+                          '--';
+                      })()}
+                    </span></div>
                     {sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.notes && (
                       <div><b className="text-gray-600">Notes:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.notes}</span></div>
                     )}
@@ -966,9 +927,8 @@ const arePropsEqual = (prevProps: Omit<LedgerTableTableProps, 'potentialMatchIds
     prevProps.loadingPotential === nextProps.loadingPotential &&
     prevProps.loading === nextProps.loading &&
     prevProps.searchLoading === nextProps.searchLoading &&
-    prevProps.wbsCategoryOptions === nextProps.wbsCategoryOptions &&
-    prevProps.wbsSubcategoryOptions === nextProps.wbsSubcategoryOptions &&
     prevProps.vendorOptions === nextProps.vendorOptions &&
+    prevProps.dropdownOptions === nextProps.dropdownOptions &&
     prevProps.handleSelectAll === nextProps.handleSelectAll &&
     prevProps.handleSelectRow === nextProps.handleSelectRow &&
     prevProps.handleCellClick === nextProps.handleCellClick &&
@@ -996,8 +956,7 @@ const arePropsEqual = (prevProps: Omit<LedgerTableTableProps, 'potentialMatchIds
     prevProps.programId === nextProps.programId &&
     prevProps.filterType === nextProps.filterType &&
     prevProps.vendorFilter === nextProps.vendorFilter &&
-    prevProps.wbsCategoryFilter === nextProps.wbsCategoryFilter &&
-    prevProps.wbsSubcategoryFilter === nextProps.wbsSubcategoryFilter &&
+    prevProps.wbsElementFilter === nextProps.wbsElementFilter &&
     prevProps.setShowPotentialModal === nextProps.setShowPotentialModal &&
     prevProps.potentialTab === nextProps.potentialTab &&
     prevProps.potentialMatched === nextProps.potentialMatched &&

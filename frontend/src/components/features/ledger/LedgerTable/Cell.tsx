@@ -44,7 +44,7 @@ const LedgerTableCell: React.FC<LedgerTableCellProps> = ({
           autoFocus
         >
           <option value="">-- Select --</option>
-          {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          {(options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
       );
     } else if (field === 'expense_description') {

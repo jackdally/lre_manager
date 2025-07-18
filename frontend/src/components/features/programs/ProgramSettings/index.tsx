@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../layout';
 import WbsTreeView from '../WbsTreeView';
+import WbsRollupReport from '../WbsRollupReport';
 
 // Types for WBS
 interface WbsSubcategory {
@@ -27,7 +28,7 @@ const ProgramSettingsPage: React.FC = () => {
   const [wbsEdit, setWbsEdit] = useState<WbsCategory[]>([]);
   const [wbsError, setWbsError] = useState<string | null>(null);
   const [wbsSuccess, setWbsSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'wbs' | 'hierarchical-wbs'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'wbs' | 'hierarchical-wbs' | 'wbs-reporting'>('info');
   const [selectedWbsElement, setSelectedWbsElement] = useState<any>(null);
 
   // Fetch program info and WBS
@@ -251,6 +252,16 @@ const ProgramSettingsPage: React.FC = () => {
                 >
                   WBS (Hierarchical)
                 </button>
+                <button
+                  onClick={() => setActiveTab('wbs-reporting')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'wbs-reporting'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  WBS Reporting
+                </button>
               </nav>
             </div>
 
@@ -378,6 +389,7 @@ const ProgramSettingsPage: React.FC = () => {
                     <li>Search by code or name</li>
                     <li>Unlimited hierarchy levels</li>
                     <li>Code-based organization (e.g., "1.1", "2.3.1")</li>
+                    <li>Cost roll-up reporting</li>
                   </ul>
                 </div>
                 
@@ -396,6 +408,17 @@ const ProgramSettingsPage: React.FC = () => {
                   onElementSelect={setSelectedWbsElement}
                   selectedElementId={selectedWbsElement?.id}
                 />
+              </section>
+            )}
+
+            {activeTab === 'wbs-reporting' && (
+              <section className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-xl font-bold mb-4">WBS Cost Roll-up Report</h2>
+                <div className="mb-4 text-sm text-gray-600">
+                  <p>View cost roll-up reports for the hierarchical WBS structure with performance metrics.</p>
+                </div>
+                
+                <WbsRollupReport programId={id!} />
               </section>
             )}
           </>

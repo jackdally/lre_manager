@@ -17,8 +17,7 @@ interface Match {
 export interface LedgerFilters {
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
-  wbsCategoryFilter?: string;
-  wbsSubcategoryFilter?: string;
+  wbsElementFilter?: string;
   search: string;
 }
 
@@ -49,8 +48,14 @@ export interface LedgerUIState {
 
 export interface LedgerDropdownOptions {
   vendors: string[];
-  categories: string[];
-  subcategories: string[];
+  wbsElements: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  }>;
 }
 
 interface LedgerStoreState {
@@ -98,8 +103,7 @@ interface LedgerStoreState {
   // Filter actions
   setFilterType: (type: 'all' | 'currentMonthPlanned' | 'emptyActuals') => void;
   setVendorFilter: (vendor: string | undefined) => void;
-  setWbsCategoryFilter: (cat: string | undefined) => void;
-  setWbsSubcategoryFilter: (subcat: string | undefined) => void;
+  setWbsElementFilter: (elementId: string | undefined) => void;
   setSearch: (search: string) => void;
   setPage: (page: number) => void;
   setShowAll: (showAll: boolean) => void;
@@ -168,7 +172,7 @@ interface LedgerStoreState {
 
 // Constants
 const PAGE_SIZE = 10;
-const requiredFields = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory'];
+const requiredFields = ['vendor_name', 'expense_description', 'wbsElementId'];
 
 // Helper functions
 const formatCurrency = (val: number | string | undefined | null) => {
@@ -197,8 +201,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
         filters: {
           filterType: 'all',
           vendorFilter: undefined,
-          wbsCategoryFilter: undefined,
-          wbsSubcategoryFilter: undefined,
+          wbsElementFilter: undefined,
           search: '',
         },
         ui: {
@@ -281,8 +284,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
             if (filters.search) params.append('search', filters.search);
             if (filters.filterType !== 'all') params.append('filterType', filters.filterType);
             if (filters.vendorFilter) params.append('vendorFilter', filters.vendorFilter);
-            if (filters.wbsCategoryFilter) params.append('wbsCategoryFilter', filters.wbsCategoryFilter);
-            if (filters.wbsSubcategoryFilter) params.append('wbsSubcategoryFilter', filters.wbsSubcategoryFilter);
+            if (filters.wbsElementFilter) params.append('wbsElementFilter', filters.wbsElementFilter);
 
             const response = await axios.get(`/api/programs/${programId}/ledger?${params}`);
             
@@ -320,12 +322,18 @@ export const useLedgerStore = create<LedgerStoreState>()(
           try {
             const response = await axios.get(`/api/programs/${programId}/ledger/dropdown-options`);
             if (response.data) {
-              const { vendors, categories, subcategories } = response.data as {
+              const { vendors, wbsElements } = response.data as {
                 vendors: string[];
-                categories: string[];
-                subcategories: string[];
+                wbsElements: Array<{
+                  id: string;
+                  code: string;
+                  name: string;
+                  description: string;
+                  level: number;
+                  parentId?: string;
+                }>;
               };
-              set({ dropdownOptions: { vendors, categories, subcategories } });
+              set({ dropdownOptions: { vendors, wbsElements } });
             }
           } catch (error) {
             console.error('Failed to fetch dropdown options:', error);
@@ -380,18 +388,10 @@ export const useLedgerStore = create<LedgerStoreState>()(
           }
         },
 
-        setWbsCategoryFilter: (cat) => {
+        setWbsElementFilter: (elementId: string | undefined) => {
           const currentFilters = get().filters;
-          if (currentFilters.wbsCategoryFilter !== cat) {
-            set({ filters: { ...currentFilters, wbsCategoryFilter: cat } });
-            get().fetchEntries();
-          }
-        },
-
-        setWbsSubcategoryFilter: (subcat) => {
-          const currentFilters = get().filters;
-          if (currentFilters.wbsSubcategoryFilter !== subcat) {
-            set({ filters: { ...currentFilters, wbsSubcategoryFilter: subcat } });
+          if (currentFilters.wbsElementFilter !== elementId) {
+            set({ filters: { ...currentFilters, wbsElementFilter: elementId } });
             get().fetchEntries();
           }
         },
@@ -544,8 +544,15 @@ export const useLedgerStore = create<LedgerStoreState>()(
             id: tempId,
             vendor_name: '',
             expense_description: '',
-            wbs_category: '',
-            wbs_subcategory: '',
+            wbsElementId: '',
+            wbsElement: {
+              id: '',
+              code: '',
+              name: '',
+              description: '',
+              level: 1,
+              parentId: undefined
+            },
             baseline_date: '',
             baseline_amount: 0,
             planned_date: '',
@@ -561,7 +568,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
 
           set({
             entries: [newEntry, ...entries],
-            ui: { ...ui, newRowId: tempId, editingCell: { rowId: tempId, field: 'wbs_category' } }
+            ui: { ...ui, newRowId: tempId, editingCell: { rowId: tempId, field: 'wbsElementId' } }
           });
         },
 
@@ -931,8 +938,7 @@ export const useLedgerRefreshRejectedMatchIds = () => useLedgerStore(state => st
 // Filter actions
 export const useLedgerSetFilterType = () => useLedgerStore(state => state.setFilterType);
 export const useLedgerSetVendorFilter = () => useLedgerStore(state => state.setVendorFilter);
-export const useLedgerSetWbsCategoryFilter = () => useLedgerStore(state => state.setWbsCategoryFilter);
-export const useLedgerSetWbsSubcategoryFilter = () => useLedgerStore(state => state.setWbsSubcategoryFilter);
+export const useLedgerSetWbsElementFilter = () => useLedgerStore(state => state.setWbsElementFilter);
 export const useLedgerSetSearch = () => useLedgerStore(state => state.setSearch);
 export const useLedgerSetPage = () => useLedgerStore(state => state.setPage);
 export const useLedgerSetShowAll = () => useLedgerStore(state => state.setShowAll);
@@ -996,8 +1002,7 @@ export const useLedgerActions = () => {
   const fetchEntries = useLedgerFetchEntries();
   const setFilterType = useLedgerSetFilterType();
   const setVendorFilter = useLedgerSetVendorFilter();
-  const setWbsCategoryFilter = useLedgerSetWbsCategoryFilter();
-  const setWbsSubcategoryFilter = useLedgerSetWbsSubcategoryFilter();
+  const setWbsElementFilter = useLedgerSetWbsElementFilter();
   const setSearch = useLedgerSetSearch();
   const setPage = useLedgerSetPage();
   const setShowAll = useLedgerSetShowAll();
@@ -1045,8 +1050,7 @@ export const useLedgerActions = () => {
     fetchEntries,
     setFilterType,
     setVendorFilter,
-    setWbsCategoryFilter,
-    setWbsSubcategoryFilter,
+    setWbsElementFilter,
     setSearch,
     setPage,
     setShowAll,
@@ -1093,8 +1097,7 @@ export const useLedgerActions = () => {
     fetchEntries,
     setFilterType,
     setVendorFilter,
-    setWbsCategoryFilter,
-    setWbsSubcategoryFilter,
+    setWbsElementFilter,
     setSearch,
     setPage,
     setShowAll,

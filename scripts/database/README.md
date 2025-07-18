@@ -36,7 +36,7 @@ This folder contains SQL scripts for database operations and maintenance.
 **What it does**:
 - Creates the new `wbs_element` table with hierarchical structure support
 - Adds `wbs_element_id` column to `ledger_entry` table for backward compatibility
-- Creates sample hierarchical WBS elements for existing programs
+- Creates sample hierarchical WBS elements for existing programs (only if none exist)
 - Updates existing ledger entries to reference the new WBS elements
 - Adds database indexes for performance optimization
 - Creates triggers for automatic timestamp updates
@@ -46,6 +46,21 @@ This folder contains SQL scripts for database operations and maintenance.
 - **Code-based Organization**: Each element has a unique code (e.g., "1.1", "2.3.1")
 - **Backward Compatibility**: Maintains existing ledger entries while adding new structure
 - **Performance Optimized**: Includes indexes for fast queries and joins
+- **Duplicate Prevention**: Checks for existing elements before creating new ones
+
+### `cleanup_duplicate_wbs_elements.sql`
+
+**Purpose**: Removes duplicate WBS elements that may have been created by running the migration multiple times.
+
+**What it does**:
+- Identifies duplicate WBS elements by code, name, and program
+- Keeps the earliest created element and removes duplicates
+- Verifies cleanup was successful
+- Shows final element counts by program
+
+**Usage**: This script is typically executed by the maintenance script `../maintenance/cleanup_duplicate_wbs_elements.sh`
+
+**Note**: This script creates a backup before performing cleanup operations.
 
 **Usage**: This script is typically executed by the maintenance script `../maintenance/migrate_to_hierarchical_wbs.sh`
 
