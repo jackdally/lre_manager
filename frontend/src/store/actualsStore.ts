@@ -117,7 +117,7 @@ interface ActualsStoreState {
   handleCopyConfig: (config: ActualsUploadConfig, targetProgramId: string) => Promise<void>;
   
   // Transaction operations
-  addToLedger: (transactionId: string, wbsCategory: string, wbsSubcategory: string) => Promise<void>;
+  addToLedger: (transactionId: string, wbsElementId: string) => Promise<void>;
   handleIgnoreDuplicate: (transactionId: string) => Promise<void>;
   handleRejectDuplicate: (transactionId: string) => Promise<void>;
   handleAcceptAndReplaceOriginal: (transactionId: string, duplicateOfId: string | null | undefined) => Promise<void>;
@@ -534,11 +534,10 @@ export const useActualsStore = create<ActualsStoreState>()(
         },
         
         // Transaction operations
-        addToLedger: async (transactionId: string, wbsCategory: string, wbsSubcategory: string) => {
+        addToLedger: async (transactionId: string, wbsElementId: string) => {
           try {
             await axios.post(`/api/import/transaction/${transactionId}/add-to-ledger`, {
-              wbsCategory,
-              wbsSubcategory
+              wbsElementId
             });
             
             // Refresh session details

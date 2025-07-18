@@ -5,7 +5,7 @@ import swaggerUi from 'swagger-ui-express';
 import { AppDataSource } from './config/database';
 import { programRouter } from './routes/program';
 import { ledgerRouter } from './routes/ledger';
-import { wbsRouter } from './routes/wbs';
+
 import wbsElementsRouter from './routes/wbsElements';
 import { importRouter } from './routes/import';
 import settingsRouter from './routes/settings';
@@ -45,7 +45,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // Routes
 app.use('/api/programs', programRouter);
 app.use('/api/programs', ledgerRouter);
-app.use('/api/programs', wbsRouter);
+
 app.use('/api/programs', wbsElementsRouter);
 app.use('/api/programs', wbsReportingRouter);
 app.use('/api/import', importRouter);

@@ -24,14 +24,14 @@ export const useActualsTransactions = () => {
     }
   };
 
-  const addToLedger = async (transactionId: string, wbsCategory: string, wbsSubcategory: string) => {
+  const addToLedger = async (transactionId: string, wbsElementId: string) => {
     try {
       const response = await fetch(`/api/import/transaction/${transactionId}/add-to-ledger`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ wbsCategory, wbsSubcategory }),
+        body: JSON.stringify({ wbsElementId }),
       });
 
       if (response.ok) {

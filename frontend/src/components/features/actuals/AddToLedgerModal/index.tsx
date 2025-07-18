@@ -45,8 +45,7 @@ const AddToLedgerModal: React.FC<AddToLedgerModalProps> = ({
     try {
       await addToLedger(
         transaction.id,
-        selectedWbsElement?.name || '',
-        selectedWbsElement?.name || ''
+        wbsElementId
       );
 
       setToast({ message: 'Transaction added to ledger successfully', type: 'success' });
