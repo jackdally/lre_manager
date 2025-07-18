@@ -1,4 +1,6 @@
 import React from 'react';
+import VendorAutocomplete from '../../../common/VendorAutocomplete';
+import { Vendor } from '../../../../store/settingsStore';
 
 interface LedgerTableHeaderProps {
   search: string;
@@ -14,7 +16,7 @@ interface LedgerTableHeaderProps {
   setWbsElementFilter: (v: string | undefined) => void;
   costCategoryFilter: string | undefined;
   setCostCategoryFilter: (v: string | undefined) => void;
-  vendorOptions: string[];
+  vendorOptions: Vendor[];
   wbsElementOptions: Array<{
     id: string;
     code: string;
@@ -55,14 +57,13 @@ const LedgerTableHeader: React.FC<LedgerTableHeaderProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium mb-1">Vendor</label>
-          <select
-            className="input input-sm w-full"
+          <VendorAutocomplete
+            vendors={vendorOptions}
             value={vendorFilter || ''}
-            onChange={e => setVendorFilter(e.target.value || undefined)}
-          >
-            <option value="">All Vendors</option>
-            {(vendorOptions || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
+            onChange={(value) => setVendorFilter(value || undefined)}
+            placeholder="All Vendors"
+            className="input-sm"
+          />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium mb-1">WBS Element</label>

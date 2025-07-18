@@ -21,6 +21,14 @@
 - [ ] Task 21: Fix 3 dot menu on Programs page hiding the pop-up menu within the container instead of being outside of the container.
 - [ ] Task 22: Fix Programs card view showing the incorrect "Last Closed Month"
 - [ ] Task 23: Add banner showing that program is missing actuals for most recent month (like the card view) into the table view
+- [ ] **Task 28**: Implement vendor categorization and tagging
+  - [ ] Create vendor category management
+  - [ ] Add vendor tagging system
+  - [ ] Implement vendor performance tracking
+- [ ] **Task 29**: Integrate vendor dropdowns across the application
+  - [x] Add vendor selection to ledger entries (already existed)
+  - [ ] Implement vendor selection in actuals upload
+  - [x] Create vendor autocomplete components
 
 ## Shared Settings & Modules Implementation Plan
 
@@ -46,32 +54,38 @@
   - [x] Task 26.8: Create default cost categories and migration script
 
 ### Phase 2: Vendor Management System (Week 3-4)
-- [ ] **Task 27**: Create vendor database structure
-  - Design vendor data model (name, contact, categories, performance)
-  - Implement vendor CRUD operations
-  - Add vendor search and filtering capabilities
-- [ ] **Task 28**: Implement vendor categorization and tagging
-  - Create vendor category management
-  - Add vendor tagging system
-  - Implement vendor performance tracking
-- [ ] **Task 29**: Integrate vendor dropdowns across the application
-  - Add vendor selection to ledger entries
-  - Implement vendor selection in actuals upload
-  - Create vendor autocomplete components
+- [x] **Task 27**: Create vendor database structure
+  - [x] Task 27.1: Create Vendor entity and database table
+  - [x] Task 27.2: Create vendor CRUD API endpoints
+  - [x] Task 27.3: Add vendor search and filtering capabilities
+  - [x] Task 27.4: Add vendor upload functionality (CSV/Excel)
+  - [x] Task 27.5: Add vendor template download
+  - [x] Task 27.6: Add NetSuite integration (requires axios)
+  - [x] Task 27.7: Update existing vendor references in ledger entries
+  - [x] Task 27.8: Create migration script to populate vendor table from existing data
+  - [x] Task 27.9: Frontend integration with real API
+  - [x] Task 27.10: Vendor management interface in settings
 
 ### Phase 3: Advanced Configuration (Week 5-6)
-- [ ] **Task 30**: Implement currency and exchange rate management
-  - Create currency configuration interface
-  - Add exchange rate API integration
-  - Implement multi-currency support in calculations
-- [ ] **Task 31**: Add fiscal year and reporting period settings
-  - Create fiscal year configuration
-  - Implement reporting period management
-  - Add date range validation across the application
-- [ ] **Task 32**: Implement user preference management
-  - Create user settings interface
-  - Add theme and display preferences
-  - Implement user-specific defaults
+- [x] **Task 30**: Implement currency and exchange rate management
+  - [x] Create currency configuration interface
+  - [x] Add exchange rate API integration
+  - [ ] Implement multi-currency support in calculations
+- [ ] **Task 40**: Implement comprehensive multi-currency support
+  - [ ] Database schema extensions (LedgerEntry currencyId, Program defaultCurrencyId)
+  - [ ] Backend API enhancements (currency conversion service, ledger/program API updates)
+  - [ ] Frontend UI components (currency selectors, multi-currency display)
+  - [ ] Calculation engine with real-time currency conversion
+  - [ ] User preferences and currency formatting
+  - [ ] Data migration strategy for existing ledger entries
+  - [ ] Integration with external systems (NetSuite, reporting)
+  - [ ] Exchange rate caching and performance optimization
+  - [ ] Multi-currency reporting and analytics
+  - [ ] Testing strategy and validation
+- [x] **Task 31**: Add fiscal year and reporting period settings
+  - [x] Create fiscal year configuration
+  - [x] Implement reporting period management
+  - [x] Add date range validation across the application
 
 ### Phase 4: Integration and Polish (Week 7-8)
 - [ ] **Task 33**: Integrate settings across all existing features

@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 't
 import { Program } from './Program';
 import { WbsElement } from './WbsElement';
 import { CostCategory } from './CostCategory';
+import { Vendor } from './Vendor';
 
 @Entity()
 export class LedgerEntry {
@@ -58,4 +59,11 @@ export class LedgerEntry {
   @ManyToOne(() => CostCategory, { nullable: true })
   @JoinColumn({ name: 'cost_category_id' })
   costCategory?: CostCategory;
+
+  @Column({ name: 'vendor_id', nullable: true })
+  vendorId?: string;
+
+  @ManyToOne(() => Vendor, { nullable: true })
+  @JoinColumn({ name: 'vendor_id' })
+  vendor?: Vendor;
 } 

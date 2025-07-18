@@ -5,6 +5,9 @@ import swaggerUi from 'swagger-ui-express';
 import { AppDataSource } from './config/database';
 import { programRouter } from './routes/program';
 import { ledgerRouter } from './routes/ledger';
+import { vendorRouter } from './routes/vendor';
+import { currencyRouter } from './routes/currency';
+import fiscalYearRouter from './routes/fiscalYear';
 
 import wbsElementsRouter from './routes/wbsElements';
 import { importRouter } from './routes/import';
@@ -46,6 +49,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // Routes
 app.use('/api/programs', programRouter);
 app.use('/api/programs', ledgerRouter);
+app.use('/api/vendors', vendorRouter);
+app.use('/api/currencies', currencyRouter);
+app.use('/api/fiscal-years', fiscalYearRouter);
 
 app.use('/api/programs', wbsElementsRouter);
 app.use('/api/programs', wbsReportingRouter);

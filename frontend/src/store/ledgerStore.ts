@@ -4,6 +4,7 @@ import axios from 'axios';
 import React from 'react';
 import type { LedgerEntry } from '../types/ledger';
 import type { ActualsUploadTransaction, ActualsUploadSession, PotentialMatchData, RejectedMatchData } from '../types/actuals';
+import { Vendor } from './settingsStore';
 
 export type MatchStatus = 'potential' | 'confirmed' | 'rejected';
 
@@ -48,7 +49,7 @@ export interface LedgerUIState {
 }
 
 export interface LedgerDropdownOptions {
-  vendors: string[];
+  vendors: Vendor[];
   wbsElements: Array<{
     id: string;
     code: string;
@@ -348,7 +349,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
             
             if (dropdownResponse.data) {
               const { vendors, wbsElements, costCategories } = dropdownResponse.data as {
-                vendors: string[];
+                vendors: Vendor[];
                 wbsElements: Array<{
                   id: string;
                   code: string;

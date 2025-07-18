@@ -4,7 +4,7 @@ import Layout from '../../../layout';
 import WBSTemplatesTab from './WBSTemplatesTab';
 import CostCategoriesTab from './CostCategoriesTab';
 import VendorsTab from './VendorsTab';
-import CurrenciesTab from './CurrenciesTab';
+import CurrencyTab from './CurrencyTab';
 import FiscalYearsTab from './FiscalYearsTab';
 import UserPreferencesTab from './UserPreferencesTab';
 
@@ -33,7 +33,7 @@ const SettingsPage: React.FC = () => {
       case 'vendors':
         return <VendorsTab />;
       case 'currencies':
-        return <CurrenciesTab />;
+        return <CurrencyTab />;
       case 'fiscal-years':
         return <FiscalYearsTab />;
       case 'preferences':

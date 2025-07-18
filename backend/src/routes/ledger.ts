@@ -21,17 +21,12 @@ router.get('/:programId/ledger/dropdown-options', async (req, res) => {
   console.log('Dropdown options endpoint called with programId:', programId);
   
   try {
-    // Get all unique vendors
-    const vendors = await ledgerRepo
-      .createQueryBuilder('ledger')
-      .leftJoin('ledger.program', 'program')
-      .where('program.id = :programId', { programId })
-      .andWhere('ledger.vendor_name IS NOT NULL')
-      .andWhere('ledger.vendor_name != :emptyString', { emptyString: '' })
-      .select('ledger.vendor_name', 'vendor_name')
-      .distinct()
-      .orderBy('ledger.vendor_name', 'ASC')
-      .getRawMany();
+    // Get all active vendors from the vendor table
+    const vendorRepo = AppDataSource.getRepository(require('../entities/Vendor').Vendor);
+    const vendors = await vendorRepo.find({
+      where: { isActive: true },
+      order: { name: 'ASC' }
+    });
 
     // Get all WBS elements (hierarchical structure)
     const wbsElementRepo = AppDataSource.getRepository(require('../entities/WbsElement').WbsElement);
@@ -50,7 +45,13 @@ router.get('/:programId/ledger/dropdown-options', async (req, res) => {
     console.log('Found vendors:', vendors.length, 'wbs elements:', wbsElements.length, 'cost categories:', costCategories.length);
 
     res.json({
-      vendors: vendors.map(v => v.vendor_name),
+      vendors: vendors.map(vendor => ({
+        id: vendor.id,
+        name: vendor.name,
+        isActive: vendor.isActive,
+        createdAt: vendor.createdAt,
+        updatedAt: vendor.updatedAt
+      })),
       wbsElements: wbsElements.map(el => ({
         id: el.id,
         code: el.code,

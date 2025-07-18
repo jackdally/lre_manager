@@ -243,7 +243,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   useEffect(() => {
     if (onOptionsUpdate && dropdownOptions.vendors.length > 0) {
       onOptionsUpdate({
-        vendors: dropdownOptions.vendors,
+        vendors: dropdownOptions.vendors.map(vendor => vendor.name),
         wbsElements: dropdownOptions.wbsElements
       });
     }

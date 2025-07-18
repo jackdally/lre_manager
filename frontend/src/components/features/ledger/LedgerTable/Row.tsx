@@ -2,6 +2,7 @@ import React from 'react';
 import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import LedgerTableCell from './Cell';
 import type { LedgerEntry } from '../../../../types/ledger';
+import { Vendor } from '../../../../store/settingsStore';
 
 interface LedgerTableRowProps {
   entry: LedgerEntry;
@@ -22,7 +23,7 @@ interface LedgerTableRowProps {
     level: number;
     parentId?: string;
   }>;
-  vendorOptions: string[];
+  vendorOptions: Vendor[];
   costCategoryOptions: Array<{
     id: string;
     code: string;
@@ -195,7 +196,7 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
           onCellClick(entry.id, 'vendor_name', entry.vendor_name);
         }}
       >
-        {renderCell('vendor_name', entry.vendor_name, vendorOptions)}
+        {renderCell('vendor_name', entry.vendor_name, vendorOptions.map(vendor => vendor.name))}
       </td>
       
       {/* Description */}

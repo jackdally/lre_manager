@@ -1,4 +1,5 @@
 import React from 'react';
+import { Vendor } from '../../../../store/settingsStore';
 
 interface BulkEditModalProps {
   show: boolean;
@@ -13,7 +14,7 @@ interface BulkEditModalProps {
     level: number;
     parentId?: string;
   }>;
-  vendorOptions: string[];
+  vendorOptions: Vendor[];
   costCategoryOptions: Array<{
     id: string;
     code: string;
@@ -22,7 +23,7 @@ interface BulkEditModalProps {
     isActive: boolean;
   }>;
   isCleared: (field: string) => boolean;
-  handleBulkEditFieldChange: (e: React.ChangeEvent<any>) => void;
+  handleBulkEditFieldChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   handleBulkEditClearToggle: (field: string) => void;
   handleBulkEditSave: () => void;
   onCancel: () => void;
@@ -84,7 +85,7 @@ const LedgerBulkEditModal: React.FC<BulkEditModalProps> = ({
                   onChange={handleBulkEditFieldChange}
                 >
                   <option value="">-- Select --</option>
-                  {(vendorOptions || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {(vendorOptions || []).map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
                 </select>
                 <button type="button" className={`ml-1 ${isCleared('vendor_name') ? 'text-green-600' : 'text-gray-400'} hover:text-red-500`} title="Clear" onClick={() => handleBulkEditClearToggle('vendor_name')}>🗑️</button>
               </div>

@@ -4,7 +4,7 @@ import { Tooltip } from 'react-tooltip';
 import type { LedgerEntry } from '../../../../types/ledger';
 import { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
 import { useLedgerUI } from '../../../../store/ledgerStore';
-
+import { Vendor } from '../../../../store/settingsStore';
 
 
 interface LedgerTableTableProps {
@@ -36,9 +36,9 @@ interface LedgerTableTableProps {
   searchLoading?: boolean;
   
   // Options
-  vendorOptions: string[];
+  vendorOptions: Vendor[];
   dropdownOptions: {
-    vendors: string[];
+    vendors: Vendor[];
     wbsElements: Array<{
       id: string;
       code: string;
@@ -379,7 +379,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                         autoFocus
                       >
                         <option value="">-- Select --</option>
-                        {(vendorOptions || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        {(vendorOptions || []).map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
                       </select>
                     ) : (
                       entry.vendor_name

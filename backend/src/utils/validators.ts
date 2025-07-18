@@ -34,3 +34,12 @@ export const paginationSchema = Joi.object({
   sortBy: Joi.string().optional(),
   sortOrder: Joi.string().valid("ASC", "DESC").default("ASC")
 });
+
+export const vendorSchema = Joi.object({
+  name: Joi.string().required().min(1).max(255),
+  isActive: Joi.boolean().default(true)
+});
+
+export const vendorUploadSchema = Joi.object({
+  vendorNameColumn: Joi.string().required().default('Vendor Name')
+});
