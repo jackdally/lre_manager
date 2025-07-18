@@ -106,60 +106,64 @@ const WBSStructureEditor: React.FC<WBSStructureEditorProps> = ({ structure, onCh
     return (
       <div key={element.id} className="border border-gray-200 rounded-lg mb-2">
         <div className="p-3 bg-gray-50">
-          {isEditing ? (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={editingElement.code}
-                  onChange={(e) => setEditingElement({ ...editingElement, code: e.target.value })}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm"
-                  placeholder="Code"
-                />
-                <input
-                  type="text"
-                  value={editingElement.name}
-                  onChange={(e) => setEditingElement({ ...editingElement, name: e.target.value })}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm"
-                  placeholder="Name"
-                />
-              </div>
-              <textarea
-                value={editingElement.description}
-                onChange={(e) => setEditingElement({ ...editingElement, description: e.target.value })}
-                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                rows={2}
-                placeholder="Description"
-              />
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => updateElement(element.id, editingElement)}
-                >
-                  Save
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setEditingElement(null)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
+                     {isEditing ? (
+             <div className="space-y-3">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                 <input
+                   type="text"
+                   value={editingElement.code}
+                   onChange={(e) => setEditingElement({ ...editingElement, code: e.target.value })}
+                   className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   placeholder="Code"
+                 />
+                 <input
+                   type="text"
+                   value={editingElement.name}
+                   onChange={(e) => setEditingElement({ ...editingElement, name: e.target.value })}
+                   className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   placeholder="Name"
+                 />
+               </div>
+               <textarea
+                 value={editingElement.description}
+                 onChange={(e) => setEditingElement({ ...editingElement, description: e.target.value })}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 rows={2}
+                 placeholder="Description"
+               />
+               <div className="flex gap-2">
+                 <Button
+                   size="sm"
+                   onClick={() => updateElement(element.id, editingElement)}
+                 >
+                   Save
+                 </Button>
+                 <Button
+                   variant="secondary"
+                   size="sm"
+                   onClick={() => setEditingElement(null)}
+                 >
+                   Cancel
+                 </Button>
+               </div>
+             </div>
           ) : (
             <div className="flex justify-between items-start">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-gray-900">{element.code}</span>
-                  <span className="text-sm text-gray-600">-</span>
-                  <span className="text-sm font-medium text-gray-900">{element.name}</span>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-sm font-mono text-gray-600 min-w-[50px] font-medium">
+                    {element.code}
+                  </span>
+                  <span className="text-sm text-gray-400">•</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {element.name}
+                  </span>
                 </div>
                 {element.description && (
-                  <p className="text-xs text-gray-600">{element.description}</p>
+                  <p className="text-xs text-gray-600 ml-[50px]">{element.description}</p>
                 )}
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-2 ml-4">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -230,46 +234,46 @@ const WBSStructureEditor: React.FC<WBSStructureEditorProps> = ({ structure, onCh
           <h5 className="text-sm font-medium text-gray-900 mb-3">
             {newElement.parentId ? 'Add Child Element' : 'Add Top-Level Element'}
           </h5>
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <input
                 type="text"
                 value={newElement.code}
                 onChange={(e) => setNewElement({ ...newElement, code: e.target.value })}
-                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Code (e.g., 1.0, 1.1)"
               />
               <input
                 type="text"
                 value={newElement.name}
                 onChange={(e) => setNewElement({ ...newElement, name: e.target.value })}
-                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Element Name"
               />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={addElement}
+                  disabled={!newElement.code.trim() || !newElement.name.trim()}
+                >
+                  Add Element
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowAddForm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
             <textarea
               value={newElement.description}
               onChange={(e) => setNewElement({ ...newElement, description: e.target.value })}
-              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={2}
               placeholder="Description (optional)"
             />
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={addElement}
-                disabled={!newElement.code.trim() || !newElement.name.trim()}
-              >
-                Add Element
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowAddForm(false)}
-              >
-                Cancel
-              </Button>
-            </div>
           </div>
         </div>
       )}
