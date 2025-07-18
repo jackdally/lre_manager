@@ -12,7 +12,8 @@ type TabType = 'wbs' | 'cost-categories' | 'vendors' | 'currencies' | 'fiscal-ye
 
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('wbs');
-  const { isLoading, error } = useSettingsStore();
+  const isLoading = useSettingsStore(state => state.isLoading);
+  const error = useSettingsStore(state => state.error);
 
   const tabs = [
     { id: 'wbs' as TabType, name: 'WBS Templates', icon: '📋' },

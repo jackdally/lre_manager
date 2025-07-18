@@ -1,30 +1,30 @@
 # Database Scripts
 
-This folder contains scripts for managing the database, including backup, reset, and seeding operations.
-
-- `db-backup.sh`: Creates a backup of the database.
-- `db-reset.sh`: Resets the database to a clean state.
-- `seed_programs_and_expenses.ts`: Seeds the database with initial program and expense data.
+This folder contains SQL scripts for database operations and maintenance.
 
 ## Scripts
 
-- `reset.sh` - Reset database
-- `backup.sh` - Backup database
-- `migrate.sh` - Run database migrations
-- `seed.sh` - Seed database with test data
+### `reset_wbs_templates.sql`
 
-## Usage
+**Purpose**: Resets WBS (Work Breakdown Structure) templates to the default template.
 
-```bash
-# Reset database
-./scripts/database/reset.sh
+**What it does**:
+- Deletes all existing WBS template elements and templates
+- Inserts the default "Standard Project WBS" template with a complete hierarchical structure
+- Creates 10 elements total (3 level 1 + 7 level 2 elements)
 
-# Backup database
-./scripts/database/backup.sh
+**Default Template Structure**:
+- **Project Management** (1.0)
+  - Planning (1.1)
+  - Monitoring & Control (1.2)
+- **Technical Development** (2.0)
+  - Design (2.1)
+  - Implementation (2.2)
+  - Testing (2.3)
+- **Integration & Deployment** (3.0)
+  - Integration (3.1)
+  - Deployment (3.2)
 
-# Run migrations
-./scripts/database/migrate.sh
+**Usage**: This script is typically executed by the maintenance script `../maintenance/reset_wbs_templates.sh`
 
-# Seed database
-./scripts/database/seed.sh
-```
+**Note**: This script uses PostgreSQL-specific features like `gen_random_uuid()` and PL/pgSQL blocks for proper UUID generation and hierarchical data insertion.

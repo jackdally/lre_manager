@@ -45,7 +45,7 @@ const WBSPreview: React.FC<WBSPreviewProps> = ({ structure, title = 'WBS Structu
     <div className="border border-gray-200 rounded-lg p-4">
       <h4 className="text-sm font-medium text-gray-900 mb-3">{title}</h4>
       <div className="space-y-1">
-        {structure.length === 0 ? (
+        {!structure || structure.length === 0 ? (
           <div className="text-center py-4 text-gray-500">
             <p className="text-sm">No WBS elements defined</p>
           </div>

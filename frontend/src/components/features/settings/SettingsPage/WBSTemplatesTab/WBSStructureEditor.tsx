@@ -18,6 +18,9 @@ const WBSStructureEditor: React.FC<WBSStructureEditorProps> = ({ structure, onCh
     parentId: undefined as string | undefined,
   });
 
+  // Ensure structure is always an array
+  const safeStructure = structure || [];
+
   const addElement = () => {
     const element: WBSElement = {
       id: Date.now().toString(),
@@ -27,11 +30,11 @@ const WBSStructureEditor: React.FC<WBSStructureEditorProps> = ({ structure, onCh
     
     if (newElement.parentId) {
       // Add as child to existing element
-      const updatedStructure = addChildToElement(structure, newElement.parentId, element);
+      const updatedStructure = addChildToElement(safeStructure, newElement.parentId, element);
       onChange(updatedStructure);
     } else {
       // Add as top-level element
-      onChange([...structure, element]);
+      onChange([...safeStructure, element]);
     }
     
     setNewElement({
@@ -63,7 +66,7 @@ const WBSStructureEditor: React.FC<WBSStructureEditorProps> = ({ structure, onCh
   };
 
   const updateElement = (id: string, updates: Partial<WBSElement>) => {
-    const updatedStructure = updateElementInStructure(structure, id, updates);
+    const updatedStructure = updateElementInStructure(safeStructure, id, updates);
     onChange(updatedStructure);
     setEditingElement(null);
   };
@@ -84,7 +87,7 @@ const WBSStructureEditor: React.FC<WBSStructureEditorProps> = ({ structure, onCh
   };
 
   const deleteElement = (id: string) => {
-    const updatedStructure = deleteElementFromStructure(structure, id);
+    const updatedStructure = deleteElementFromStructure(safeStructure, id);
     onChange(updatedStructure);
   };
 
@@ -280,12 +283,12 @@ const WBSStructureEditor: React.FC<WBSStructureEditorProps> = ({ structure, onCh
 
       {/* Structure Tree */}
       <div className="space-y-2">
-        {structure.length === 0 ? (
+        {safeStructure.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <p>No WBS elements defined. Add your first element to get started.</p>
           </div>
         ) : (
-          structure.map(element => renderElement(element))
+          safeStructure.map(element => renderElement(element))
         )}
       </div>
     </div>

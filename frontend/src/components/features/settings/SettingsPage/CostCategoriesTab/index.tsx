@@ -4,7 +4,11 @@ import Button from '../../../../common/Button';
 import Modal from '../../../../common/Modal';
 
 const CostCategoriesTab: React.FC = () => {
-  const { costCategories, addCostCategory, updateCostCategory, deleteCostCategory } = useSettingsStore();
+  const costCategories = useSettingsStore(state => state.costCategories);
+  const addCostCategory = useSettingsStore(state => state.addCostCategory);
+  const updateCostCategory = useSettingsStore(state => state.updateCostCategory);
+  const deleteCostCategory = useSettingsStore(state => state.deleteCostCategory);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CostCategory | null>(null);
   const [formData, setFormData] = useState({

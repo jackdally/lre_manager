@@ -77,6 +77,7 @@ export interface SettingsState {
   // WBS Templates
   wbsTemplates: WBSTemplate[];
   selectedWbsTemplate: WBSTemplate | null;
+  wbsTemplatesLoaded: boolean; // Add flag to track if templates have been loaded
   
   // Cost Categories
   costCategories: CostCategory[];
@@ -145,6 +146,7 @@ export interface SettingsState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
+  resetWbsTemplatesLoaded: () => void;
 }
 
 // Default user preferences
@@ -269,6 +271,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Initial state
       wbsTemplates: [],
       selectedWbsTemplate: null,
+      wbsTemplatesLoaded: false, // Initialize the new flag
       costCategories: [],
       selectedCostCategory: null,
       vendors: [],
@@ -299,18 +302,19 @@ export const useSettingsStore = create<SettingsState>()(
       // WBS Template API actions
       fetchWbsTemplates: async () => {
         const state = get();
-        if (state.isLoading) return; // Prevent multiple simultaneous requests
+        if (state.isLoading || state.wbsTemplatesLoaded) return; // Prevent multiple simultaneous requests or unnecessary calls
         
         set({ isLoading: true, error: null });
         try {
           const templates = await settingsApi.getWbsTemplates();
-          set({ wbsTemplates: templates, isLoading: false });
+          set({ wbsTemplates: templates, isLoading: false, wbsTemplatesLoaded: true });
           // Set default template if available
           const defaultTemplate = templates.find(t => t.isDefault);
           if (defaultTemplate) {
             set({ selectedWbsTemplate: defaultTemplate });
           }
         } catch (error) {
+          console.error('Error fetching WBS templates:', error);
           set({ error: 'Failed to fetch WBS templates', isLoading: false });
         }
       },
@@ -431,6 +435,7 @@ export const useSettingsStore = create<SettingsState>()(
       reset: () => set({
         wbsTemplates: [],
         selectedWbsTemplate: null,
+        wbsTemplatesLoaded: false, // Reset the new flag
         costCategories: [],
         selectedCostCategory: null,
         vendors: [],
@@ -443,6 +448,9 @@ export const useSettingsStore = create<SettingsState>()(
         isLoading: false,
         error: null,
       }),
+      
+      // Reset WBS templates loaded flag to force refresh
+      resetWbsTemplatesLoaded: () => set({ wbsTemplatesLoaded: false }),
     }),
     {
       name: 'settings-store',

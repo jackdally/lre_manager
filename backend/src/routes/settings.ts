@@ -5,6 +5,32 @@ import { WbsTemplateElement } from '../entities/WbsTemplateElement';
 
 const router = Router();
 
+// Helper function to transform flat structure into hierarchical structure
+const transformToHierarchical = (elements: WbsTemplateElement[]) => {
+  const elementMap = new Map<string, WbsTemplateElement>();
+  const rootElements: WbsTemplateElement[] = [];
+
+  // Create a map of all elements
+  elements.forEach(element => {
+    elementMap.set(element.id, { ...element, children: [] });
+  });
+
+  // Build the hierarchy
+  elements.forEach(element => {
+    const mappedElement = elementMap.get(element.id)!;
+    if (element.parentId) {
+      const parent = elementMap.get(element.parentId);
+      if (parent) {
+        parent.children.push(mappedElement);
+      }
+    } else {
+      rootElements.push(mappedElement);
+    }
+  });
+
+  return rootElements;
+};
+
 // Get all WBS templates
 router.get('/wbs-templates', async (req, res) => {
   try {
@@ -15,32 +41,6 @@ router.get('/wbs-templates', async (req, res) => {
         createdAt: 'DESC',
       },
     });
-
-    // Transform the flat structure into hierarchical structure
-    const transformToHierarchical = (elements: WbsTemplateElement[]) => {
-      const elementMap = new Map<string, WbsTemplateElement>();
-      const rootElements: WbsTemplateElement[] = [];
-
-      // Create a map of all elements
-      elements.forEach(element => {
-        elementMap.set(element.id, { ...element, children: [] });
-      });
-
-      // Build the hierarchy
-      elements.forEach(element => {
-        const mappedElement = elementMap.get(element.id)!;
-        if (element.parentId) {
-          const parent = elementMap.get(element.parentId);
-          if (parent) {
-            parent.children.push(mappedElement);
-          }
-        } else {
-          rootElements.push(mappedElement);
-        }
-      });
-
-      return rootElements;
-    };
 
     const templatesWithHierarchy = templates.map(template => ({
       ...template,
@@ -108,7 +108,13 @@ router.post('/wbs-templates', async (req, res) => {
       relations: ['elements', 'elements.children'],
     });
 
-    res.status(201).json(completeTemplate);
+    // Return the template with the structure property
+    const templateWithStructure = {
+      ...completeTemplate,
+      structure: transformToHierarchical(completeTemplate!.elements),
+    };
+
+    res.status(201).json(templateWithStructure);
   } catch (error) {
     console.error('Error creating WBS template:', error);
     res.status(500).json({ error: 'Failed to create WBS template' });
@@ -172,7 +178,13 @@ router.put('/wbs-templates/:id', async (req, res) => {
       relations: ['elements', 'elements.children'],
     });
 
-    res.json(updatedTemplate);
+    // Transform the flat structure into hierarchical structure
+    const templateWithStructure = {
+      ...updatedTemplate,
+      structure: transformToHierarchical(updatedTemplate!.elements),
+    };
+
+    res.json(templateWithStructure);
   } catch (error) {
     console.error('Error updating WBS template:', error);
     res.status(500).json({ error: 'Failed to update WBS template' });

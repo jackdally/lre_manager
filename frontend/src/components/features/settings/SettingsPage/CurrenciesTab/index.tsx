@@ -1,8 +1,11 @@
 import React from 'react';
 import { useSettingsStore } from '../../../../../store/settingsStore';
+import Button from '../../../../common/Button';
 
 const CurrenciesTab: React.FC = () => {
-  const { currencies, defaultCurrency, setDefaultCurrency } = useSettingsStore();
+  const currencies = useSettingsStore(state => state.currencies);
+  const defaultCurrency = useSettingsStore(state => state.defaultCurrency);
+  const setDefaultCurrency = useSettingsStore(state => state.setDefaultCurrency);
 
   const handleSetDefault = (currencyCode: string) => {
     const currency = currencies.find(c => c.code === currencyCode);

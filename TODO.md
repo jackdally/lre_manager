@@ -3,7 +3,7 @@
 ## High Priority
 - [ ] Task 10: Add proper error handling and user feedback for modal operations
 - [ ] Task 11: Implement proper state synchronization between actuals and ledger stores
-- [ ] Task 12: Add loading states and progress indicators for modal operations
+- [ ] Task 12: Add loading states and progress indicators for modal operations 
 
 ## Medium Priority
 - [ ] Task 13: Fix Counting bug on Actuals Upload sessions (rejected, matched, unmatched)
@@ -25,7 +25,7 @@
   - Add Settings route to App.tsx
   - Create SettingsPage component with tab navigation
   - Implement basic settings store with Zustand
-- [ ] **Task 25**: Implement WBS (Work Breakdown Structure) templates
+- [x] **Task 25**: Implement WBS (Work Breakdown Structure) templates
   - Create WBS template CRUD operations
   - Design WBS template form with hierarchical structure
   - Add WBS template selection to program creation

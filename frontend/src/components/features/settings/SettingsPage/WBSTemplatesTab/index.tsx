@@ -7,16 +7,15 @@ import WBSPreview from './WBSPreview';
 import { ChevronDown, ChevronRight } from '../../../../common/icons';
 
 const WBSTemplatesTab: React.FC = () => {
-  const { 
-    wbsTemplates, 
-    isLoading, 
-    error,
-    fetchWbsTemplates, 
-    createWbsTemplate, 
-    updateWbsTemplateApi, 
-    deleteWbsTemplateApi, 
-    setDefaultWbsTemplate 
-  } = useSettingsStore();
+  const wbsTemplates = useSettingsStore(state => state.wbsTemplates);
+  const isLoading = useSettingsStore(state => state.isLoading);
+  const error = useSettingsStore(state => state.error);
+  const fetchWbsTemplates = useSettingsStore(state => state.fetchWbsTemplates);
+  const createWbsTemplate = useSettingsStore(state => state.createWbsTemplate);
+  const updateWbsTemplateApi = useSettingsStore(state => state.updateWbsTemplateApi);
+  const deleteWbsTemplateApi = useSettingsStore(state => state.deleteWbsTemplateApi);
+  const setDefaultWbsTemplate = useSettingsStore(state => state.setDefaultWbsTemplate);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<WBSTemplate | null>(null);
   const [formData, setFormData] = useState({
@@ -38,7 +37,7 @@ const WBSTemplatesTab: React.FC = () => {
       setFormData({
         name: template.name,
         description: template.description,
-        structure: template.structure,
+        structure: template.structure || [],
       });
     } else {
       setEditingTemplate(null);
@@ -154,7 +153,7 @@ const WBSTemplatesTab: React.FC = () => {
                   </div>
                   <p className="text-gray-600 mb-2">{template.description}</p>
                   <div className="text-sm text-gray-500 mb-3">
-                    {template.structure.length} elements • 
+                    {(template.structure?.length || 0)} elements • 
                     Updated {new Date(template.updatedAt).toLocaleDateString()}
                   </div>
                   

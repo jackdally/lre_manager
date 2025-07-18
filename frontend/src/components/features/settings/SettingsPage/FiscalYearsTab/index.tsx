@@ -4,7 +4,11 @@ import Button from '../../../../common/Button';
 import Modal from '../../../../common/Modal';
 
 const FiscalYearsTab: React.FC = () => {
-  const { fiscalYears, activeFiscalYear, setFiscalYears, setActiveFiscalYear } = useSettingsStore();
+  const fiscalYears = useSettingsStore(state => state.fiscalYears);
+  const activeFiscalYear = useSettingsStore(state => state.activeFiscalYear);
+  const setFiscalYears = useSettingsStore(state => state.setFiscalYears);
+  const setActiveFiscalYear = useSettingsStore(state => state.setActiveFiscalYear);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<FiscalYear | null>(null);
   const [formData, setFormData] = useState({

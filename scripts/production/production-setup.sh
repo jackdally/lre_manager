@@ -512,6 +512,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.frontend
+      args:
+        - REACT_APP_API_URL=http://localhost:4000/api
     image: lre_manager_take2-frontend:prod
     container_name: lre_manager_take2-frontend-prod
     ports:

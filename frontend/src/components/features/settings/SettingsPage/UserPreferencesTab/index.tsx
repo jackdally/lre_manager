@@ -3,7 +3,10 @@ import { useSettingsStore } from '../../../../../store/settingsStore';
 import Button from '../../../../common/Button';
 
 const UserPreferencesTab: React.FC = () => {
-  const { userPreferences, updateUserPreferences, currencies, defaultCurrency } = useSettingsStore();
+  const userPreferences = useSettingsStore(state => state.userPreferences);
+  const updateUserPreferences = useSettingsStore(state => state.updateUserPreferences);
+  const currencies = useSettingsStore(state => state.currencies);
+  const defaultCurrency = useSettingsStore(state => state.defaultCurrency);
 
   const handlePreferenceChange = (key: keyof typeof userPreferences, value: any) => {
     updateUserPreferences({ [key]: value });

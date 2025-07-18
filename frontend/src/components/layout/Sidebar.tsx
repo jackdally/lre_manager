@@ -80,14 +80,14 @@ const Sidebar: React.FC = () => {
       >
         {!insideProgram ? (
           <>
-            <Link
-              to="/"
-              className={`$${sidebarOpen ? 'flex-row' : 'flex-col'} flex items-center justify-center gap-2 px-0 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base bg-[#232b3b]`}
-              style={{ width: '100%', background: '#232b3b' }}
-            >
-              <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>📁</span>
-              {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Programs</span>}
-            </Link>
+          <Link
+            to="/"
+            className={`$${sidebarOpen ? 'flex-row' : 'flex-col'} flex items-center justify-center gap-2 px-0 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base bg-[#232b3b]`}
+            style={{ width: '100%', background: '#232b3b' }}
+          >
+            <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>📁</span>
+            {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Programs</span>}
+          </Link>
             <Link
               to="/settings"
               className={`flex ${sidebarOpen ? 'flex-row' : 'flex-col'} items-center justify-center gap-2 px-0 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base`}

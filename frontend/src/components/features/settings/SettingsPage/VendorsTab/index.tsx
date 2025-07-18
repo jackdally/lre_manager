@@ -4,7 +4,11 @@ import Button from '../../../../common/Button';
 import Modal from '../../../../common/Modal';
 
 const VendorsTab: React.FC = () => {
-  const { vendors, addVendor, updateVendor, deleteVendor } = useSettingsStore();
+  const vendors = useSettingsStore(state => state.vendors);
+  const addVendor = useSettingsStore(state => state.addVendor);
+  const updateVendor = useSettingsStore(state => state.updateVendor);
+  const deleteVendor = useSettingsStore(state => state.deleteVendor);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [formData, setFormData] = useState({

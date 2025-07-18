@@ -31,6 +31,7 @@ scripts/
 - `database/db-backup.sh` - Database backup
 - `database/db-reset.sh` - Database reset
 - `database/seed_programs_and_expenses.ts` - Seed data
+- `database/reset_wbs_templates.sql` - Reset WBS templates to default
 
 ### Testing
 - `testing/test.sh` - Run tests
@@ -39,6 +40,7 @@ scripts/
 ### Maintenance
 - `maintenance/clean.sh` - Clean up temporary files
 - `maintenance/clean-uploads.sh` - Clean uploaded files
+- `maintenance/reset_wbs_templates.sh` - Reset WBS templates to default
 
 ### Utils
 - `utils/check-requirements.sh` - Check system requirements
@@ -61,6 +63,9 @@ Most scripts can be run directly from the project root:
 
 # Database backup
 ./scripts/database/db-backup.sh
+
+# Reset WBS templates
+./scripts/maintenance/reset_wbs_templates.sh
 
 # Run tests
 ./scripts/testing/test.sh
