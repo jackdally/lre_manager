@@ -60,6 +60,15 @@ For detailed documentation, see the [docs](docs/) directory:
 - [NetSuite Actuals Upload Feature](docs/IMPORT_FEATURE.md)
 - [FAQ](docs/FAQ.md)
 
+### Project Management
+- [Project Management Overview](docs/PROJECT_MANAGEMENT.md) - Development workflow and tracking
+- [Feature Development Checklist](docs/FEATURE_DEVELOPMENT_CHECKLIST.md) - **Essential guide for feature development sessions**
+- [Feature Roadmap](docs/FEATURES.md) - Planned features and status
+- [Implementation Plans](docs/implementation-plans/) - Detailed technical plans
+- [Sprint Planning](docs/sprints/) - Sprint management and tracking
+- [Task Management](docs/tasks/) - Organized task tracking by category
+- [Legacy Task List](docs/archive/TODO-LEGACY.md) - Original task list (archived)
+
 ## Development
 
 ### Prerequisites
