@@ -1,6 +1,6 @@
 # BOE (Basis of Estimate) System Tasks
 
-## Status: Phase 1 Complete - Phase 2 Partially Complete
+## Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Partially Complete
 - [x] BOE-000: Create implementation plan
 - [x] BOE-001: Define requirements and architecture
 - [x] BOE-002: Begin Phase 1 implementation
@@ -98,24 +98,24 @@
   - [x] Implement template versioning
   - [x] Add template sharing and permissions
 
-### Time-Based Cost Allocation System
-- [x] **BOE-042**: Create BOETimeAllocation entity
-  - [x] Design database schema for time allocations
-  - [x] Implement allocation types (Linear, Front-Loaded, Back-Loaded, Custom)
-  - [x] Add monthly breakdown storage with JSONB
+### BOE Element Allocation System (Phase 2A - Enhanced WBS Details)
+- [x] **BOE-042**: Create BOEElementAllocation entity
+  - [x] Design database schema for element-level allocations
+  - [x] Implement monthly allocation structure
+  - [x] Add quantity tracking support
   - [x] Create database migration
 
-- [x] **BOE-043**: Implement BOETimeAllocationService
-  - [x] Create time allocation calculation engine
-  - [x] Implement monthly breakdown generation
-  - [x] Add ledger integration for baseline creation
-  - [x] Create actuals tracking and variance calculation
+- [x] **BOE-043**: Implement BOEElementAllocationService
+  - [x] Create allocation CRUD operations
+  - [x] Implement monthly allocation calculations
+  - [x] Add allocation validation rules
+  - [x] Create allocation roll-up logic
 
-- [x] **BOE-044**: Create time allocation API endpoints
-  - [x] GET /api/programs/:id/time-allocations
-  - [x] POST /api/programs/:id/time-allocations
-  - [x] POST /api/time-allocations/:id/push-to-ledger
-  - [x] POST /api/time-allocations/:id/update-actuals
+- [x] **BOE-044**: Create BOEElementAllocationManager component
+  - [x] Implement monthly allocation planning interface
+  - [x] Add allocation adjustment modal
+  - [x] Add quantity-based allocation support
+  - [x] Create allocation status indicators
 
 ### BOE to Ledger Integration Backend
 - [x] **BOE-045**: Implement BOE push to ledger service
@@ -135,7 +135,7 @@
   - [x] Ensure proper TypeScript types for new status
   - [x] Update database schema to support new status
 
-### BOE Creation Wizard
+### BOE Creation Wizard (Phase 2B - Wizard Integration)
 - [x] **BOE-050**: Create BOEWizard component
   - [x] Implement step-by-step wizard flow
   - [x] Add progress indicator
@@ -147,10 +147,20 @@
   - [x] Step 2: Basic information
   - [x] Step 3: WBS structure setup
   - [x] Step 4: Cost estimation
-  - [x] Step 5: Review and create
+  - [x] Step 5: **Allocation Planning** (NEW)
+  - [x] Step 6: Review and create
+
+- [x] **BOE-052**: Enhanced BOE wizard with allocation planning
+  - [x] Add allocation planning step to wizard flow
+  - [x] Implement per-element allocation configuration
+  - [x] Add allocation type selection (Linear, Front-Loaded, Back-Loaded, Custom)
+  - [x] Create date range planning for allocations
+  - [x] Add real-time monthly amount calculations
+  - [x] Implement allocation validation and preview
+  - [x] Update backend to handle allocation creation during BOE creation
 
 ### BOE Tab Components
-- [x] **BOE-052**: Create BOE tab components with placeholder content
+- [x] **BOE-053**: Create BOE tab components with placeholder content
   - [x] BOEOverview component with cost and element summaries
   - [x] BOEDetails component with WBS and cost breakdown
   - [x] BOEApproval component with approval status and actions
@@ -183,24 +193,24 @@
   - [x] Implement vendor validation
   - [x] Add vendor performance indicators
 
-### Time Allocation Frontend Components
-- [x] **BOE-064**: Create TimeAllocationManager component
-  - [x] Implement time allocation creation form
-  - [x] Add allocation type selection (Linear, Front-Loaded, Back-Loaded, Custom)
-  - [x] Create date range picker for allocation period
-  - [x] Add monthly breakdown preview
+### Enhanced BOE Details Tab (Phase 2A)
+- [x] **BOE-064**: Create two-panel layout in BOEDetails
+  - [x] Left panel: WBS tree with allocation status indicators
+  - [x] Right panel: Element allocation management
+  - [x] Implement WBS element selection and allocation display
+  - [x] Add allocation status indicators to WBS tree
 
-- [x] **BOE-065**: Create TimeAllocationSummary component
-  - [x] Display time allocation summary for program
-  - [x] Show total allocated vs actual amounts
-  - [x] Add variance indicators and alerts
-  - [x] Create monthly breakdown visualization
+- [x] **BOE-065**: Create BOETreeItem component
+  - [x] Extract WBS tree rendering logic into separate component
+  - [x] Add allocation status indicators (allocated, partially allocated, not allocated)
+  - [x] Implement expand/collapse functionality
+  - [x] Add element selection and action buttons
 
-- [x] **BOE-066**: Create TimeAllocationActions component
-  - [x] Add "Push to Ledger" functionality
-  - [x] Implement "Update Actuals" from ledger
-  - [x] Add allocation locking/unlocking
-  - [x] Create export capabilities
+- [x] **BOE-066**: Enhanced BOEElementAllocationManager
+  - [x] Adapt component to work with selected WBS element
+  - [x] Filter allocations by selected element
+  - [x] Simplify table display for single element context
+  - [x] Add conditional "Create Allocation" button
 
 ### BOE to Ledger Integration Frontend
 - [x] **BOE-067**: Create BOEOverviewActions component
@@ -234,32 +244,88 @@
   - [x] Create progress indicators
   - [x] Add error recovery mechanisms
 
+### Code Cleanup & Refactoring
+- [x] **BOE-072**: Remove Time Allocation System
+  - [x] Delete BOETimeAllocation entity and related code
+  - [x] Remove TimeAllocationManager, TimeAllocationSummary, TimeAllocationActions components
+  - [x] Remove time allocation API endpoints and services
+  - [x] Update BOE store to remove time allocation state
+  - [x] Remove time allocation tab from BOE page
+  - [x] Clean up unused imports and dependencies
+  - [x] Update documentation to reflect removal
+
 ## Phase 3: BOE Element Allocations & Advanced Features (Week 5-7)
 
-### BOE Element Allocation System (Phase 3A - Week 5)
-- [ ] **BOE-075**: Create BOEElementAllocation entity
-  - [ ] Design database schema for element-level allocations
-  - [ ] Implement monthly allocation structure
-  - [ ] Add quantity tracking support
-  - [ ] Create database migration
+### BOE Element Allocation System (Phase 3A - Week 5) ✅ **COMPLETED**
+- [x] **BOE-075**: Create BOEElementAllocation entity
+  - [x] Design database schema for element-level allocations
+  - [x] Implement monthly allocation structure
+  - [x] Add quantity tracking support
+  - [x] Create database migration
 
-- [ ] **BOE-076**: Implement BOEElementAllocationService
-  - [ ] Create allocation CRUD operations
-  - [ ] Implement monthly allocation calculations
-  - [ ] Add allocation validation rules
-  - [ ] Create allocation roll-up logic
+- [x] **BOE-076**: Implement BOEElementAllocationService
+  - [x] Create allocation CRUD operations
+  - [x] Implement monthly allocation calculations
+  - [x] Add allocation validation rules
+  - [x] Create allocation roll-up logic
 
-- [ ] **BOE-077**: Create BOEElementAllocationManager component
-  - [ ] Implement monthly allocation planning interface
-  - [ ] Add drag-and-drop reallocation functionality
-  - [ ] Create allocation adjustment modal
-  - [ ] Add quantity-based allocation support
+- [x] **BOE-077**: Create BOEElementAllocationManager component
+  - [x] Implement monthly allocation planning interface
+  - [x] Add drag-and-drop reallocation functionality (deferred for Phase 3B)
+  - [x] Create allocation adjustment modal
+  - [x] Add quantity-based allocation support
 
 - [ ] **BOE-078**: Create AllocationForecastView component
   - [ ] Display planned vs actual allocations by month
   - [ ] Show allocation variance analysis
   - [ ] Create re-forecasting suggestions
   - [ ] Add allocation status indicators
+
+### BOE Element Allocation System Enhancements (Phase 3A - Week 5) 🔄 **IN PROGRESS**
+- [ ] **BOE-078A**: Layout & UX Improvements (High Priority)
+  - [ ] Convert to right-sidebar layout for allocation management
+  - [ ] WBS tree takes full width (primary focus)
+  - [ ] Right-side slide-out sidebar for allocation details
+  - [ ] Add user guidance and visual cues for clickable elements
+  - [ ] Reorganize page structure for better WBS visibility
+  - [ ] Move cost breakdowns to collapsible sections (low priority)
+  - [ ] Implement smooth slide-in/out animations
+
+- [ ] **BOE-078B**: Fix Edit/Delete Functionality (High Priority)
+  - [ ] Implement proper event handlers for WBS element edit/delete buttons
+  - [ ] Add confirmation dialogs for delete actions
+  - [ ] Fix allocation edit/delete buttons in sidebar
+  - [ ] Fix save button validation and state management
+  - [ ] Add loading states for all actions
+  - [ ] Add success/error feedback for operations
+
+- [ ] **BOE-078C**: Parent Element Status Aggregation (Medium Priority)
+  - [ ] Implement recursive status calculation for parent elements
+  - [ ] Show aggregate status + count of children with each status
+  - [ ] Update BOETreeItem to display aggregated status for parents
+  - [ ] Add visual distinction between parent and leaf elements
+  - [ ] Implement status summary display (e.g., "3 complete, 2 in-progress, 1 not-started")
+  - [ ] Update status calculation on allocation changes
+
+- [ ] **BOE-078D**: Remove Element Allocations Tab (Low Priority)
+  - [ ] Remove "Element Allocations" tab from BOEPage navigation
+  - [ ] Clean up store references and routing logic
+  - [ ] Remove any remaining component references
+  - [ ] Update documentation to reflect removal
+
+- [ ] **BOE-078E**: Add BOE Deletion (Medium Priority)
+  - [ ] Add delete button for draft BOEs only
+  - [ ] Implement confirmation dialog with BOE details
+  - [ ] Add backend delete endpoint with proper validation
+  - [ ] Update program state after successful deletion
+  - [ ] Add proper cleanup of related data
+  - [ ] Show appropriate error messages for non-draft BOEs
+
+- [ ] **BOE-078F**: BOE Templates Review (Future Task)
+  - [ ] Evaluate current template structure and usage
+  - [ ] Simplify to basic templates (software, hardware, services)
+  - [ ] Update template documentation and usage examples
+  - [ ] Consider removing if not valuable to users
 
 ### Ledger Integration & Invoice Processing (Phase 3B - Week 6)
 - [ ] **BOE-079**: Enhance ledger integration
@@ -396,7 +462,7 @@
 - [ ] **BOE-108**: Create training materials
 - [ ] **BOE-109**: Update feature roadmap
 
-## Phase 1 & 2 Progress Summary ✅
+## Phase 1, 2, & 3A Progress Summary ✅
 **Last Updated**: January 27, 2025
 **Key Achievements**:
 - ✅ All database entities created and tested
@@ -413,12 +479,43 @@
   - ✅ Real-time calculation engine with validation
   - ✅ Enhanced BOE Overview with status indicators
   - ✅ Enhanced BOE Details with cost breakdowns
-  - ✅ **NEW**: Time Allocation System COMPLETED:
-    - ✅ TimeAllocationManager with creation form and monthly breakdown preview
-    - ✅ TimeAllocationSummary with variance analysis and visualization
-    - ✅ TimeAllocationActions with ledger integration and locking
-    - ✅ Complete time allocation API integration
-    - ✅ Time allocation tab integrated into BOE page
+- ✅ **Phase 2A COMPLETED - Enhanced WBS Details Tab**:
+  - ✅ Two-panel layout in BOE Details tab
+  - ✅ WBS tree with allocation status indicators
+  - ✅ BOETreeItem component with expand/collapse functionality
+  - ✅ Enhanced BOEElementAllocationManager for single element context
+  - ✅ Allocation status indicators (allocated, partially allocated, not allocated)
+- ✅ **Phase 2B COMPLETED - Wizard Integration**:
+  - ✅ Enhanced BOE wizard with 6-step flow
+  - ✅ New "Allocation Planning" step (Step 5)
+  - ✅ Per-element allocation configuration during BOE creation
+  - ✅ Allocation type selection (Linear, Front-Loaded, Back-Loaded, Custom)
+  - ✅ Date range planning and real-time monthly calculations
+  - ✅ Backend integration for allocation creation during BOE creation
+  - ✅ Modern Tailwind CSS styling throughout wizard
+- ✅ **Phase 3A COMPLETED - BOE Element Allocation System**:
+  - ✅ BOEElementAllocation entity with quantity tracking support
+  - ✅ BOEElementAllocationService with CRUD operations and monthly calculations
+  - ✅ Complete API endpoints for element allocation management
+  - ✅ BOEElementAllocationManager component with creation form and monthly breakdown preview
+  - ✅ Frontend store integration with element allocation state management
+  - ✅ Quantity-based allocation support (hours, units, etc.)
+  - ✅ Multiple allocation types (Linear, Front-Loaded, Back-Loaded, Custom)
+  - ✅ Ledger integration for pushing allocations to baseline
+  - ✅ Actuals tracking and variance calculation
+- 🔄 **Phase 3A IN PROGRESS - System Enhancements**:
+  - 🔄 Layout & UX improvements (sidebar conversion, user guidance)
+  - 🔄 Edit/delete functionality fixes (WBS elements, allocations, save button)
+  - 🔄 Parent element status aggregation (recursive status calculation)
+  - 🔄 Element Allocations tab removal (cleanup)
+  - 🔄 BOE deletion functionality (draft BOEs only)
+  - 🔄 BOE templates review and simplification (future task)
+- ✅ **Code Cleanup COMPLETED**:
+  - ✅ Removed entire Time Allocation system (superseded by Element Allocations)
+  - ✅ Cleaned up all related components, services, and API endpoints
+  - ✅ Updated store and state management
+  - ✅ Removed time allocation tab from BOE page
+  - ✅ Updated documentation to reflect changes
 
 **Test Results**:
 - ✅ BOE template creation: Working
@@ -428,23 +525,34 @@
 - ✅ Program-BOE integration: Working
 - ✅ Frontend tab navigation: Working
 - ✅ UI styling consistency: Working
-- ✅ **NEW**: Hierarchical WBS editing: Working
-- ✅ **NEW**: Cost category integration: Working
-- ✅ **NEW**: Vendor integration: Working
-- ✅ **NEW**: Real-time calculations: Working
-- ✅ **NEW**: BOE to Ledger integration: Working
-- ✅ **NEW**: Time allocation system: Working
-- ✅ **NEW**: Time allocation frontend components: Working
-- ✅ **NEW**: Time allocation API integration: Working
+- ✅ Hierarchical WBS editing: Working
+- ✅ Cost category integration: Working
+- ✅ Vendor integration: Working
+- ✅ Real-time calculations: Working
+- ✅ BOE to Ledger integration: Working
+- ✅ **NEW**: Enhanced BOE Details tab with two-panel layout: Working
+- ✅ **NEW**: WBS tree with allocation status indicators: Working
+- ✅ **NEW**: BOEElementAllocationManager integration: Working
+- ✅ **NEW**: Enhanced BOE wizard with allocation planning: Working
+- ✅ **NEW**: Allocation creation during BOE creation: Working
+- ✅ **NEW**: Real-time monthly calculations in wizard: Working
+- ✅ **NEW**: Backend allocation service integration: Working
+- ✅ **NEW**: Element allocation system: Working
+- ✅ **NEW**: Element allocation API endpoints: Working
+- ✅ **NEW**: Element allocation frontend components: Working
+- 🔄 **NEW**: Edit/delete functionality: Needs fixing
+- 🔄 **NEW**: Save button functionality: Needs fixing
+- 🔄 **NEW**: Parent element status aggregation: Needs implementation
+- 🔄 **NEW**: Sidebar layout conversion: Needs implementation
 
-**Next Phase**: Phase 3 - Management Reserve & Advanced Features
+**Next Phase**: Complete Phase 3A Enhancements, then Phase 3B - Ledger Integration & Invoice Processing
 
 ## Notes
 - **Priority**: High
 - **Dependencies**: Existing ledger management, WBS templates, vendor management
-- **Estimated completion**: Q1 2026 (4 weeks remaining)
+- **Estimated completion**: Q1 2026 (3 weeks remaining)
 - **Related implementation plan**: `docs/implementation-plans/boe-system.md`
-- **Story Points**: 80-100 points total (Phase 1: 25 points, Phase 2 partial: 15 points completed)
+- **Story Points**: 80-100 points total (Phase 1: 25 points, Phase 2: 30 points, Phase 3A: 20 points completed, 10 points remaining)
 - **Team**: 2-3 developers recommended
 
 ## Risk Mitigation
@@ -455,5 +563,5 @@
 
 ---
 *Created: [Current Date]*  
-*Status: Phase 1 Complete - Phase 2 Partially Complete*  
-*Next Step: Complete Phase 2 - Hierarchical WBS Editing & Integration* 
+*Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Partially Complete*  
+*Next Step: Complete Phase 3A Enhancements - Layout & UX Improvements, Edit/Delete Fixes* 

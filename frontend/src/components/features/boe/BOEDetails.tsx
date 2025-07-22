@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
-import { boeVersionsApi, boeElementsApi } from '../../../services/boeApi';
+import { boeVersionsApi, boeElementsApi, elementAllocationApi } from '../../../services/boeApi';
 import BOECalculationService, { BOECalculationResult } from '../../../services/boeCalculationService';
 import BOEForm from './BOEForm';
+import BOEElementAllocationManager from './BOEElementAllocationManager';
 import Button from '../../common/Button';
 import { formatCurrency, safeNumber } from '../../../utils/currencyUtils';
 import { 
@@ -12,12 +13,208 @@ import {
   CurrencyDollarIcon,
   BuildingOfficeIcon,
   UserGroupIcon,
-  ClockIcon
+  ClockIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  PlusIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
+import { BOEElement, BOEElementAllocation } from '../../../store/boeStore';
 
 interface BOEDetailsProps {
   programId: string;
 }
+
+interface BOETreeItemProps {
+  element: BOEElement;
+  level: number;
+  expandedItems: Set<string>;
+  onToggleExpand: (id: string) => void;
+  onElementSelect: (element: BOEElement) => void;
+  selectedElementId?: string;
+  onEdit: (element: BOEElement) => void;
+  onDelete: (element: BOEElement) => void;
+  onAddChild: (parentId: string) => void;
+  isReadOnly?: boolean;
+  costCategories: any[];
+  vendors: any[];
+  elementAllocations: BOEElementAllocation[];
+}
+
+// Enhanced BOETreeItem with allocation status indicators
+const BOETreeItem: React.FC<BOETreeItemProps> = ({
+  element,
+  level,
+  expandedItems,
+  onToggleExpand,
+  onElementSelect,
+  selectedElementId,
+  onEdit,
+  onDelete,
+  onAddChild,
+  isReadOnly,
+  costCategories,
+  vendors,
+  elementAllocations
+}) => {
+  const isExpanded = expandedItems.has(element.id);
+  const hasChildren = element.childElements && element.childElements.length > 0;
+  const isSelected = selectedElementId === element.id;
+
+  // Check allocation status
+  const elementAllocation = elementAllocations.find(allocation => allocation.boeElementId === element.id);
+  const hasAllocation = !!elementAllocation;
+  const isAllocationLocked = elementAllocation?.isLocked || false;
+
+  const handleToggle = () => {
+    if (hasChildren) {
+      onToggleExpand(element.id);
+    }
+  };
+
+  const handleSelect = () => {
+    onElementSelect(element);
+  };
+
+  // Get cost category and vendor names
+  const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
+  const vendor = vendors.find(v => v.id === element.vendorId);
+
+  // Allocation status indicator
+  const getAllocationStatusIcon = () => {
+    if (!hasAllocation) {
+      return <div className="w-3 h-3 rounded-full bg-gray-300 border border-gray-400" title="No allocation" />;
+    }
+    if (isAllocationLocked) {
+      return <CheckCircleIcon className="w-4 h-4 text-green-600" title="Allocation locked" />;
+    }
+    return <ClockIcon className="w-4 h-4 text-blue-600" title="Allocation active" />;
+  };
+
+  return (
+    <div className="boe-tree-item">
+      <div 
+        className={`flex items-center py-2 px-3 hover:bg-gray-50 cursor-pointer border-l-4 transition-colors ${
+          isSelected 
+            ? 'bg-blue-100 border-blue-500' 
+            : 'border-transparent hover:border-gray-300'
+        }`}
+        style={{ paddingLeft: `${level * 24 + 8}px` }}
+        onClick={handleSelect}
+      >
+        {/* Expand/Collapse button */}
+        {hasChildren ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggle();
+            }}
+            className="p-1 hover:bg-gray-200 rounded mr-2"
+          >
+            {isExpanded ? (
+              <ChevronDownIcon className="h-4 w-4" />
+            ) : (
+              <ChevronRightIcon className="h-4 w-4" />
+            )}
+          </button>
+        ) : (
+          <div className="w-6 mr-2" />
+        )}
+
+        {/* Allocation Status Indicator */}
+        <div className="mr-2">
+          {getAllocationStatusIcon()}
+        </div>
+
+        {/* Element Code */}
+        <span className="text-sm font-mono text-gray-600 mr-3 min-w-[60px]">
+          {element.code}
+        </span>
+
+        {/* Element Name */}
+        <span className="text-sm font-medium text-gray-900 flex-1">
+          {element.name}
+        </span>
+
+        {/* Estimated Cost */}
+        <span className="text-sm text-gray-600 mr-3 min-w-[80px] text-right">
+          {formatCurrency(element.estimatedCost)}
+        </span>
+
+        {/* Cost Category */}
+        <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
+          {costCategory?.name || 'Unassigned'}
+        </span>
+
+        {/* Vendor */}
+        <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
+          {vendor?.name || 'Unassigned'}
+        </span>
+
+        {/* Actions */}
+        {!isReadOnly && (
+          <div className="flex items-center space-x-1 ml-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(element);
+              }}
+              className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
+              title="Edit element"
+            >
+              <PencilIcon className="h-3 w-3" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddChild(element.id);
+              }}
+              className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
+              title="Add child element"
+            >
+              <PlusIcon className="h-3 w-3" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(element);
+              }}
+              className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-red-600"
+              title="Delete element"
+            >
+              <TrashIcon className="h-3 w-3" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Render children if expanded */}
+      {isExpanded && hasChildren && (
+        <div className="ml-6">
+          {element.childElements!.map((child) => (
+            <BOETreeItem
+              key={child.id}
+              element={child}
+              level={level + 1}
+              expandedItems={expandedItems}
+              onToggleExpand={onToggleExpand}
+              onElementSelect={onElementSelect}
+              selectedElementId={selectedElementId}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAddChild={onAddChild}
+              isReadOnly={isReadOnly}
+              costCategories={costCategories}
+              vendors={vendors}
+              elementAllocations={elementAllocations}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const { 
@@ -26,12 +223,20 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     setElements, 
     setElementsLoading, 
     setElementsError,
-    setCurrentBOE 
+    setCurrentBOE,
+    elementAllocations,
+    setElementAllocations,
+    setElementAllocationsLoading,
+    setElementAllocationsError
   } = useBOEStore();
   
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [selectedElement, setSelectedElement] = useState<BOEElement | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [costCategories, setCostCategories] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
 
   // Calculate real-time totals and breakdowns
   const calculationResult = useMemo((): BOECalculationResult => {
@@ -76,6 +281,13 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     loadBOEData();
   }, [programId]);
 
+  // Load element allocations when BOE changes
+  useEffect(() => {
+    if (currentBOE?.id) {
+      loadElementAllocations();
+    }
+  }, [currentBOE?.id]);
+
   const loadBOEData = async () => {
     try {
       setLoading(true);
@@ -101,27 +313,34 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     }
   };
 
+  const loadElementAllocations = async () => {
+    if (!currentBOE?.id) return;
+
+    try {
+      setElementAllocationsLoading(true);
+      setElementAllocationsError(null);
+      
+      const allocations = await elementAllocationApi.getElementAllocations(currentBOE.id);
+      setElementAllocations(allocations);
+    } catch (error) {
+      console.error('Error loading element allocations:', error);
+      setElementAllocationsError('Failed to load element allocations');
+    } finally {
+      setElementAllocationsLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       setLoading(true);
       
-      // Validate before saving
-      if (!validationResult.isValid) {
-        alert('Please fix validation errors before saving');
-        return;
-      }
+      // Save BOE elements
+      await boeElementsApi.bulkUpdateElements(currentBOE!.id, elements);
       
-      // Save the current elements to the backend
-      if (currentBOE) {
-        await boeElementsApi.bulkUpdateElements(currentBOE.id, elements);
-      }
-      
-      // Refresh BOE data after save
-      await loadBOEData();
       setIsEditing(false);
     } catch (error) {
       console.error('Error saving BOE:', error);
-      alert('Failed to save BOE changes');
+      setElementsError('Failed to save BOE');
     } finally {
       setLoading(false);
     }
@@ -131,6 +350,35 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     setElements(newElements);
   };
 
+  const handleToggleExpand = (id: string) => {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedItems(newExpanded);
+  };
+
+  const handleElementSelect = (element: BOEElement) => {
+    setSelectedElement(element);
+  };
+
+  const handleEdit = (element: BOEElement) => {
+    // TODO: Implement edit modal
+    console.log('Edit element:', element);
+  };
+
+  const handleDelete = (element: BOEElement) => {
+    // TODO: Implement delete confirmation
+    console.log('Delete element:', element);
+  };
+
+  const handleAddChild = (parentId: string) => {
+    // TODO: Implement add child modal
+    console.log('Add child to:', parentId);
+  };
+
   const getVarianceColor = (variance: number) => {
     if (variance > 0) return 'text-red-600';
     if (variance < 0) return 'text-green-600';
@@ -138,15 +386,15 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   };
 
   const getVarianceIcon = (variance: number) => {
-    if (variance > 0) return <ExclamationTriangleIcon className="h-4 w-4 text-red-500" />;
-    if (variance < 0) return <CheckCircleIcon className="h-4 w-4 text-green-500" />;
-    return <ClockIcon className="h-4 w-4 text-gray-500" />;
+    if (variance > 0) return <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />;
+    if (variance < 0) return <CheckCircleIcon className="h-6 w-6 text-green-600" />;
+    return <CurrencyDollarIcon className="h-6 w-6 text-gray-600" />;
   };
 
   if (loading) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
+        <div className="flex flex-col items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           <p className="text-gray-600 mt-2">Loading BOE details...</p>
         </div>
@@ -176,6 +424,9 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
       </div>
     );
   }
+
+  // Build hierarchical structure for display
+  const hierarchicalElements = BOECalculationService.buildHierarchicalStructure(elements);
 
   return (
     <div className="p-6">
@@ -292,9 +543,88 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         </div>
       </div>
 
+      {/* Two-Panel Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Panel: WBS Tree */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900">Work Breakdown Structure</h4>
+            <p className="text-sm text-gray-600 mt-1">
+              Click on an element to view its allocation details
+            </p>
+          </div>
+          
+          <div className="p-4">
+            {/* WBS Tree Header */}
+            <div className="flex items-center py-2 px-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <div className="w-6 mr-2" />
+              <div className="w-4 mr-2" /> {/* Allocation status */}
+              <span className="mr-3 min-w-[60px]">Code</span>
+              <span className="flex-1">Name</span>
+              <span className="mr-3 min-w-[80px] text-right">Est. Cost</span>
+              <span className="mr-3 min-w-[100px]">Category</span>
+              <span className="mr-3 min-w-[100px]">Vendor</span>
+            </div>
+
+            {/* WBS Tree */}
+            <div className="max-h-96 overflow-y-auto">
+              {hierarchicalElements.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No WBS elements found</p>
+                </div>
+              ) : (
+                hierarchicalElements.map((element) => (
+                  <BOETreeItem
+                    key={element.id}
+                    element={element}
+                    level={0}
+                    expandedItems={expandedItems}
+                    onToggleExpand={handleToggleExpand}
+                    onElementSelect={handleElementSelect}
+                    selectedElementId={selectedElement?.id}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onAddChild={handleAddChild}
+                    isReadOnly={!isEditing}
+                    costCategories={costCategories}
+                    vendors={vendors}
+                    elementAllocations={elementAllocations}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel: Allocation Details */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900">Element Allocations</h4>
+            <p className="text-sm text-gray-600 mt-1">
+              {selectedElement ? `Allocation details for ${selectedElement.name}` : 'Select an element to view allocations'}
+            </p>
+          </div>
+          
+          <div className="p-4">
+            {selectedElement ? (
+              <BOEElementAllocationManager 
+                boeVersionId={currentBOE.id}
+                selectedElementId={selectedElement.id}
+                selectedElementName={selectedElement.name}
+              />
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <ClockIcon className="mx-auto h-12 w-12 mb-4" />
+                <p>Select a WBS element to view and manage its allocations</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Cost Category Breakdown */}
       {calculationResult.costCategoryBreakdown.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
           <h4 className="text-lg font-medium text-gray-900 mb-4">Cost Category Breakdown</h4>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -347,7 +677,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
 
       {/* Level Breakdown */}
       {calculationResult.levelBreakdown.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
           <h4 className="text-lg font-medium text-gray-900 mb-4">Level Breakdown</h4>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -397,16 +727,6 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
           </div>
         </div>
       )}
-
-      {/* BOE Form */}
-      <BOEForm
-        programId={programId}
-        boeVersionId={currentBOE.id}
-        elements={elements}
-        onElementsChange={handleElementsChange}
-        onSave={handleSave}
-        isReadOnly={!isEditing}
-      />
     </div>
   );
 };

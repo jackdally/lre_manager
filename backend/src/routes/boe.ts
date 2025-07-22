@@ -147,18 +147,46 @@ router.post('/programs/:id/boe', async (req, res) => {
       });
     }
 
-    // Create new BOE version
-    const boeVersion = new BOEVersion();
-    boeVersion.versionNumber = req.body.versionNumber;
-    boeVersion.name = req.body.name;
-    boeVersion.description = req.body.description;
-    boeVersion.status = 'Draft';
-    boeVersion.totalEstimatedCost = 0;
-    boeVersion.managementReserveAmount = 0;
-    boeVersion.managementReservePercentage = 0;
-    boeVersion.program = program;
+    let savedBOE;
 
-    const savedBOE = await boeVersionRepository.save(boeVersion);
+    // Check if this is a template-based creation with allocations
+    if (req.body.templateId && req.body.allocations) {
+      // Create BOE from template with allocations
+      savedBOE = await BOEService.createBOEFromTemplateWithAllocations(
+        id,
+        req.body.templateId,
+        {
+          versionNumber: req.body.versionNumber,
+          name: req.body.name,
+          description: req.body.description
+        },
+        req.body.allocations
+      );
+    } else if (req.body.templateId) {
+      // Create BOE from template without allocations
+      savedBOE = await BOEService.createBOEFromTemplate(
+        id,
+        req.body.templateId,
+        {
+          versionNumber: req.body.versionNumber,
+          name: req.body.name,
+          description: req.body.description
+        }
+      );
+    } else {
+      // Create basic BOE version
+      const boeVersion = new BOEVersion();
+      boeVersion.versionNumber = req.body.versionNumber;
+      boeVersion.name = req.body.name;
+      boeVersion.description = req.body.description;
+      boeVersion.status = 'Draft';
+      boeVersion.totalEstimatedCost = 0;
+      boeVersion.managementReserveAmount = 0;
+      boeVersion.managementReservePercentage = 0;
+      boeVersion.program = program;
+
+      savedBOE = await boeVersionRepository.save(boeVersion);
+    }
 
     // Update program
     program.hasBOE = true;

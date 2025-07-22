@@ -128,8 +128,8 @@ export interface ManagementReserve {
   updatedBy?: string;
 }
 
-// Time Allocation Types
-export interface TimeAllocation {
+// Element Allocation Types
+export interface BOEElementAllocation {
   id: string;
   name: string;
   description: string;
@@ -144,15 +144,21 @@ export interface TimeAllocation {
   notes?: string;
   assumptions?: string;
   risks?: string;
-  boeElementId?: string;
-  programId: string;
+  totalQuantity?: number;
+  quantityUnit?: string;
+  monthlyQuantity?: number;
+  boeElementId: string;
+  boeVersionId: string;
   monthlyBreakdown?: {
     [month: string]: {
       amount: number;
+      quantity?: number;
       date: string;
       isLocked: boolean;
       actualAmount?: number;
+      actualQuantity?: number;
       actualDate?: string;
+      notes?: string;
     };
   };
   createdAt: string;
@@ -161,7 +167,7 @@ export interface TimeAllocation {
   updatedBy?: string;
 }
 
-export interface TimeAllocationSummary {
+export interface BOEElementAllocationSummary {
   totalAllocations: number;
   totalAmount: number;
   allocatedAmount: number;
@@ -170,6 +176,8 @@ export interface TimeAllocationSummary {
   allocations: Array<{
     id: string;
     name: string;
+    elementName: string;
+    elementCode: string;
     totalAmount: number;
     allocatedAmount: number;
     actualAmount: number;
@@ -177,8 +185,12 @@ export interface TimeAllocationSummary {
     isLocked: boolean;
     startDate: string;
     endDate: string;
+    allocationType: string;
+    costCategory: string;
   }>;
 }
+
+
 
 export interface BOESummary {
   hasBOE: boolean;
@@ -223,17 +235,19 @@ interface BOEState {
   mrLoading: boolean;
   mrError: string | null;
 
-  // Time Allocations
-  timeAllocations: TimeAllocation[];
-  timeAllocationSummary: TimeAllocationSummary | null;
-  timeAllocationsLoading: boolean;
-  timeAllocationsError: string | null;
+
+
+  // Element Allocations
+  elementAllocations: BOEElementAllocation[];
+  elementAllocationSummary: BOEElementAllocationSummary | null;
+  elementAllocationsLoading: boolean;
+  elementAllocationsError: string | null;
 
   // UI State
   isCreatingBOE: boolean;
   isUpdatingBOE: boolean;
   isDeletingBOE: boolean;
-  activeTab: 'overview' | 'details' | 'approval' | 'history' | 'time-allocations';
+  activeTab: 'overview' | 'details' | 'approval' | 'history' | 'element-allocations';
   wizardStep: number;
   wizardData: any;
 
@@ -257,15 +271,17 @@ interface BOEState {
   setMRLoading: (loading: boolean) => void;
   setMRError: (error: string | null) => void;
 
-  setTimeAllocations: (allocations: TimeAllocation[]) => void;
-  setTimeAllocationSummary: (summary: TimeAllocationSummary | null) => void;
-  setTimeAllocationsLoading: (loading: boolean) => void;
-  setTimeAllocationsError: (error: string | null) => void;
+
+
+  setElementAllocations: (allocations: BOEElementAllocation[]) => void;
+  setElementAllocationSummary: (summary: BOEElementAllocationSummary | null) => void;
+  setElementAllocationsLoading: (loading: boolean) => void;
+  setElementAllocationsError: (error: string | null) => void;
 
   setCreatingBOE: (creating: boolean) => void;
   setUpdatingBOE: (updating: boolean) => void;
   setDeletingBOE: (deleting: boolean) => void;
-  setActiveTab: (tab: 'overview' | 'details' | 'approval' | 'history' | 'time-allocations') => void;
+  setActiveTab: (tab: 'overview' | 'details' | 'approval' | 'history' | 'element-allocations') => void;
   setWizardStep: (step: number) => void;
   setWizardData: (data: any) => void;
 
@@ -307,11 +323,13 @@ const initialState = {
   mrLoading: false,
   mrError: null,
 
-  // Time Allocations
-  timeAllocations: [],
-  timeAllocationSummary: null,
-  timeAllocationsLoading: false,
-  timeAllocationsError: null,
+
+
+  // Element Allocations
+  elementAllocations: [],
+  elementAllocationSummary: null,
+  elementAllocationsLoading: false,
+  elementAllocationsError: null,
 
   // UI State
   isCreatingBOE: false,
@@ -351,11 +369,13 @@ export const useBOEStore = create<BOEState>()(
       setMRLoading: (loading) => set({ mrLoading: loading }),
       setMRError: (error) => set({ mrError: error }),
 
-      // Time Allocation Actions
-      setTimeAllocations: (allocations) => set({ timeAllocations: allocations }),
-      setTimeAllocationSummary: (summary) => set({ timeAllocationSummary: summary }),
-      setTimeAllocationsLoading: (loading) => set({ timeAllocationsLoading: loading }),
-      setTimeAllocationsError: (error) => set({ timeAllocationsError: error }),
+
+
+      // Element Allocation Actions
+      setElementAllocations: (allocations) => set({ elementAllocations: allocations }),
+      setElementAllocationSummary: (summary) => set({ elementAllocationSummary: summary }),
+      setElementAllocationsLoading: (loading) => set({ elementAllocationsLoading: loading }),
+      setElementAllocationsError: (error) => set({ elementAllocationsError: error }),
 
       // UI Actions
       setCreatingBOE: (creating) => set({ isCreatingBOE: creating }),

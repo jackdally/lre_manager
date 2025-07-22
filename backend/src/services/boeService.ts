@@ -9,6 +9,7 @@ import { LedgerEntry } from '../entities/LedgerEntry';
 import { WbsTemplate } from '../entities/WbsTemplate';
 import { WbsTemplateElement } from '../entities/WbsTemplateElement';
 import { WbsElement } from '../entities/WbsElement';
+import { BOEElementAllocation } from '../entities/BOEElementAllocation';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
@@ -20,6 +21,7 @@ const ledgerRepository = AppDataSource.getRepository(LedgerEntry);
 const wbsTemplateRepository = AppDataSource.getRepository(WbsTemplate);
 const wbsTemplateElementRepository = AppDataSource.getRepository(WbsTemplateElement);
 const wbsElementRepository = AppDataSource.getRepository(WbsElement);
+const elementAllocationRepository = AppDataSource.getRepository(BOEElementAllocation);
 
 export class BOEService {
   /**
@@ -141,6 +143,231 @@ export class BOEService {
     await managementReserveRepository.save(mrRecord);
 
     return updatedBOEEntity;
+  }
+
+  /**
+   * Create BOE from template with allocations
+   */
+  static async createBOEFromTemplateWithAllocations(
+    programId: string, 
+    templateId: string, 
+    versionData: any,
+    allocations: any[]
+  ): Promise<any> {
+    const program = await programRepository.findOne({ where: { id: programId } });
+    if (!program) {
+      throw new Error('Program not found');
+    }
+
+    const template = await boeTemplateRepository.findOne({
+      where: { id: templateId },
+      relations: ['elements']
+    });
+    if (!template) {
+      throw new Error('BOE template not found');
+    }
+
+    // Create BOE version
+    const boeVersion = boeVersionRepository.create({
+      ...versionData,
+      program,
+      templateId,
+      status: 'Draft',
+      totalEstimatedCost: 0,
+      managementReserveAmount: 0,
+      managementReservePercentage: 0
+    });
+
+    const savedBOE = await boeVersionRepository.save(boeVersion);
+    const boeVersionEntity = Array.isArray(savedBOE) ? savedBOE[0] : savedBOE;
+
+    // Create BOE elements from template
+    const templateElements = template.elements || [];
+    const createdElements: BOEElement[] = [];
+    
+    for (const templateElement of templateElements) {
+      const boeElement = new BOEElement();
+      boeElement.code = templateElement.code;
+      boeElement.name = templateElement.name;
+      boeElement.description = templateElement.description;
+      boeElement.level = templateElement.level;
+      boeElement.parentElementId = templateElement.parentElementId;
+      boeElement.costCategoryId = templateElement.costCategoryId;
+      boeElement.estimatedCost = templateElement.estimatedCost || 0;
+      boeElement.managementReservePercentage = templateElement.managementReservePercentage;
+      boeElement.isRequired = templateElement.isRequired;
+      boeElement.isOptional = templateElement.isOptional;
+      boeElement.notes = templateElement.notes;
+      boeElement.boeVersion = boeVersionEntity;
+
+      const savedElement = await boeElementRepository.save(boeElement);
+      createdElements.push(savedElement);
+    }
+
+    // Create allocations for elements
+    if (allocations && allocations.length > 0) {
+      for (const allocationData of allocations) {
+        // Find the corresponding BOE element
+        const boeElement = createdElements.find(element => element.name === allocationData.elementName);
+        
+        if (boeElement) {
+          // Calculate monthly breakdown
+          const startDate = new Date(allocationData.startDate);
+          const endDate = new Date(allocationData.endDate);
+          const numberOfMonths = this.calculateNumberOfMonths(startDate, endDate);
+          const monthlyAmount = allocationData.totalAmount / numberOfMonths;
+
+          const monthlyBreakdown = this.generateMonthlyBreakdown(
+            allocationData.totalAmount,
+            null, // no quantity for now
+            startDate,
+            endDate,
+            allocationData.allocationType
+          );
+
+          const elementAllocation = elementAllocationRepository.create({
+            name: allocationData.name || `${boeElement.name} Allocation`,
+            description: allocationData.description || `Monthly allocation for ${boeElement.name}`,
+            totalAmount: allocationData.totalAmount,
+            allocationType: allocationData.allocationType,
+            startDate: allocationData.startDate,
+            endDate: allocationData.endDate,
+            numberOfMonths,
+            monthlyAmount,
+            isActive: true,
+            isLocked: false,
+            notes: allocationData.notes || '',
+            assumptions: '',
+            risks: '',
+            boeElement,
+            boeVersion: boeVersionEntity,
+            monthlyBreakdown
+          });
+
+          await elementAllocationRepository.save(elementAllocation);
+        }
+      }
+    }
+
+    // Calculate totals
+    const totalCost = await this.calculateTotalEstimatedCost(boeVersionEntity.id);
+    const managementReserve = this.calculateManagementReserve(totalCost);
+
+    // Update BOE version with calculated values
+    boeVersionEntity.totalEstimatedCost = totalCost;
+    boeVersionEntity.managementReserveAmount = managementReserve.amount;
+    boeVersionEntity.managementReservePercentage = managementReserve.percentage;
+
+    const updatedBOE = await boeVersionRepository.save(boeVersionEntity);
+    const updatedBOEEntity = Array.isArray(updatedBOE) ? updatedBOE[0] : updatedBOE;
+
+    // Create management reserve record
+    const mrRecord = new ManagementReserve();
+    mrRecord.baselineAmount = managementReserve.amount;
+    mrRecord.baselinePercentage = managementReserve.percentage;
+    mrRecord.adjustedAmount = managementReserve.amount;
+    mrRecord.adjustedPercentage = managementReserve.percentage;
+    mrRecord.calculationMethod = 'Standard';
+    mrRecord.boeVersion = updatedBOEEntity;
+
+    await managementReserveRepository.save(mrRecord);
+
+    return updatedBOEEntity;
+  }
+
+  /**
+   * Calculate number of months between two dates
+   */
+  static calculateNumberOfMonths(startDate: Date, endDate: Date): number {
+    const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                   (endDate.getMonth() - startDate.getMonth());
+    return Math.max(1, months + 1); // Ensure at least 1 month
+  }
+
+  /**
+   * Generate monthly breakdown based on allocation type
+   */
+  static generateMonthlyBreakdown(
+    totalAmount: number,
+    totalQuantity: number | null,
+    startDate: Date,
+    endDate: Date,
+    allocationType: 'Linear' | 'Front-Loaded' | 'Back-Loaded' | 'Custom'
+  ): { [month: string]: any } {
+    const numberOfMonths = this.calculateNumberOfMonths(startDate, endDate);
+    const breakdown: { [month: string]: any } = {};
+
+    let currentDate = new Date(startDate);
+    let remainingAmount = totalAmount;
+    let remainingQuantity = totalQuantity;
+
+    for (let i = 0; i < numberOfMonths; i++) {
+      const monthKey = currentDate.toISOString().slice(0, 7); // YYYY-MM format
+      let monthlyAmount: number;
+      let monthlyQuantity: number | null = null;
+
+      switch (allocationType) {
+        case 'Linear':
+          monthlyAmount = totalAmount / numberOfMonths;
+          monthlyQuantity = totalQuantity ? totalQuantity / numberOfMonths : null;
+          break;
+        case 'Front-Loaded':
+          // 60% in first 30% of months, 30% in middle 40%, 10% in last 30%
+          if (i < Math.ceil(numberOfMonths * 0.3)) {
+            monthlyAmount = (totalAmount * 0.6) / Math.ceil(numberOfMonths * 0.3);
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.6) / Math.ceil(numberOfMonths * 0.3) : null;
+          } else if (i < Math.ceil(numberOfMonths * 0.7)) {
+            monthlyAmount = (totalAmount * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3)) : null;
+          } else {
+            monthlyAmount = (totalAmount * 0.1) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.1) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7)) : null;
+          }
+          break;
+        case 'Back-Loaded':
+          // 10% in first 30% of months, 30% in middle 40%, 60% in last 30%
+          if (i < Math.ceil(numberOfMonths * 0.3)) {
+            monthlyAmount = (totalAmount * 0.1) / Math.ceil(numberOfMonths * 0.3);
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.1) / Math.ceil(numberOfMonths * 0.3) : null;
+          } else if (i < Math.ceil(numberOfMonths * 0.7)) {
+            monthlyAmount = (totalAmount * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3)) : null;
+          } else {
+            monthlyAmount = (totalAmount * 0.6) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.6) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7)) : null;
+          }
+          break;
+        case 'Custom':
+          // For custom, we'll use linear as default and allow manual adjustment
+          monthlyAmount = totalAmount / numberOfMonths;
+          monthlyQuantity = totalQuantity ? totalQuantity / numberOfMonths : null;
+          break;
+        default:
+          monthlyAmount = totalAmount / numberOfMonths;
+          monthlyQuantity = totalQuantity ? totalQuantity / numberOfMonths : null;
+      }
+
+      // Ensure we don't exceed remaining amounts
+      monthlyAmount = Math.min(monthlyAmount, remainingAmount);
+      remainingAmount -= monthlyAmount;
+
+      if (monthlyQuantity && remainingQuantity) {
+        monthlyQuantity = Math.min(monthlyQuantity, remainingQuantity);
+        remainingQuantity -= monthlyQuantity;
+      }
+
+      breakdown[monthKey] = {
+        amount: Math.round(monthlyAmount * 100) / 100, // Round to 2 decimal places
+        quantity: monthlyQuantity ? Math.round(monthlyQuantity * 100) / 100 : null,
+        date: currentDate.toISOString().slice(0, 10),
+        isLocked: false
+      };
+
+      // Move to next month
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    return breakdown;
   }
 
   /**

@@ -6,8 +6,8 @@ import {
   BOEApproval,
   ManagementReserve,
   BOESummary,
-  TimeAllocation,
-  TimeAllocationSummary,
+  BOEElementAllocation,
+  BOEElementAllocationSummary,
 } from '../store/boeStore';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
@@ -169,46 +169,54 @@ export const managementReserveApi = {
   },
 };
 
-// Time Allocation API
-export const timeAllocationApi = {
-  // Get time allocation summary for program
-  getTimeAllocationSummary: async (programId: string): Promise<TimeAllocationSummary> => {
-    const response = await boeApi.get(`/programs/${programId}/time-allocations`);
-    return response.data as TimeAllocationSummary;
+
+
+// Element Allocation API
+export const elementAllocationApi = {
+  // Get element allocations for a BOE version
+  getElementAllocations: async (boeVersionId: string): Promise<BOEElementAllocation[]> => {
+    const response = await boeApi.get(`/boe-versions/${boeVersionId}/element-allocations`);
+    return response.data as BOEElementAllocation[];
   },
 
-  // Create new time allocation
-  createTimeAllocation: async (programId: string, allocationData: any): Promise<TimeAllocation> => {
-    const response = await boeApi.post(`/programs/${programId}/time-allocations`, allocationData);
-    return response.data as TimeAllocation;
+  // Get element allocation summary for a BOE version
+  getElementAllocationSummary: async (boeVersionId: string): Promise<BOEElementAllocationSummary> => {
+    const response = await boeApi.get(`/boe-versions/${boeVersionId}/element-allocations/summary`);
+    return response.data as BOEElementAllocationSummary;
   },
 
-  // Get time allocation by ID
-  getTimeAllocation: async (allocationId: string): Promise<TimeAllocation> => {
-    const response = await boeApi.get(`/time-allocations/${allocationId}`);
-    return response.data as TimeAllocation;
+  // Create new element allocation
+  createElementAllocation: async (boeElementId: string, allocationData: any): Promise<BOEElementAllocation> => {
+    const response = await boeApi.post(`/boe-elements/${boeElementId}/allocations`, allocationData);
+    return response.data as BOEElementAllocation;
   },
 
-  // Update time allocation
-  updateTimeAllocation: async (allocationId: string, allocationData: any): Promise<TimeAllocation> => {
-    const response = await boeApi.put(`/time-allocations/${allocationId}`, allocationData);
-    return response.data as TimeAllocation;
+  // Get element allocation by ID
+  getElementAllocation: async (allocationId: string): Promise<BOEElementAllocation> => {
+    const response = await boeApi.get(`/element-allocations/${allocationId}`);
+    return response.data as BOEElementAllocation;
   },
 
-  // Delete time allocation
-  deleteTimeAllocation: async (allocationId: string): Promise<void> => {
-    await boeApi.delete(`/time-allocations/${allocationId}`);
+  // Update element allocation
+  updateElementAllocation: async (allocationId: string, allocationData: any): Promise<BOEElementAllocation> => {
+    const response = await boeApi.put(`/element-allocations/${allocationId}`, allocationData);
+    return response.data as BOEElementAllocation;
   },
 
-  // Push time allocation to ledger
+  // Delete element allocation
+  deleteElementAllocation: async (allocationId: string): Promise<void> => {
+    await boeApi.delete(`/element-allocations/${allocationId}`);
+  },
+
+  // Push element allocation to ledger
   pushToLedger: async (allocationId: string): Promise<any> => {
-    const response = await boeApi.post(`/time-allocations/${allocationId}/push-to-ledger`);
+    const response = await boeApi.post(`/element-allocations/${allocationId}/push-to-ledger`);
     return response.data;
   },
 
   // Update actuals from ledger
   updateActuals: async (allocationId: string): Promise<any> => {
-    const response = await boeApi.post(`/time-allocations/${allocationId}/update-actuals`);
+    const response = await boeApi.post(`/element-allocations/${allocationId}/update-actuals`);
     return response.data;
   },
 };
@@ -284,7 +292,7 @@ export const boeApiService = {
   versions: boeVersionsApi,
   elements: boeElementsApi,
   managementReserve: managementReserveApi,
-  timeAllocation: timeAllocationApi,
+  elementAllocations: elementAllocationApi,
   approvals: boeApprovalsApi,
   calculations: boeCalculationsApi,
   wbsTemplateIntegration: wbsTemplateIntegrationApi,
