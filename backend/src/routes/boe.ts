@@ -7,6 +7,7 @@ import { BOETemplate } from '../entities/BOETemplate';
 import { BOETemplateElement } from '../entities/BOETemplateElement';
 import { BOEApproval } from '../entities/BOEApproval';
 import { ManagementReserve } from '../entities/ManagementReserve';
+import { BOEService } from '../services/boeService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -488,6 +489,41 @@ router.delete('/boe-elements/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting BOE element:', error);
     res.status(500).json({ message: 'Error deleting BOE element', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/programs/{id}/boe/{versionId}/push-to-ledger:
+ *   post:
+ *     summary: Push BOE to ledger as baseline budget
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/programs/:id/boe/:versionId/push-to-ledger', async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+    
+    if (!isValidUUID(id) || !isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid program ID or version ID' });
+    }
+
+    const result = await BOEService.pushBOEToLedger(versionId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error pushing BOE to ledger:', error);
+    res.status(500).json({ message: 'Error pushing BOE to ledger', error });
   }
 });
 

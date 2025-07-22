@@ -18,7 +18,7 @@ export class BOEVersion {
   description!: string;
 
   @Column()
-  status!: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived';
+  status!: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived' | 'Baseline';
 
   @Column({ nullable: true })
   templateId?: string;

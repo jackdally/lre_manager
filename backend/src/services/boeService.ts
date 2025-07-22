@@ -5,6 +5,7 @@ import { BOETemplate } from '../entities/BOETemplate';
 import { BOETemplateElement } from '../entities/BOETemplateElement';
 import { ManagementReserve } from '../entities/ManagementReserve';
 import { Program } from '../entities/Program';
+import { LedgerEntry } from '../entities/LedgerEntry';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
@@ -12,6 +13,7 @@ const boeTemplateRepository = AppDataSource.getRepository(BOETemplate);
 const boeTemplateElementRepository = AppDataSource.getRepository(BOETemplateElement);
 const managementReserveRepository = AppDataSource.getRepository(ManagementReserve);
 const programRepository = AppDataSource.getRepository(Program);
+const ledgerRepository = AppDataSource.getRepository(LedgerEntry);
 
 export class BOEService {
   /**
@@ -61,7 +63,7 @@ export class BOEService {
   /**
    * Create BOE from template
    */
-  static async createBOEFromTemplate(programId: string, templateId: string, versionData: any): Promise<BOEVersion> {
+  static async createBOEFromTemplate(programId: string, templateId: string, versionData: any): Promise<any> {
     const program = await programRepository.findOne({ where: { id: programId } });
     if (!program) {
       throw new Error('Program not found');
@@ -87,6 +89,7 @@ export class BOEService {
     });
 
     const savedBOE = await boeVersionRepository.save(boeVersion);
+    const boeVersionEntity = Array.isArray(savedBOE) ? savedBOE[0] : savedBOE;
 
     // Create BOE elements from template
     const templateElements = template.elements || [];
@@ -103,21 +106,22 @@ export class BOEService {
       boeElement.isRequired = templateElement.isRequired;
       boeElement.isOptional = templateElement.isOptional;
       boeElement.notes = templateElement.notes;
-      boeElement.boeVersion = savedBOE;
+      boeElement.boeVersion = boeVersionEntity;
 
       await boeElementRepository.save(boeElement);
     }
 
     // Calculate totals
-    const totalCost = await this.calculateTotalEstimatedCost(savedBOE.id);
+    const totalCost = await this.calculateTotalEstimatedCost(boeVersionEntity.id);
     const managementReserve = this.calculateManagementReserve(totalCost);
 
     // Update BOE version with calculated values
-    savedBOE.totalEstimatedCost = totalCost;
-    savedBOE.managementReserveAmount = managementReserve.amount;
-    savedBOE.managementReservePercentage = managementReserve.percentage;
+    boeVersionEntity.totalEstimatedCost = totalCost;
+    boeVersionEntity.managementReserveAmount = managementReserve.amount;
+    boeVersionEntity.managementReservePercentage = managementReserve.percentage;
 
-    const updatedBOE = await boeVersionRepository.save(savedBOE);
+    const updatedBOE = await boeVersionRepository.save(boeVersionEntity);
+    const updatedBOEEntity = Array.isArray(updatedBOE) ? updatedBOE[0] : updatedBOE;
 
     // Create management reserve record
     const mrRecord = new ManagementReserve();
@@ -126,11 +130,11 @@ export class BOEService {
     mrRecord.adjustedAmount = managementReserve.amount;
     mrRecord.adjustedPercentage = managementReserve.percentage;
     mrRecord.calculationMethod = 'Standard';
-    mrRecord.boeVersion = updatedBOE;
+    mrRecord.boeVersion = updatedBOEEntity;
 
     await managementReserveRepository.save(mrRecord);
 
-    return updatedBOE;
+    return updatedBOEEntity;
   }
 
   /**
@@ -273,6 +277,60 @@ export class BOEService {
     return {
       isValid: errors.length === 0,
       errors
+    };
+  }
+
+  /**
+   * Push entire BOE to ledger as baseline budget entries
+   */
+  static async pushBOEToLedger(boeVersionId: string): Promise<{ success: boolean; entriesCreated: number; message: string }> {
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId },
+      relations: ['program', 'elements', 'elements.costCategory', 'elements.vendor']
+    });
+
+    if (!boeVersion) {
+      throw new Error('BOE version not found');
+    }
+
+    if (boeVersion.status === 'Approved') {
+      throw new Error('Cannot push approved BOE to ledger - create a new version first');
+    }
+
+    // Get all BOE elements
+    const elements = boeVersion.elements || [];
+    let entriesCreated = 0;
+
+    // Create ledger entries for each BOE element
+    for (const element of elements) {
+      if (element.estimatedCost > 0) {
+        const ledgerEntry = ledgerRepository.create({
+          vendor_name: element.vendor?.name || 'BOE Element',
+          expense_description: `${element.name}: ${element.description}`,
+          wbsElementId: element.id,
+          costCategoryId: element.costCategoryId,
+          baseline_date: boeVersion.program.startDate?.toISOString().slice(0, 10) || new Date().toISOString().slice(0, 10),
+          baseline_amount: element.estimatedCost,
+          planned_date: boeVersion.program.startDate?.toISOString().slice(0, 10) || new Date().toISOString().slice(0, 10),
+          planned_amount: element.estimatedCost,
+          program: boeVersion.program,
+          notes: `BOE Element: ${element.code} - ${element.name}`
+        });
+
+        await ledgerRepository.save(ledgerEntry);
+        entriesCreated++;
+      }
+    }
+
+    // Update BOE status to indicate it's been pushed to ledger
+    boeVersion.status = 'Baseline';
+    boeVersion.updatedAt = new Date();
+    await boeVersionRepository.save(boeVersion);
+
+    return {
+      success: true,
+      entriesCreated,
+      message: `Successfully created ${entriesCreated} ledger entries from BOE`
     };
   }
 } 

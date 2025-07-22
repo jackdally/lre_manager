@@ -14,6 +14,11 @@
 - [ ] User-friendly forms for entering baseline estimates
 - [ ] Preliminary Management Reserve calculation based on industry standards
 - [ ] Integration with existing ledger management system
+- [ ] **Time-based cost allocation system for direct labor/contractor costs**
+  - [ ] Support for linear, front-loaded, back-loaded, and custom allocation patterns
+  - [ ] Automatic monthly breakdown calculation
+  - [ ] Integration with ledger system for baseline budget creation
+  - [ ] Real-time tracking of actual vs. allocated amounts
 
 ## Architecture
 
@@ -24,6 +29,7 @@
   - [x] Create `BOEApproval` entity for workflow tracking
   - [x] Create `ManagementReserve` entity for MR calculations
   - [x] Add BOE-related fields to existing `Program` entity
+  - [x] Create `BOETimeAllocation` entity for time-based cost allocation
 
 - [x] **API Endpoints**
   - [x] `GET /api/programs/:id/boe` - Get current BOE for program
@@ -33,12 +39,19 @@
   - [x] `POST /api/boe-templates` - Create new BOE template
   - [x] `POST /api/programs/:id/boe/approve` - Submit for approval
   - [x] `POST /api/programs/:id/boe/approve/:version` - Approve specific version
+  - [x] `POST /api/programs/:id/boe/:versionId/push-to-ledger` - Push entire BOE to ledger
+  - [x] `GET /api/programs/:id/time-allocations` - Get time allocations for program
+  - [x] `POST /api/programs/:id/time-allocations` - Create new time allocation
+  - [x] `POST /api/time-allocations/:id/push-to-ledger` - Push allocation to ledger
+  - [x] `POST /api/time-allocations/:id/update-actuals` - Update actuals from ledger
 
 - [x] **Business Logic**
   - [x] BOE calculation engine with WBS integration
   - [x] Management Reserve calculation algorithms
   - [x] Approval workflow state management
   - [x] Version control and change tracking
+  - [x] Time allocation calculation engine with multiple allocation patterns
+  - [x] Monthly breakdown generation and ledger integration
   - [ ] Integration with ledger system for actuals comparison
 
 - [x] **Validation Rules**

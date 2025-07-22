@@ -98,6 +98,43 @@
   - [ ] Implement template versioning
   - [ ] Add template sharing and permissions
 
+### Time-Based Cost Allocation System
+- [x] **BOE-042**: Create BOETimeAllocation entity
+  - [x] Design database schema for time allocations
+  - [x] Implement allocation types (Linear, Front-Loaded, Back-Loaded, Custom)
+  - [x] Add monthly breakdown storage with JSONB
+  - [x] Create database migration
+
+- [x] **BOE-043**: Implement BOETimeAllocationService
+  - [x] Create time allocation calculation engine
+  - [x] Implement monthly breakdown generation
+  - [x] Add ledger integration for baseline creation
+  - [x] Create actuals tracking and variance calculation
+
+- [x] **BOE-044**: Create time allocation API endpoints
+  - [x] GET /api/programs/:id/time-allocations
+  - [x] POST /api/programs/:id/time-allocations
+  - [x] POST /api/time-allocations/:id/push-to-ledger
+  - [x] POST /api/time-allocations/:id/update-actuals
+
+### BOE to Ledger Integration Backend
+- [x] **BOE-045**: Implement BOE push to ledger service
+  - [x] Create pushBOEToLedger method in BOEService
+  - [x] Add validation for BOE status (prevent pushing approved BOEs)
+  - [x] Create ledger entries for all BOE elements with costs
+  - [x] Update BOE status to "Baseline" after pushing
+
+- [x] **BOE-046**: Create BOE push to ledger API endpoint
+  - [x] POST /api/programs/:id/boe/:versionId/push-to-ledger
+  - [x] Add proper validation and error handling
+  - [x] Return summary of created ledger entries
+  - [x] Update BOE version status
+
+- [x] **BOE-047**: Update BOEVersion entity
+  - [x] Add "Baseline" status to BOEVersion status enum
+  - [x] Ensure proper TypeScript types for new status
+  - [x] Update database schema to support new status
+
 ### BOE Creation Wizard
 - [x] **BOE-050**: Create BOEWizard component
   - [x] Implement step-by-step wizard flow
@@ -145,6 +182,44 @@
   - [ ] Add vendor search and selection
   - [ ] Implement vendor validation
   - [ ] Add vendor performance indicators
+
+### Time Allocation Frontend Components
+- [ ] **BOE-064**: Create TimeAllocationManager component
+  - [ ] Implement time allocation creation form
+  - [ ] Add allocation type selection (Linear, Front-Loaded, Back-Loaded, Custom)
+  - [ ] Create date range picker for allocation period
+  - [ ] Add monthly breakdown preview
+
+- [ ] **BOE-065**: Create TimeAllocationSummary component
+  - [ ] Display time allocation summary for program
+  - [ ] Show total allocated vs actual amounts
+  - [ ] Add variance indicators and alerts
+  - [ ] Create monthly breakdown visualization
+
+- [ ] **BOE-066**: Create TimeAllocationActions component
+  - [ ] Add "Push to Ledger" functionality
+  - [ ] Implement "Update Actuals" from ledger
+  - [ ] Add allocation locking/unlocking
+  - [ ] Create export capabilities
+
+### BOE to Ledger Integration Frontend
+- [ ] **BOE-067**: Create BOEOverviewActions component
+  - [ ] Add "Push to Ledger" button in BOE Overview tab
+  - [ ] Implement confirmation dialog showing what will be created
+  - [ ] Add success/error handling with user feedback
+  - [ ] Create status indicators showing BOE is "Baseline"
+
+- [ ] **BOE-068**: Create BOEPushToLedgerDialog component
+  - [ ] Show preview of ledger entries that will be created
+  - [ ] Display summary of BOE elements and estimated costs
+  - [ ] Add confirmation checkbox for user acknowledgment
+  - [ ] Show progress indicator during push operation
+
+- [ ] **BOE-069**: Update BOEOverview component
+  - [ ] Add "Push to Ledger" button when BOE status is "Draft"
+  - [ ] Show "Baseline" status indicator when BOE has been pushed
+  - [ ] Display count of ledger entries created
+  - [ ] Add warning if BOE is already approved
 
 ### Calculations & Totals
 - [ ] **BOE-070**: Implement calculation engine
