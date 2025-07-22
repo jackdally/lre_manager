@@ -323,11 +323,15 @@
   - [x] Add proper cleanup of related data
   - [x] Show appropriate error messages for non-draft BOEs
 
-- [ ] **BOE-078F**: BOE Templates Review (Future Task)
-  - [ ] Evaluate current template structure and usage
-  - [ ] Simplify to basic templates (software, hardware, services)
-  - [ ] Update template documentation and usage examples
-  - [ ] Consider removing if not valuable to users
+- [x] **BOE-078F**: BOE Templates Review (Future Task) ✅ **COMPLETED**
+  - [x] Evaluate current template structure and usage
+  - [x] Simplify to basic templates (Software, Hardware, Services)
+  - [x] Update template documentation and usage examples
+  - [x] Remove complex versioning and permission features
+  - [x] Fix frontend to use real API calls instead of mock data
+  - [x] Simplify BOETemplateService to basic CRUD operations
+  - [x] Update BOETemplate entity to remove complex fields
+  - [x] Remove complex versioning routes from API
 
 - [x] **BOE-078G**: Sidebar UX Improvements (High Priority) ✅ **COMPLETED**
   - [x] Fix sidebar formatting to eliminate scroll bars
@@ -347,6 +351,15 @@
   - [x] Remove TODO comment for TypeScript compilation issue
   - [x] Apply consistent pattern from other services for array handling
   - [x] Ensure proper type safety for repository save operations
+
+- [x] **BOE-078I**: Draft BOE Overwrite Protection (High Priority) ✅ **COMPLETED**
+  - [x] Add draft BOE detection when creating new BOE
+  - [x] Implement confirmation dialog for overwriting existing draft BOEs
+  - [x] Add automatic draft deletion before creating new BOE
+  - [x] Apply protection to all BOE creation entry points (Overview, Details, Template Management)
+  - [x] Add proper error handling and state management
+  - [x] Fix TypeScript compilation issues in wizard onComplete handlers
+  - [x] Ensure proper cleanup of related data and state updates
 
 ### Ledger Integration & Invoice Processing (Phase 3B - Week 6)
 - [ ] **BOE-079**: Enhance ledger integration
@@ -573,6 +586,7 @@
 - ✅ **NEW**: Enhanced sidebar for parent elements showing grouped child allocations in expandable sections
 - ✅ **NEW**: Removed redundant Element Allocations tab (cleanup completed)
 - ✅ **NEW**: BOE deletion functionality for draft BOEs with confirmation dialog
+- ✅ **NEW**: Draft BOE overwrite protection with confirmation dialog and automatic cleanup
 
 **Next Phase**: Complete Phase 3A Enhancements, then Phase 3B - Ledger Integration & Invoice Processing
 

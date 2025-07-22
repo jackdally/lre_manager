@@ -307,18 +307,9 @@ router.post('/boe-templates', async (req, res) => {
     template.name = req.body.name;
     template.description = req.body.description;
     template.category = req.body.category;
-    template.version = req.body.version || '1.0.0';
-    template.majorVersion = req.body.majorVersion || 1;
-    template.minorVersion = req.body.minorVersion || 0;
-    template.patchVersion = req.body.patchVersion || 0;
+    template.version = req.body.version || '1.0';
     template.isActive = req.body.isActive !== undefined ? req.body.isActive : true;
-    template.isLatestVersion = true;
-    template.isPublic = req.body.isPublic || false;
-    template.sharedWithUsers = req.body.sharedWithUsers || [];
-    template.sharedWithRoles = req.body.sharedWithRoles || [];
-    template.accessLevel = req.body.accessLevel || 'Private';
-    template.allowCopy = req.body.allowCopy || false;
-    template.allowModify = req.body.allowModify || false;
+    template.isDefault = req.body.isDefault || false;
     template.createdBy = req.body.userId || req.headers['user-id'] as string || null;
     template.updatedBy = req.body.userId || req.headers['user-id'] as string || null;
 
@@ -331,149 +322,9 @@ router.post('/boe-templates', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/boe-templates/{id}/versions:
- *   post:
- *     summary: Create new version of BOE template
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Template ID
- */
-router.post('/boe-templates/:id/versions', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.body.userId || req.headers['user-id'] as string;
-    
-    if (!isValidUUID(id)) {
-      return res.status(400).json({ message: 'Invalid template ID' });
-    }
+// Note: Complex versioning routes have been removed as part of BOE-078F template simplification
 
-    const newVersion = await BOETemplateService.createNewVersion(id, req.body, userId);
-    res.status(201).json(newVersion);
-  } catch (error) {
-    console.error('Error creating template version:', error);
-    res.status(500).json({ message: 'Error creating template version', error });
-  }
-});
-
-/**
- * @swagger
- * /api/boe-templates/{id}/versions:
- *   get:
- *     summary: Get version history for BOE template
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Template ID
- */
-router.get('/boe-templates/:id/versions', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    if (!isValidUUID(id)) {
-      return res.status(400).json({ message: 'Invalid template ID' });
-    }
-
-    const versionHistory = await BOETemplateService.getVersionHistory(id);
-    res.json(versionHistory);
-  } catch (error) {
-    console.error('Error fetching template version history:', error);
-    res.status(500).json({ message: 'Error fetching template version history', error });
-  }
-});
-
-/**
- * @swagger
- * /api/boe-templates/compare:
- *   post:
- *     summary: Compare two template versions
- */
-router.post('/boe-templates/compare', async (req, res) => {
-  try {
-    const { version1Id, version2Id } = req.body;
-    
-    if (!version1Id || !version2Id) {
-      return res.status(400).json({ message: 'Both version IDs are required' });
-    }
-
-    if (!isValidUUID(version1Id) || !isValidUUID(version2Id)) {
-      return res.status(400).json({ message: 'Invalid version ID' });
-    }
-
-    const comparison = await BOETemplateService.compareVersions(version1Id, version2Id);
-    res.json(comparison);
-  } catch (error) {
-    console.error('Error comparing template versions:', error);
-    res.status(500).json({ message: 'Error comparing template versions', error });
-  }
-});
-
-/**
- * @swagger
- * /api/boe-templates/{id}/rollback/{targetVersionId}:
- *   post:
- *     summary: Rollback template to previous version
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Current template ID
- *       - in: path
- *         name: targetVersionId
- *         required: true
- *         schema:
- *           type: string
- *         description: Target version ID to rollback to
- */
-router.post('/boe-templates/:id/rollback/:targetVersionId', async (req, res) => {
-  try {
-    const { id, targetVersionId } = req.params;
-    const userId = req.body.userId || req.headers['user-id'] as string;
-    
-    if (!isValidUUID(id) || !isValidUUID(targetVersionId)) {
-      return res.status(400).json({ message: 'Invalid template ID' });
-    }
-
-    const newVersion = await BOETemplateService.rollbackToVersion(id, targetVersionId, userId);
-    res.status(201).json(newVersion);
-  } catch (error) {
-    console.error('Error rolling back template version:', error);
-    res.status(500).json({ message: 'Error rolling back template version', error });
-  }
-});
-
-/**
- * @swagger
- * /api/boe-templates/accessible:
- *   get:
- *     summary: Get templates accessible to current user
- */
-router.get('/boe-templates/accessible', async (req, res) => {
-  try {
-    const userId = req.headers['user-id'] as string;
-    const userRoles = req.headers['user-roles'] as string;
-    
-    const accessibleTemplates = await BOETemplateService.getAccessibleTemplates(
-      userId, 
-      userRoles ? userRoles.split(',') : undefined
-    );
-    
-    res.json(accessibleTemplates);
-  } catch (error) {
-    console.error('Error fetching accessible templates:', error);
-    res.status(500).json({ message: 'Error fetching accessible templates', error });
-  }
-});
+// Note: Accessible templates route removed as part of BOE-078F template simplification
 
 /**
  * @swagger

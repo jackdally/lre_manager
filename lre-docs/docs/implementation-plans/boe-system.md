@@ -162,13 +162,13 @@
 
 ### Phase 3: BOE Element Allocations & Advanced Features (Week 5-7)
 
-#### Phase 3A: BOE Element Allocations (Week 5) 🔄 **PARTIALLY COMPLETED**
+#### Phase 3A: BOE Element Allocations (Week 5) ✅ **COMPLETED**
 - **BOE Element Allocation System**: Bridge BOE WBS elements with monthly time allocations ✅ **COMPLETED**
 - **Flexible Monthly Planning**: Monthly allocation planning with drag-and-drop reallocation (deferred for Phase 3B) ✅ **COMPLETED**
 - **Allocation Management**: CRUD operations for element-level allocations ✅ **COMPLETED**
 - **Quantity Tracking**: Support for both amount and quantity-based allocations ✅ **COMPLETED**
 
-#### Phase 3A Enhancements: UX & Functionality Improvements (Week 5) 🔄 **IN PROGRESS**
+#### Phase 3A Enhancements: UX & Functionality Improvements (Week 5) ✅ **COMPLETED**
 - **Layout & UX Improvements**: Convert to right-sidebar layout for better WBS focus ✅ **COMPLETED**
 - **Edit/Delete Functionality**: Fix broken edit/delete buttons and save functionality ✅ **COMPLETED**
 - **Sidebar UX Improvements**: Resizable sidebar with better formatting and no scroll bars ✅ **COMPLETED**
@@ -234,6 +234,7 @@
   - [x] Edit/delete functionality works properly for WBS elements and allocations
   - [x] Save button functions correctly with proper validation
   - [x] Parent elements show aggregated status from children
+  - [x] Draft BOE overwrite protection prevents accidental data loss
 
 - [x] **Performance Requirements**
   - [x] BOE page loads in under 3 seconds
@@ -387,29 +388,45 @@
   - ✅ Add loading states for all actions
   - ✅ Add success/error feedback for operations
 
-- 🔄 **Parent Element Status Aggregation (BOE-078C)**:
-  - 🔄 Implement recursive status calculation for parent elements
-  - 🔄 Show aggregate status + count of children with each status
-  - 🔄 Update BOETreeItem to display aggregated status for parents
-  - 🔄 Add visual distinction between parent and leaf elements
-  - 🔄 Implement status summary display (e.g., "3 complete, 2 in-progress, 1 not-started")
-  - 🔄 Update status calculation on allocation changes
+- ✅ **Parent Element Status Aggregation (BOE-078C)** - **COMPLETED**:
+  - ✅ Implement recursive status calculation for parent elements
+  - ✅ Show aggregate status + count of children with each status
+  - ✅ Update BOETreeItem to display aggregated status for parents
+  - ✅ Add visual distinction between parent and leaf elements
+  - ✅ Implement status summary display (e.g., "3 complete, 2 in-progress, 1 not-started")
+  - ✅ Update status calculation on allocation changes
+  - ✅ Enhanced sidebar for parent elements showing grouped child allocations in expandable sections
 
 - ✅ **System Cleanup (BOE-078D)** - **COMPLETED**:
   - ✅ Remove "Element Allocations" tab from BOEPage navigation
   - ✅ Clean up store references and routing logic
   - ✅ Remove any remaining component references
   - ✅ Update documentation to reflect removal
+
 - ✅ **BOE Deletion (BOE-078E)** - **COMPLETED**:
   - ✅ Add delete button for draft BOEs only (Overview and Details tabs)
   - ✅ Implement confirmation dialog with BOE details
   - ✅ Add backend delete endpoint with proper validation
   - ✅ Update program state after successful deletion
 
-- 🔄 **Template Review (BOE-078F)**:
-  - 🔄 Evaluate current template structure and usage
-  - 🔄 Simplify to basic templates (software, hardware, services)
-  - 🔄 Update template documentation and usage examples
+- ✅ **Template Review (BOE-078F)** - **COMPLETED**:
+  - ✅ Evaluate current template structure and usage
+  - ✅ Simplify to basic templates (Software, Hardware, Services)
+  - ✅ Update template documentation and usage examples
+  - ✅ Remove complex versioning and permission features
+  - ✅ Fix frontend to use real API calls instead of mock data
+  - ✅ Simplify BOETemplate entity by removing complex fields
+  - ✅ Update BOETemplateService with basic CRUD operations only
+  - ✅ Remove complex versioning routes from API
+
+- ✅ **Draft BOE Overwrite Protection (BOE-078I)** - **COMPLETED**:
+  - ✅ Add draft BOE detection when creating new BOE
+  - ✅ Implement confirmation dialog for overwriting existing draft BOEs
+  - ✅ Add automatic draft deletion before creating new BOE
+  - ✅ Apply protection to all BOE creation entry points (Overview, Details, Template Management)
+  - ✅ Add proper error handling and state management
+  - ✅ Fix TypeScript compilation issues in wizard onComplete handlers
+  - ✅ Ensure proper cleanup of related data and state updates
 
 ### Technical Achievements
 - **Database**: 6 new tables with proper indexes and relationships

@@ -10,7 +10,6 @@ export interface BOETemplate {
   version: string;
   isActive: boolean;
   isDefault: boolean;
-  parentTemplateId?: string;
   createdAt: string;
   updatedAt: string;
   createdBy?: string;

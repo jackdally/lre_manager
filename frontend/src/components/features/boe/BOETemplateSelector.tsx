@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
 import { BOETemplate } from '../../../store/boeStore';
+import { boeTemplatesApi } from '../../../services/boeApi';
 import BOETemplateWizard from './BOETemplateWizard';
 
 interface BOETemplateSelectorProps {
@@ -35,48 +36,8 @@ const BOETemplateSelector: React.FC<BOETemplateSelectorProps> = ({
         setTemplatesLoading(true);
         setTemplatesError(null);
         
-        // TODO: Replace with actual API call
-        // const templatesData = await boeApiService.templates.getTemplates();
-        // setTemplates(templatesData);
-        
-        // Mock data for now
-        const mockTemplates: BOETemplate[] = [
-          {
-            id: '1',
-            name: 'Software Development Template',
-            description: 'Standard template for software development projects',
-            category: 'Software Development',
-            version: '1.0',
-            isActive: true,
-            isDefault: true,
-            createdAt: '2024-01-01T00:00:00Z',
-            updatedAt: '2024-01-01T00:00:00Z',
-          },
-          {
-            id: '2',
-            name: 'Hardware Development Template',
-            description: 'Template for hardware development and manufacturing projects',
-            category: 'Hardware Development',
-            version: '1.0',
-            isActive: true,
-            isDefault: false,
-            createdAt: '2024-01-01T00:00:00Z',
-            updatedAt: '2024-01-01T00:00:00Z',
-          },
-          {
-            id: '3',
-            name: 'Research & Development Template',
-            description: 'Template for R&D projects with flexible structure',
-            category: 'Research & Development',
-            version: '1.0',
-            isActive: true,
-            isDefault: false,
-            createdAt: '2024-01-01T00:00:00Z',
-            updatedAt: '2024-01-01T00:00:00Z',
-          },
-        ];
-        
-        setTemplates(mockTemplates);
+        const templatesData = await boeTemplatesApi.getTemplates();
+        setTemplates(templatesData);
         setTemplatesLoading(false);
       } catch (error) {
         console.error('Error loading templates:', error);

@@ -7,6 +7,10 @@ import BOEDetails from './BOEDetails';
 import BOEApproval from './BOEApproval';
 import BOEHistory from './BOEHistory';
 import BOETemplateSelector from './BOETemplateSelector';
+import BOEWizard from './BOEWizard';
+import { BOETemplate } from '../../../store/boeStore';
+import Button from '../../common/Button';
+import Modal from '../../common/Modal';
 
 
 interface BOEPageProps {
@@ -30,6 +34,9 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
   const [isInitialized, setIsInitialized] = useState(false);
   const [showTemplateManagement, setShowTemplateManagement] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<BOETemplate | null>(null);
+  const [showWizard, setShowWizard] = useState(false);
+  const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
 
   useEffect(() => {
     if (!programId) {
@@ -61,6 +68,45 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     loadBOE();
   }, [programId, setCurrentBOE, setBOELoading, setBOEError]);
 
+  const handleCreateBOEFromTemplate = () => {
+    // Check if there's already a draft BOE
+    if (currentBOE && currentBOE.status === 'Draft') {
+      setShowDraftOverwriteModal(true);
+    } else {
+      setShowWizard(true);
+      setShowTemplateManagement(false);
+    }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setShowDraftOverwriteModal(false);
+    
+    // Delete the existing draft BOE before opening the wizard
+    if (currentBOE && currentBOE.status === 'Draft') {
+      try {
+        // Call the delete BOE API
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/programs/${programId}/boe/${currentBOE.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete existing draft BOE');
+        }
+
+        // Clear the current BOE from state
+        setCurrentBOE(null);
+      } catch (error) {
+        console.error('Error deleting existing draft BOE:', error);
+        // Show error but still allow wizard to proceed
+      }
+    }
+    
+    setShowWizard(true);
+    setShowTemplateManagement(false);
+  };
 
 
   if (!programId) {
@@ -158,12 +204,104 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
             <BOETemplateSelector
               onTemplateSelect={(template) => {
                 console.log('Template selected:', template);
-                // You can add logic here to create a new BOE from this template
+                setSelectedTemplate(template);
+                // Don't launch wizard here - just select the template
               }}
+              selectedTemplateId={selectedTemplate?.id}
               showCreateNew={true}
             />
+            
+            {/* Show action buttons when a template is selected */}
+            {selectedTemplate && (
+              <div className="mt-6 p-4 bg-white rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Selected Template: {selectedTemplate.name}</h3>
+                    <p className="text-sm text-gray-600">{selectedTemplate.description}</p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <Button
+                      onClick={handleCreateBOEFromTemplate}
+                      variant="primary"
+                      size="sm"
+                    >
+                      Create BOE from Template
+                    </Button>
+                    <Button
+                      onClick={() => setSelectedTemplate(null)}
+                      variant="secondary"
+                      size="sm"
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        {/* BOE Wizard Modal */}
+        {showWizard && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">Create New BOE</h2>
+                <p className="text-gray-600 mt-1">Follow the steps below to create a new Basis of Estimate</p>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <BOEWizard
+                  programId={programId!}
+                  onComplete={(boeData) => {
+                    console.log('BOE created:', boeData);
+                    setShowWizard(false);
+                    setSelectedTemplate(null);
+                    // Refresh the page to show the new BOE
+                    window.location.reload();
+                  }}
+                  onCancel={() => {
+                    setShowWizard(false);
+                    setSelectedTemplate(null);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Draft Overwrite Confirmation Modal */}
+        <Modal
+          isOpen={showDraftOverwriteModal}
+          onClose={() => setShowDraftOverwriteModal(false)}
+          title="Overwrite Draft BOE"
+        >
+          <div className="space-y-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <h4 className="font-medium text-yellow-800 mb-2">⚠️ Warning</h4>
+              <p className="text-sm text-yellow-700">
+                You already have a draft BOE for this program. Creating a new one will overwrite the existing draft.
+                Are you sure you want to proceed?
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button
+                onClick={() => setShowDraftOverwriteModal(false)}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmOverwrite}
+                variant="primary"
+                size="sm"
+              >
+                Overwrite Draft
+              </Button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Tab Navigation */}
         <div className="border-b border-gray-200 mb-8">

@@ -3,6 +3,7 @@ import { useBOEStore } from '../../../store/boeStore';
 import { boeVersionsApi } from '../../../services/boeApi';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
+import BOEWizard from './BOEWizard';
 import { formatCurrency, safeNumber } from '../../../utils/currencyUtils';
 import { 
   CurrencyDollarIcon, 
@@ -28,6 +29,8 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
   const [ledgerPushResult, setLedgerPushResult] = useState<any>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingBOE, setDeletingBOE] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+  const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
 
   // Load BOE data
   useEffect(() => {
@@ -50,6 +53,54 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
       loadBOE();
     }
   }, [programId, setCurrentBOE, setBOELoading, setBOEError]);
+
+  const handleCreateNewBOE = () => {
+    // Check if there's already a draft BOE
+    if (currentBOE && currentBOE.status === 'Draft') {
+      setShowDraftOverwriteModal(true);
+    } else {
+      setShowWizard(true);
+    }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setShowDraftOverwriteModal(false);
+    
+    // Delete the existing draft BOE before opening the wizard
+    if (currentBOE && currentBOE.status === 'Draft') {
+      await handleDeleteExistingDraft();
+    }
+    
+    setShowWizard(true);
+  };
+
+  const handleDeleteExistingDraft = async () => {
+    if (!currentBOE || currentBOE.status !== 'Draft') return;
+
+    try {
+      setDeletingBOE(true);
+      
+      // Call the delete BOE API
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/programs/${programId}/boe/${currentBOE.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete existing draft BOE');
+      }
+
+      // Clear the current BOE from state
+      setCurrentBOE(null);
+    } catch (error) {
+      console.error('Error deleting existing draft BOE:', error);
+      // Show error but still allow wizard to proceed
+    } finally {
+      setDeletingBOE(false);
+    }
+  };
 
   const handlePushToLedger = async () => {
     if (!currentBOE) return;
@@ -188,10 +239,40 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
           <p className="text-gray-500 mb-6">
             This program doesn't have a Basis of Estimate yet. Create one to get started.
           </p>
-          <Button variant="primary" size="md">
+          <Button 
+            variant="primary" 
+            size="md"
+            onClick={handleCreateNewBOE}
+          >
             Create New BOE
           </Button>
         </div>
+
+        {/* BOE Wizard Modal */}
+        {showWizard && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">Create New BOE</h2>
+                <p className="text-gray-600 mt-1">Follow the steps below to create a new Basis of Estimate</p>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <BOEWizard
+                  programId={programId}
+                                  onComplete={async (boeData) => {
+                  console.log('BOE created:', boeData);
+                  setShowWizard(false);
+                  // Refresh the page to show the new BOE
+                  window.location.reload();
+                }}
+                  onCancel={() => {
+                    setShowWizard(false);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -220,6 +301,15 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
               {getStatusIcon(currentBOE.status)}
               <span className="ml-1">{currentBOE.status}</span>
             </div>
+            <Button
+              onClick={handleCreateNewBOE}
+              variant="secondary"
+              size="sm"
+              className="flex items-center space-x-1"
+            >
+              <span>+</span>
+              <span>Create New BOE</span>
+            </Button>
             {currentBOE.status === 'Draft' && (
               <>
                 <Button
@@ -485,6 +575,66 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
           </div>
         </div>
       </Modal>
+
+      {/* Draft Overwrite Confirmation Modal */}
+      <Modal
+        isOpen={showDraftOverwriteModal}
+        onClose={() => setShowDraftOverwriteModal(false)}
+        title="Overwrite Draft BOE"
+      >
+        <div className="space-y-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h4 className="font-medium text-yellow-800 mb-2">⚠️ Warning</h4>
+            <p className="text-sm text-yellow-700">
+              You already have a draft BOE for this program. Creating a new one will overwrite the existing draft.
+              Are you sure you want to proceed?
+            </p>
+          </div>
+          
+          <div className="flex justify-end space-x-2">
+            <Button
+              onClick={() => setShowDraftOverwriteModal(false)}
+              variant="secondary"
+              size="sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmOverwrite}
+              variant="primary"
+              size="sm"
+            >
+              Overwrite Draft
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* BOE Wizard Modal */}
+      {showWizard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Create New BOE</h2>
+              <p className="text-gray-600 mt-1">Follow the steps below to create a new Basis of Estimate</p>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <BOEWizard
+                programId={programId}
+                onComplete={async (boeData) => {
+                  console.log('BOE created:', boeData);
+                  setShowWizard(false);
+                  // Refresh the page to show the new BOE
+                  window.location.reload();
+                }}
+                onCancel={() => {
+                  setShowWizard(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
