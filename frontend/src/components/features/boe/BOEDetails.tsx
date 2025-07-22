@@ -395,7 +395,15 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [elementToDelete, setElementToDelete] = useState<BOEElement | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(300); // Default sidebar width
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    // Calculate responsive default width based on screen size
+    const screenWidth = window.innerWidth;
+    if (screenWidth >= 1920) return 500; // Large screens
+    if (screenWidth >= 1440) return 450; // Medium-large screens
+    if (screenWidth >= 1024) return 400; // Medium screens
+    return 350; // Small screens
+  });
+  const [expandedBreakdowns, setExpandedBreakdowns] = useState<Set<string>>(new Set(['cost-category'])); // Default to cost category expanded
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Calculate real-time totals and breakdowns
@@ -480,11 +488,40 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     };
   }, [sidebarOpen]);
 
+  // Handle window resize for responsive sidebar
+  useEffect(() => {
+    const handleResize = () => {
+      const screenWidth = window.innerWidth;
+      const currentMinWidth = screenWidth >= 1024 ? 350 : 300;
+      const currentMaxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
+      
+      // Adjust sidebar width if it's outside the new bounds
+      if (sidebarWidth < currentMinWidth) {
+        setSidebarWidth(currentMinWidth);
+      } else if (sidebarWidth > currentMaxWidth) {
+        setSidebarWidth(currentMaxWidth);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [sidebarWidth]);
+
   // Persist sidebar width to localStorage
   useEffect(() => {
     const savedWidth = localStorage.getItem('sidebarWidth');
     if (savedWidth) {
-      setSidebarWidth(parseInt(savedWidth, 10));
+      const width = parseInt(savedWidth, 10);
+      const screenWidth = window.innerWidth;
+      const minWidth = screenWidth >= 1024 ? 350 : 300;
+      const maxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
+      
+      // Only use saved width if it's within current screen bounds
+      if (width >= minWidth && width <= maxWidth) {
+        setSidebarWidth(width);
+      }
     }
   }, []);
 
@@ -718,6 +755,16 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     return <CurrencyDollarIcon className="h-6 w-6 text-gray-600" />;
   };
 
+  const toggleBreakdown = (breakdownId: string) => {
+    const newExpanded = new Set(expandedBreakdowns);
+    if (newExpanded.has(breakdownId)) {
+      newExpanded.delete(breakdownId);
+    } else {
+      newExpanded.add(breakdownId);
+    }
+    setExpandedBreakdowns(newExpanded);
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -873,33 +920,46 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         </div>
       </div>
 
-      {/* Full-Width WBS Tree with Slide-out Sidebar */}
-      <div className="relative">
-        {/* Main WBS Tree */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-lg font-medium text-gray-900">Work Breakdown Structure</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  Click on any element to view and manage its allocations in the sidebar
-                </p>
-              </div>
-              {selectedElement && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-500">
-                    Selected: <span className="font-medium text-gray-900">{selectedElement.name}</span>
-                  </span>
-                  <button
-                    onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    {sidebarOpen ? 'Hide Details' : 'Show Details'}
-                  </button>
+      {/* WBS Section */}
+      <div className="mb-8">
+        {/* Section Header */}
+        <div className="border-b border-gray-200 pb-4 mb-6">
+          <h3 className="text-xl font-semibold text-gray-900 flex items-center space-x-2">
+            <BuildingOfficeIcon className="h-6 w-6 text-blue-600" />
+            <span>Work Breakdown Structure</span>
+          </h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Hierarchical project structure with allocation status indicators
+          </p>
+        </div>
+
+        {/* Full-Width WBS Tree with Slide-out Sidebar */}
+        <div className="relative">
+          {/* Main WBS Tree */}
+          <div className="bg-white rounded-lg border border-gray-200">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900">WBS Elements</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Click on any element to view and manage its allocations in the sidebar
+                  </p>
                 </div>
-              )}
+                {selectedElement && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-500">
+                      Selected: <span className="font-medium text-gray-900">{selectedElement.name}</span>
+                    </span>
+                    <button
+                      onClick={() => setSidebarOpen(!sidebarOpen)}
+                      className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      {sidebarOpen ? 'Hide Details' : 'Show Details'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
           
           <div className="p-4">
             {/* WBS Tree Header */}
@@ -959,7 +1019,10 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
               
               const handleMouseMove = (moveEvent: MouseEvent) => {
                 const deltaX = startX - moveEvent.clientX;
-                const newWidth = Math.max(300, Math.min(600, startWidth + deltaX));
+                const screenWidth = window.innerWidth;
+                const minWidth = screenWidth >= 1024 ? 350 : 300;
+                const maxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
+                const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
                 setSidebarWidth(newWidth);
               };
               
@@ -1034,109 +1097,171 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
           />
         )}
       </div>
+    </div>
 
-      {/* Cost Category Breakdown */}
-      {calculationResult.costCategoryBreakdown.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Cost Category Breakdown</h4>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Elements
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estimated
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actual
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Variance
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {calculationResult.costCategoryBreakdown.map((category) => (
-                  <tr key={category.costCategoryId}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {category.costCategoryName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {category.elementCount}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(category.estimatedCost)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(category.actualCost)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={getVarianceColor(category.variance)}>
-                        {formatCurrency(category.variance)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Cost Breakdown Section */}
+      {(calculationResult.costCategoryBreakdown.length > 0 || calculationResult.levelBreakdown.length > 0) && (
+        <div className="mt-8">
+          {/* Section Header */}
+          <div className="border-b border-gray-200 pb-4 mb-6">
+            <h3 className="text-xl font-semibold text-gray-900 flex items-center space-x-2">
+              <CurrencyDollarIcon className="h-6 w-6 text-blue-600" />
+              <span>Cost Breakdown</span>
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Detailed cost analysis by category and WBS level
+            </p>
           </div>
-        </div>
-      )}
 
-      {/* Level Breakdown */}
-      {calculationResult.levelBreakdown.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Level Breakdown</h4>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Level
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Elements
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estimated
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actual
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Variance
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {calculationResult.levelBreakdown.map((level) => (
-                  <tr key={level.level}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      Level {level.level}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {level.elementCount}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(level.estimatedCost)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(level.actualCost)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={getVarianceColor(level.variance)}>
-                        {formatCurrency(level.variance)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Cost Breakdowns - Collapsible Sections */}
+          <div className="space-y-4">
+            {/* Cost Category Breakdown */}
+            {calculationResult.costCategoryBreakdown.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <button
+                  onClick={() => toggleBreakdown('cost-category')}
+                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <ChartBarIcon className="h-5 w-5 text-blue-600" />
+                    <h4 className="text-lg font-medium text-gray-900">Cost Category Breakdown</h4>
+                    <span className="text-sm text-gray-500">
+                      ({calculationResult.costCategoryBreakdown.length} categories)
+                    </span>
+                  </div>
+                  {expandedBreakdowns.has('cost-category') ? (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+                
+                {expandedBreakdowns.has('cost-category') && (
+                  <div className="px-6 pb-6">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Category
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Elements
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Estimated
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actual
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Variance
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {calculationResult.costCategoryBreakdown.map((category) => (
+                            <tr key={category.costCategoryId}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {category.costCategoryName}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {category.elementCount}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatCurrency(category.estimatedCost)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatCurrency(category.actualCost)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <span className={getVarianceColor(category.variance)}>
+                                  {formatCurrency(category.variance)}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Level Breakdown */}
+            {calculationResult.levelBreakdown.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <button
+                  onClick={() => toggleBreakdown('level')}
+                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <UserGroupIcon className="h-5 w-5 text-green-600" />
+                    <h4 className="text-lg font-medium text-gray-900">Level Breakdown</h4>
+                    <span className="text-sm text-gray-500">
+                      ({calculationResult.levelBreakdown.length} levels)
+                    </span>
+                  </div>
+                  {expandedBreakdowns.has('level') ? (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+                
+                {expandedBreakdowns.has('level') && (
+                  <div className="px-6 pb-6">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Level
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Elements
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Estimated
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actual
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Variance
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {calculationResult.levelBreakdown.map((level) => (
+                            <tr key={level.level}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                Level {level.level}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {level.elementCount}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatCurrency(level.estimatedCost)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatCurrency(level.actualCost)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <span className={getVarianceColor(level.variance)}>
+                                  {formatCurrency(level.variance)}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

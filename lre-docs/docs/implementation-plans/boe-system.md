@@ -364,16 +364,20 @@
   - ✅ Right-side slide-out sidebar for allocation details
   - ✅ Add user guidance and visual cues for clickable elements
   - ✅ Reorganize page structure for better WBS visibility
-  - ✅ Move cost breakdowns to collapsible sections (low priority)
+  - ✅ Move cost breakdowns to collapsible sections with dedicated "Cost Breakdown" section
+  - ✅ Add clear section headers for WBS and Cost Breakdown sections
   - ✅ Implement smooth slide-in/out animations
 
 - ✅ **Sidebar UX Improvements (BOE-078G)** - **COMPLETED**:
-  - ✅ Resizable sidebar with drag handle (300px-600px range)
+  - ✅ Resizable sidebar with drag handle and responsive constraints
   - ✅ State persistence with localStorage
   - ✅ Compact content layout eliminating scroll bars
   - ✅ Card-based allocation display instead of tables
   - ✅ Responsive design with width indicators
   - ✅ Smooth animations and transitions
+  - ✅ **NEW**: Responsive sidebar width defaults (500px for large screens, 450px for medium-large, 400px for medium, 350px for small)
+  - ✅ **NEW**: Dynamic resize constraints based on screen size
+  - ✅ **NEW**: Window resize handling to maintain appropriate sidebar width
 
 - ✅ **Edit/Delete Functionality Fixes (BOE-078B)** - **COMPLETED**:
   - ✅ Implement proper event handlers for WBS element edit/delete buttons

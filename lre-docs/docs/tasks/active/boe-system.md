@@ -288,7 +288,8 @@
   - [x] Right-side slide-out sidebar for allocation details
   - [x] Add user guidance and visual cues for clickable elements
   - [x] Reorganize page structure for better WBS visibility
-  - [x] Move cost breakdowns to collapsible sections (low priority)
+  - [x] Move cost breakdowns to collapsible sections with dedicated "Cost Breakdown" section
+  - [x] Add clear section headers for WBS and Cost Breakdown sections
   - [x] Implement smooth slide-in/out animations
 
 - [x] **BOE-078B**: Fix Edit/Delete Functionality (High Priority) ✅ **COMPLETED**
@@ -330,13 +331,16 @@
 
 - [x] **BOE-078G**: Sidebar UX Improvements (High Priority) ✅ **COMPLETED**
   - [x] Fix sidebar formatting to eliminate scroll bars
-  - [x] Add resizable sidebar with drag handle
+  - [x] Add resizable sidebar with drag handle (300px-600px range)
   - [x] Implement better content layout and spacing
   - [x] Add collapsible sections for better organization
   - [x] Improve allocation table formatting and readability
   - [x] Add quick actions and shortcuts in sidebar
-  - [x] Implement responsive sidebar behavior
+  - [x] Implement responsive sidebar behavior with screen-size adaptive defaults
   - [x] Add sidebar state persistence (remember width/position)
+  - [x] **NEW**: Responsive sidebar width defaults (500px for large screens, 450px for medium-large, 400px for medium, 350px for small)
+  - [x] **NEW**: Dynamic resize constraints based on screen size
+  - [x] **NEW**: Window resize handling to maintain appropriate sidebar width
 
 - [x] **BOE-078H**: TypeScript Compilation Fixes (High Priority) ✅ **COMPLETED**
   - [x] Fix BOEElementAllocationService save method return type issue
