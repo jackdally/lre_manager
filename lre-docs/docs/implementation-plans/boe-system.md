@@ -395,8 +395,12 @@
   - 🔄 Implement status summary display (e.g., "3 complete, 2 in-progress, 1 not-started")
   - 🔄 Update status calculation on allocation changes
 
-- 🔄 **System Cleanup (BOE-078D, BOE-078E)**:
-  - 🔄 Remove "Element Allocations" tab from BOEPage navigation
+- ✅ **System Cleanup (BOE-078D)** - **COMPLETED**:
+  - ✅ Remove "Element Allocations" tab from BOEPage navigation
+  - ✅ Clean up store references and routing logic
+  - ✅ Remove any remaining component references
+  - ✅ Update documentation to reflect removal
+- 🔄 **BOE Deletion (BOE-078E)**:
   - 🔄 Add delete button for draft BOEs only
   - 🔄 Implement confirmation dialog with BOE details
   - 🔄 Add backend delete endpoint with proper validation
