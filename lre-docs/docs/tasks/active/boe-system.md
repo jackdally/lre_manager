@@ -64,32 +64,32 @@
   - [x] Implement template validation
 
 ### Frontend Foundation
-- [ ] **BOE-030**: Create BOE store (Zustand)
-  - [ ] Implement BOE state management
-  - [ ] Add BOE actions and selectors
-  - [ ] Create BOE template store
-  - [ ] Add approval workflow store
+- [x] **BOE-030**: Create BOE store (Zustand)
+  - [x] Implement BOE state management
+  - [x] Add BOE actions and selectors
+  - [x] Create BOE template store
+  - [x] Add approval workflow store
 
-- [ ] **BOE-031**: Create BOE API service
-  - [ ] Implement BOE API client
-  - [ ] Add error handling and retry logic
-  - [ ] Create API response types
-  - [ ] Add request/response interceptors
+- [x] **BOE-031**: Create BOE API service
+  - [x] Implement BOE API client
+  - [x] Add error handling and retry logic
+  - [x] Create API response types
+  - [x] Add request/response interceptors
 
-- [ ] **BOE-032**: Create basic BOE page structure
-  - [ ] Create BOEPage component
-  - [ ] Add tab navigation (Overview, Details, Approval)
-  - [ ] Implement responsive layout
-  - [ ] Add loading states and error handling
+- [x] **BOE-032**: Create basic BOE page structure
+  - [x] Create BOEPage component
+  - [x] Add tab navigation (Overview, Details, Approval)
+  - [x] Implement responsive layout
+  - [x] Add loading states and error handling
 
 ## Phase 2: Core BOE Functionality (Week 3-4)
 
 ### BOE Template System
-- [ ] **BOE-040**: Create BOETemplateSelector component
-  - [ ] Implement template browsing interface
-  - [ ] Add template preview functionality
-  - [ ] Create template search and filtering
-  - [ ] Add template selection workflow
+- [x] **BOE-040**: Create BOETemplateSelector component
+  - [x] Implement template browsing interface
+  - [x] Add template preview functionality
+  - [x] Create template search and filtering
+  - [x] Add template selection workflow
 
 - [ ] **BOE-041**: Implement BOE template management
   - [ ] Create template creation wizard
@@ -98,18 +98,18 @@
   - [ ] Add template sharing and permissions
 
 ### BOE Creation Wizard
-- [ ] **BOE-050**: Create BOEWizard component
-  - [ ] Implement step-by-step wizard flow
-  - [ ] Add progress indicator
-  - [ ] Create navigation between steps
-  - [ ] Add validation at each step
+- [x] **BOE-050**: Create BOEWizard component
+  - [x] Implement step-by-step wizard flow
+  - [x] Add progress indicator
+  - [x] Create navigation between steps
+  - [x] Add validation at each step
 
-- [ ] **BOE-051**: Implement wizard steps
-  - [ ] Step 1: Template selection
-  - [ ] Step 2: Basic information
-  - [ ] Step 3: WBS structure setup
-  - [ ] Step 4: Cost estimation
-  - [ ] Step 5: Review and create
+- [x] **BOE-051**: Implement wizard steps
+  - [x] Step 1: Template selection
+  - [x] Step 2: Basic information
+  - [x] Step 3: WBS structure setup
+  - [x] Step 4: Cost estimation
+  - [x] Step 5: Review and create
 
 ### BOE Form & Editing
 - [ ] **BOE-060**: Create BOEForm component
