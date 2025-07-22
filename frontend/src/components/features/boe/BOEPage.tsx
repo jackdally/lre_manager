@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useBOEStore } from '../../../store/boeStore';
+import Layout from '../../layout';
 import BOEOverview from './BOEOverview';
 import BOEDetails from './BOEDetails';
 import BOEApproval from './BOEApproval';
@@ -11,7 +12,7 @@ interface BOEPageProps {
 }
 
 const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
-  const { programId: urlProgramId } = useParams<{ programId: string }>();
+  const { id: urlProgramId } = useParams<{ id: string }>();
   const programId = propProgramId || urlProgramId;
   
   const {
@@ -94,62 +95,100 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   }
 
   return (
-    <div className="container-fluid">
-      <div className="row mb-3">
-        <div className="col">
-          <h2>Basis of Estimate (BOE)</h2>
-          <p className="text-muted">
+    <Layout>
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Basis of Estimate (BOE)</h1>
+          <p className="mt-2 text-gray-600">
             Manage and track project estimates, costs, and management reserve
           </p>
         </div>
-      </div>
 
-      <div className="card">
-        <div className="card-body">
-          <ul className="nav nav-tabs mb-3">
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'overview' ? 'active' : ''}`}
-                onClick={() => setActiveTab('overview')}
-              >
-                Overview
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'details' ? 'active' : ''}`}
-                onClick={() => setActiveTab('details')}
-              >
-                Details
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'approval' ? 'active' : ''}`}
-                onClick={() => setActiveTab('approval')}
-              >
-                Approval
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'history' ? 'active' : ''}`}
-                onClick={() => setActiveTab('history')}
-              >
-                History
-              </button>
-            </li>
-          </ul>
-
-          <div className="tab-content">
-            {activeTab === 'overview' && <BOEOverview programId={programId} />}
-            {activeTab === 'details' && <BOEDetails programId={programId} />}
-            {activeTab === 'approval' && <BOEApproval programId={programId} />}
-            {activeTab === 'history' && <BOEHistory programId={programId} />}
+        {/* Error Display */}
+        {boeError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="mt-2 text-sm text-red-700">{boeError}</div>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200 mb-8">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`
+                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                ${activeTab === 'overview'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>📊</span>
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`
+                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                ${activeTab === 'details'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>📋</span>
+              Details
+            </button>
+            <button
+              onClick={() => setActiveTab('approval')}
+              className={`
+                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                ${activeTab === 'approval'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>✅</span>
+              Approval
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`
+                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                ${activeTab === 'history'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>📚</span>
+              History
+            </button>
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        <div className="bg-white rounded-lg shadow">
+          {activeTab === 'overview' && <BOEOverview programId={programId} />}
+          {activeTab === 'details' && <BOEDetails programId={programId} />}
+          {activeTab === 'approval' && <BOEApproval programId={programId} />}
+          {activeTab === 'history' && <BOEHistory programId={programId} />}
         </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 

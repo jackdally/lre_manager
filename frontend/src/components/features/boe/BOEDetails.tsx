@@ -1,138 +1,53 @@
 import React from 'react';
-import { useBOEStore } from '../../../store/boeStore';
 
 interface BOEDetailsProps {
   programId: string;
 }
 
 const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
-  const { currentBOE, elements } = useBOEStore();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  if (!currentBOE) {
-    return (
-      <div className="boe-details">
-        <div className="alert alert-info">
-          <h4>No BOE Found</h4>
-          <p>This program doesn't have a Basis of Estimate yet.</p>
-          <button className="btn btn-primary">Create BOE</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="boe-details">
-      <div className="row mb-3">
-        <div className="col">
-          <h5>BOE Elements</h5>
-          <p className="text-muted">Detailed breakdown of project costs and estimates</p>
+    <div className="p-6">
+      {/* Placeholder Content */}
+      <div className="text-center py-12">
+        <div className="text-gray-400 mb-4">
+          <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
         </div>
-        <div className="col-auto">
-          <button className="btn btn-primary">Add Element</button>
-        </div>
-      </div>
-
-      {elements.length === 0 ? (
-        <div className="alert alert-info">
-          <h5>No Elements</h5>
-          <p>This BOE doesn't have any elements yet. Add elements to start building your estimate.</p>
-          <button className="btn btn-primary">Add First Element</button>
-        </div>
-      ) : (
-        <div className="table-responsive">
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Level</th>
-                <th>Estimated Cost</th>
-                <th>Actual Cost</th>
-                <th>Variance</th>
-                <th>Required</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {elements.map((element) => (
-                <tr key={element.id}>
-                  <td>{element.code}</td>
-                  <td>{element.name}</td>
-                  <td>{element.level}</td>
-                  <td>{formatCurrency(element.estimatedCost)}</td>
-                  <td>{formatCurrency(element.actualCost)}</td>
-                  <td className={element.variance < 0 ? 'text-danger' : 'text-success'}>
-                    {formatCurrency(element.variance)}
-                  </td>
-                  <td>
-                    <span className={`badge bg-${element.isRequired ? 'danger' : 'secondary'}`}>
-                      {element.isRequired ? 'Required' : 'Optional'}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn btn-sm btn-outline-primary me-1">Edit</button>
-                    <button className="btn btn-sm btn-outline-danger">Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="row mt-4">
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-header">
-              <h6>Cost Summary</h6>
-            </div>
-            <div className="card-body">
-              <div className="d-flex justify-content-between mb-2">
-                <span>Total Estimated Cost:</span>
-                <strong>{formatCurrency(currentBOE.totalEstimatedCost)}</strong>
-              </div>
-              <div className="d-flex justify-content-between mb-2">
-                <span>Management Reserve:</span>
-                <strong>{formatCurrency(currentBOE.managementReserveAmount)}</strong>
-              </div>
-              <hr />
-              <div className="d-flex justify-content-between">
-                <span>Total with MR:</span>
-                <strong>{formatCurrency(currentBOE.totalEstimatedCost + currentBOE.managementReserveAmount)}</strong>
-              </div>
-            </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">BOE Details</h3>
+        <p className="text-gray-500 mb-6">
+          This tab will display detailed BOE elements and cost breakdown including:
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 mb-3">WBS Elements</h4>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li>• Hierarchical WBS structure</li>
+              <li>• Element descriptions</li>
+              <li>• Cost categories</li>
+              <li>• Vendor assignments</li>
+            </ul>
+          </div>
+          
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 mb-3">Cost Breakdown</h4>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li>• Planned vs Actual costs</li>
+              <li>• Cost variance analysis</li>
+              <li>• Roll-up calculations</li>
+              <li>• Management reserve allocation</li>
+            </ul>
           </div>
         </div>
         
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-header">
-              <h6>Management Reserve Details</h6>
-            </div>
-            <div className="card-body">
-              <div className="d-flex justify-content-between mb-2">
-                <span>MR Percentage:</span>
-                <strong>{currentBOE.managementReservePercentage}%</strong>
-              </div>
-              <div className="d-flex justify-content-between mb-2">
-                <span>MR Amount:</span>
-                <strong>{formatCurrency(currentBOE.managementReserveAmount)}</strong>
-              </div>
-              <div className="d-flex justify-content-between">
-                <span>Calculation Method:</span>
-                <strong>Standard</strong>
-              </div>
-            </div>
-          </div>
+        <div className="mt-8">
+          <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors mr-3">
+            Edit BOE
+          </button>
+          <button className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors">
+            Export Details
+          </button>
         </div>
       </div>
     </div>

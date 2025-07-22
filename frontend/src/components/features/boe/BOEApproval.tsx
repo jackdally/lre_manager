@@ -1,192 +1,56 @@
 import React from 'react';
-import { useBOEStore } from '../../../store/boeStore';
 
 interface BOEApprovalProps {
   programId: string;
 }
 
 const BOEApproval: React.FC<BOEApprovalProps> = ({ programId }) => {
-  const { currentBOE } = useBOEStore();
-
-  if (!currentBOE) {
-    return (
-      <div className="boe-approval">
-        <div className="alert alert-info">
-          <h4>No BOE Found</h4>
-          <p>This program doesn't have a Basis of Estimate yet.</p>
-          <button className="btn btn-primary">Create BOE</button>
-        </div>
-      </div>
-    );
-  }
-
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'Approved':
-        return 'bg-success';
-      case 'Rejected':
-        return 'bg-danger';
-      case 'Under Review':
-        return 'bg-warning';
-      case 'Draft':
-        return 'bg-secondary';
-      default:
-        return 'bg-secondary';
-    }
-  };
-
   return (
-    <div className="boe-approval">
-      <div className="row mb-3">
-        <div className="col">
-          <h5>Approval Workflow</h5>
-          <p className="text-muted">Track the approval status and workflow for this BOE</p>
+    <div className="p-6">
+      {/* Placeholder Content */}
+      <div className="text-center py-12">
+        <div className="text-gray-400 mb-4">
+          <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
         </div>
-        <div className="col-auto">
-          {currentBOE.status === 'Draft' && (
-            <button className="btn btn-primary">Submit for Approval</button>
-          )}
-        </div>
-      </div>
-
-      <div className="row">
-        <div className="col-md-8">
-          <div className="card">
-            <div className="card-header">
-              <h6>Current Status</h6>
-            </div>
-            <div className="card-body">
-              <div className="d-flex align-items-center mb-3">
-                <span className="me-3">Status:</span>
-                <span className={`badge ${getStatusBadgeClass(currentBOE.status)} fs-6`}>
-                  {currentBOE.status}
-                </span>
-              </div>
-              
-              {currentBOE.status === 'Approved' && (
-                <div className="alert alert-success">
-                  <h6>Approved</h6>
-                  <p>This BOE has been approved and is ready for use.</p>
-                  {currentBOE.approvedBy && (
-                    <small>Approved by: {currentBOE.approvedBy} on {currentBOE.approvedAt ? new Date(currentBOE.approvedAt).toLocaleDateString() : 'N/A'}</small>
-                  )}
-                </div>
-              )}
-
-              {currentBOE.status === 'Rejected' && (
-                <div className="alert alert-danger">
-                  <h6>Rejected</h6>
-                  <p>This BOE has been rejected and requires updates.</p>
-                  {currentBOE.rejectionReason && (
-                    <p><strong>Reason:</strong> {currentBOE.rejectionReason}</p>
-                  )}
-                  {currentBOE.rejectedBy && (
-                    <small>Rejected by: {currentBOE.rejectedBy} on {currentBOE.rejectedAt ? new Date(currentBOE.rejectedAt).toLocaleDateString() : 'N/A'}</small>
-                  )}
-                </div>
-              )}
-
-              {currentBOE.status === 'Under Review' && (
-                <div className="alert alert-warning">
-                  <h6>Under Review</h6>
-                  <p>This BOE is currently under review by approvers.</p>
-                </div>
-              )}
-
-              {currentBOE.status === 'Draft' && (
-                <div className="alert alert-info">
-                  <h6>Draft</h6>
-                  <p>This BOE is in draft status and ready for submission.</p>
-                </div>
-              )}
-            </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">BOE Approval</h3>
+        <p className="text-gray-500 mb-6">
+          This tab will display BOE approval status, workflow, and actions including:
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 mb-3">Approval Status</h4>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li>• Current approval stage</li>
+              <li>• Approval workflow</li>
+              <li>• Approver assignments</li>
+              <li>• Status tracking</li>
+            </ul>
+          </div>
+          
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 mb-3">Approval Actions</h4>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li>• Submit for approval</li>
+              <li>• Approve/Reject</li>
+              <li>• Add comments</li>
+              <li>• Request changes</li>
+            </ul>
           </div>
         </div>
-
-        <div className="col-md-4">
-          <div className="card">
-            <div className="card-header">
-              <h6>Approval Actions</h6>
-            </div>
-            <div className="card-body">
-              {currentBOE.status === 'Draft' && (
-                <div className="d-grid gap-2">
-                  <button className="btn btn-primary">Submit for Review</button>
-                  <button className="btn btn-outline-secondary">Save as Draft</button>
-                </div>
-              )}
-
-              {currentBOE.status === 'Under Review' && (
-                <div className="d-grid gap-2">
-                  <button className="btn btn-success">Approve</button>
-                  <button className="btn btn-danger">Reject</button>
-                  <button className="btn btn-outline-secondary">Request Changes</button>
-                </div>
-              )}
-
-              {currentBOE.status === 'Approved' && (
-                <div className="d-grid gap-2">
-                  <button className="btn btn-outline-primary">Create New Version</button>
-                  <button className="btn btn-outline-secondary">Export BOE</button>
-                </div>
-              )}
-
-              {currentBOE.status === 'Rejected' && (
-                <div className="d-grid gap-2">
-                  <button className="btn btn-primary">Update BOE</button>
-                  <button className="btn btn-outline-secondary">Create New Version</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="row mt-4">
-        <div className="col-12">
-          <div className="card">
-            <div className="card-header">
-              <h6>Approval History</h6>
-            </div>
-            <div className="card-body">
-              <div className="table-responsive">
-                <table className="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Action</th>
-                      <th>Approver</th>
-                      <th>Comments</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{new Date(currentBOE.createdAt).toLocaleDateString()}</td>
-                      <td><span className="badge bg-secondary">Created</span></td>
-                      <td>{currentBOE.createdBy || 'System'}</td>
-                      <td>BOE created</td>
-                    </tr>
-                    {currentBOE.status === 'Approved' && currentBOE.approvedAt && (
-                      <tr>
-                        <td>{new Date(currentBOE.approvedAt).toLocaleDateString()}</td>
-                        <td><span className="badge bg-success">Approved</span></td>
-                        <td>{currentBOE.approvedBy}</td>
-                        <td>BOE approved</td>
-                      </tr>
-                    )}
-                    {currentBOE.status === 'Rejected' && currentBOE.rejectedAt && (
-                      <tr>
-                        <td>{new Date(currentBOE.rejectedAt).toLocaleDateString()}</td>
-                        <td><span className="badge bg-danger">Rejected</span></td>
-                        <td>{currentBOE.rejectedBy}</td>
-                        <td>{currentBOE.rejectionReason}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        
+        <div className="mt-8">
+          <button className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors mr-3">
+            Submit for Approval
+          </button>
+          <button className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition-colors mr-3">
+            Request Changes
+          </button>
+          <button className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors">
+            View History
+          </button>
         </div>
       </div>
     </div>

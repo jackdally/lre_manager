@@ -7,9 +7,9 @@ import ProgramSettingsPage from './components/features/programs/ProgramSettings'
 import ActualsUploadPage from './components/features/actuals/ActualsUploadPage/index';
 import UploadSessionDetails from './components/features/actuals/UploadSessionDetails/index';
 import SettingsPage from './components/features/settings/SettingsPage';
+import { BOEPage } from './components/features/boe';
 
-// Placeholder components for BOE and Risks & Opportunities
-const BOEPage = () => <div className="p-8"><h1 className="text-2xl font-bold mb-4">BOE Page</h1><p>This is a placeholder for the BOE page.</p></div>;
+// Placeholder component for Risks & Opportunities
 const RisksPage = () => <div className="p-8"><h1 className="text-2xl font-bold mb-4">Risks & Opportunities</h1><p>This is a placeholder for the Risks & Opportunities page.</p></div>;
 
 const App: React.FC = () => {
