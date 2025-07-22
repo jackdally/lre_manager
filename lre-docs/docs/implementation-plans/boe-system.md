@@ -140,11 +140,26 @@
   - ✅ Complete time allocation API integration
   - ✅ Time allocation tab integrated into BOE page
 
-### Phase 3: Management Reserve & Advanced Features (Week 5-6)
+### Phase 3: BOE Element Allocations & Advanced Features (Week 5-7)
 **Tasks**: See [BOE System Tasks](../tasks/active/boe-system.md) for detailed task breakdown
-- Management Reserve calculation engine
-- BOE versioning and approval workflow
-- Analysis and reporting capabilities
+
+#### Phase 3A: BOE Element Allocations (Week 5)
+- **BOE Element Allocation System**: Bridge BOE WBS elements with monthly time allocations
+- **Flexible Monthly Planning**: Monthly allocation planning with drag-and-drop reallocation
+- **Allocation Management**: CRUD operations for element-level allocations
+- **Quantity Tracking**: Support for both amount and quantity-based allocations
+
+#### Phase 3B: Ledger Integration & Invoice Processing (Week 6)
+- **Enhanced Invoice Processing**: Link invoices to specific BOE element allocations
+- **Allocation Selection Interface**: User-friendly invoice-to-allocation mapping
+- **Re-forecasting Tools**: Adjust allocations based on actual invoice timing
+- **Flexible Quantity Mapping**: Support for hardware quantities and contractor hours
+
+#### Phase 3C: Management Reserve & Reporting (Week 7)
+- **Management Reserve calculation engine**
+- **BOE versioning and approval workflow**
+- **Enhanced reporting with allocation insights**
+- **Cash flow projections based on allocation status**
 
 ### Phase 4: Integration & Testing (Week 7-8)
 **Tasks**: See [BOE System Tasks](../tasks/active/boe-system.md) for detailed task breakdown

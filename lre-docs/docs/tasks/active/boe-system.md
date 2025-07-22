@@ -234,123 +234,167 @@
   - [x] Create progress indicators
   - [x] Add error recovery mechanisms
 
-## Phase 3: Management Reserve & Advanced Features (Week 5-6)
+## Phase 3: BOE Element Allocations & Advanced Features (Week 5-7)
 
-### Management Reserve System
-- [ ] **BOE-080**: Create ManagementReserveCalculator component
+### BOE Element Allocation System (Phase 3A - Week 5)
+- [ ] **BOE-075**: Create BOEElementAllocation entity
+  - [ ] Design database schema for element-level allocations
+  - [ ] Implement monthly allocation structure
+  - [ ] Add quantity tracking support
+  - [ ] Create database migration
+
+- [ ] **BOE-076**: Implement BOEElementAllocationService
+  - [ ] Create allocation CRUD operations
+  - [ ] Implement monthly allocation calculations
+  - [ ] Add allocation validation rules
+  - [ ] Create allocation roll-up logic
+
+- [ ] **BOE-077**: Create BOEElementAllocationManager component
+  - [ ] Implement monthly allocation planning interface
+  - [ ] Add drag-and-drop reallocation functionality
+  - [ ] Create allocation adjustment modal
+  - [ ] Add quantity-based allocation support
+
+- [ ] **BOE-078**: Create AllocationForecastView component
+  - [ ] Display planned vs actual allocations by month
+  - [ ] Show allocation variance analysis
+  - [ ] Create re-forecasting suggestions
+  - [ ] Add allocation status indicators
+
+### Ledger Integration & Invoice Processing (Phase 3B - Week 6)
+- [ ] **BOE-079**: Enhance ledger integration
+  - [ ] Link ledger entries to BOE element allocations
+  - [ ] Implement invoice-to-allocation mapping
+  - [ ] Add quantity tracking in ledger entries
+  - [ ] Create allocation status updates
+
+- [ ] **BOE-080**: Create InvoiceAllocationSelector component
+  - [ ] Build invoice processing interface
+  - [ ] Add allocation selection dropdown
+  - [ ] Implement quantity mapping for hardware
+  - [ ] Add contractor hours allocation
+
+- [ ] **BOE-081**: Implement re-forecasting tools
+  - [ ] Create allocation adjustment wizard
+  - [ ] Add drag-and-drop reallocation
+  - [ ] Implement allocation splitting/merging
+  - [ ] Add re-forecasting impact analysis
+
+### Management Reserve System (Phase 3C - Week 7)
+- [ ] **BOE-082**: Create ManagementReserveCalculator component
   - [ ] Implement MR calculation algorithms
   - [ ] Add industry-standard MR percentages
   - [ ] Create MR adjustment interface
   - [ ] Add MR justification tracking
 
-- [ ] **BOE-081**: Implement MR calculations
+- [ ] **BOE-083**: Implement MR calculations
   - [ ] Create baseline MR calculation (5-15%)
   - [ ] Add risk-based MR adjustments
   - [ ] Implement MR allocation by WBS level
   - [ ] Add MR utilization tracking
 
 ### BOE Versioning System
-- [ ] **BOE-090**: Create BOEVersionHistory component
+- [ ] **BOE-084**: Create BOEVersionHistory component
   - [ ] Implement version comparison view
   - [ ] Add change highlighting
   - [ ] Create version rollback functionality
   - [ ] Add version comments and notes
 
-- [ ] **BOE-091**: Implement version control
+- [ ] **BOE-085**: Implement version control
   - [ ] Create version creation workflow
   - [ ] Add change tracking and diffing
   - [ ] Implement version branching
   - [ ] Add version merge capabilities
 
 ### Approval Workflow
-- [ ] **BOE-100**: Create BOEApprovalWorkflow component
+- [ ] **BOE-086**: Create BOEApprovalWorkflow component
   - [ ] Implement approval status display
   - [ ] Add approval action buttons
   - [ ] Create approval history view
   - [ ] Add approval comments and feedback
 
-- [ ] **BOE-101**: Implement approval system
+- [ ] **BOE-087**: Implement approval system
   - [ ] Create approval state management
   - [ ] Add approver assignment
   - [ ] Implement approval notifications
   - [ ] Add approval escalation rules
 
 ### Analysis & Reporting
-- [ ] **BOE-110**: Create BOE comparison tools
+- [ ] **BOE-088**: Create BOE comparison tools
   - [ ] Implement BOE vs actuals comparison
   - [ ] Add variance analysis
   - [ ] Create trend analysis
   - [ ] Add forecasting capabilities
 
-- [ ] **BOE-111**: Add export capabilities
+- [ ] **BOE-089**: Add export capabilities
   - [ ] Implement PDF export
   - [ ] Add Excel export with formatting
   - [ ] Create CSV export for data analysis
   - [ ] Add custom report templates
 
-## Phase 4: Integration & Testing (Week 7-8)
+## Phase 4: Integration & Testing (Week 8-9)
 
 ### System Integration
-- [ ] **BOE-120**: Integrate with ledger system
+- [ ] **BOE-090**: Integrate with ledger system
   - [ ] Connect BOE to ledger entries
   - [ ] Implement actuals comparison
   - [ ] Add variance reporting
   - [ ] Create data synchronization
 
-- [ ] **BOE-121**: Integrate with program management
+- [ ] **BOE-091**: Integrate with program management
   - [ ] Connect BOE to program lifecycle
   - [ ] Add program status updates
   - [ ] Implement program-level reporting
   - [ ] Create program dashboard integration
 
 ### Performance & Optimization
-- [ ] **BOE-130**: Implement performance optimizations
+- [ ] **BOE-092**: Implement performance optimizations
   - [ ] Add virtual scrolling for large BOEs
   - [ ] Implement calculation caching
   - [ ] Optimize database queries
   - [ ] Add lazy loading for components
 
-- [ ] **BOE-131**: Add error handling
+- [ ] **BOE-093**: Add error handling
   - [ ] Implement comprehensive error boundaries
   - [ ] Add retry mechanisms
   - [ ] Create user-friendly error messages
   - [ ] Add error reporting and logging
 
 ### Testing & Quality Assurance
-- [ ] **BOE-140**: Create unit tests
+- [ ] **BOE-094**: Create unit tests
   - [ ] Test BOE calculation engine
   - [ ] Test API endpoints
   - [ ] Test UI components
   - [ ] Test state management
 
-- [ ] **BOE-141**: Create integration tests
+- [ ] **BOE-095**: Create integration tests
   - [ ] Test BOE workflow integration
   - [ ] Test ledger system integration
   - [ ] Test approval workflow
   - [ ] Test data consistency
 
-- [ ] **BOE-142**: Perform user acceptance testing
+- [ ] **BOE-096**: Perform user acceptance testing
   - [ ] Test BOE creation workflow
   - [ ] Test approval process
   - [ ] Test export functionality
   - [ ] Test performance with large datasets
 
 ## Testing Tasks
-- [ ] **BOE-200**: Write unit tests for BOE entities
-- [ ] **BOE-201**: Test BOE calculation algorithms
-- [ ] **BOE-202**: Test API endpoints with various scenarios
-- [ ] **BOE-203**: Test frontend components and interactions
-- [ ] **BOE-204**: Test approval workflow end-to-end
-- [ ] **BOE-205**: Test integration with existing systems
-- [ ] **BOE-206**: Performance testing with large BOEs
-- [ ] **BOE-207**: Security testing for approval workflows
+- [ ] **BOE-097**: Write unit tests for BOE entities
+- [ ] **BOE-098**: Test BOE calculation algorithms
+- [ ] **BOE-099**: Test API endpoints with various scenarios
+- [ ] **BOE-100**: Test frontend components and interactions
+- [ ] **BOE-101**: Test approval workflow end-to-end
+- [ ] **BOE-102**: Test integration with existing systems
+- [ ] **BOE-103**: Performance testing with large BOEs
+- [ ] **BOE-104**: Security testing for approval workflows
 
 ## Documentation Tasks
-- [ ] **BOE-300**: Create user documentation
-- [ ] **BOE-301**: Create API documentation
-- [ ] **BOE-302**: Create technical documentation
-- [ ] **BOE-303**: Create training materials
-- [ ] **BOE-304**: Update feature roadmap
+- [ ] **BOE-105**: Create user documentation
+- [ ] **BOE-106**: Create API documentation
+- [ ] **BOE-107**: Create technical documentation
+- [ ] **BOE-108**: Create training materials
+- [ ] **BOE-109**: Update feature roadmap
 
 ## Phase 1 & 2 Progress Summary ✅
 **Last Updated**: January 27, 2025
