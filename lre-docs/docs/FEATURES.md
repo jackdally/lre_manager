@@ -18,6 +18,20 @@ This document provides a high-level roadmap of planned, in-progress, and complet
 
 ## 🚀 **In Progress Features**
 
+### BOE (Basis of Estimate) System (High Priority)
+- [~] Comprehensive BOE page with ledger creation workflow
+- [~] BOE templates and wizards for different project types
+- [~] BOE approval workflow and versioning
+- [~] User-friendly forms for entering baseline estimates
+- [~] Preliminary Management Reserve calculation based on industry standards
+- [~] Integration with existing ledger management system
+- [~] Time-based cost allocation system for direct labor/contractor costs
+
+**Implementation Plan**: [docs/implementation-plans/boe-system.md](implementation-plans/boe-system.md)  
+**Task Tracking**: [docs/tasks/active/boe-system.md](tasks/active/boe-system.md)  
+**Sprint Planning**: [docs/sprints/sprint-2-boe-phase1.md](sprints/sprint-2-boe-phase1.md)  
+**Estimated Completion**: Q1 2026
+
 ### User Preference Management (Medium Priority)
 - [~] User interface customization (theme, layout, dashboard preferences)
 - [~] Default currency and date format settings
@@ -37,19 +51,6 @@ This document provides a high-level roadmap of planned, in-progress, and complet
 ## 📋 **Planned Features**
 
 ### High Priority
-
-#### BOE (Basis of Estimate) System
-- [~] Comprehensive BOE page with ledger creation workflow
-- [~] BOE templates and wizards for different project types
-- [~] BOE approval workflow and versioning
-- [~] User-friendly forms for entering baseline estimates
-- [~] Preliminary Management Reserve calculation based on industry standards
-- [~] Integration with existing ledger management system
-
-**Implementation Plan**: [docs/implementation-plans/boe-system.md](implementation-plans/boe-system.md)  
-**Task Tracking**: [docs/tasks/active/boe-system.md](tasks/active/boe-system.md)  
-**Sprint Planning**: [docs/sprints/sprint-2-boe-phase1.md](sprints/sprint-2-boe-phase1.md)  
-**Estimated Completion**: Q1 2026
 
 #### Risks & Opportunities System
 - [ ] **Risk/Opportunity Entry & Management**

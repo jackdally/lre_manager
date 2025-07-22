@@ -41,7 +41,7 @@ export interface BOEVersion {
   versionNumber: string;
   name: string;
   description: string;
-  status: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived';
+  status: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived' | 'Baseline';
   templateId?: string;
   totalEstimatedCost: number;
   managementReserveAmount: number;
@@ -84,6 +84,7 @@ export interface BOEElement {
   boeVersionId: string;
   createdAt: string;
   updatedAt: string;
+  childElements?: BOEElement[];
 }
 
 export interface BOEApproval {

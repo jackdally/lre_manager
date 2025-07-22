@@ -19,6 +19,10 @@ interface TemplateData {
   permissions: {
     isPublic: boolean;
     sharedWith: string[];
+    sharedWithRoles: string[];
+    accessLevel: 'Private' | 'Shared' | 'Public';
+    allowCopy: boolean;
+    allowModify: boolean;
   };
   review: boolean;
 }
@@ -41,6 +45,10 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
     permissions: {
       isPublic: false,
       sharedWith: [],
+      sharedWithRoles: [],
+      accessLevel: 'Private' as const,
+      allowCopy: false,
+      allowModify: false,
     },
     review: false,
   });
@@ -239,7 +247,30 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
                 Set who can access and use this template.
               </p>
               
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Access Level */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Access Level
+                  </label>
+                  <select
+                    value={templateData.permissions.accessLevel}
+                    onChange={(e) => setTemplateData(prev => ({
+                      ...prev,
+                      permissions: { 
+                        ...prev.permissions, 
+                        accessLevel: e.target.value as 'Private' | 'Shared' | 'Public' 
+                      }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Private">Private (Only you)</option>
+                    <option value="Shared">Shared (Specific users/roles)</option>
+                    <option value="Public">Public (All users)</option>
+                  </select>
+                </div>
+
+                {/* Public Access */}
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -255,19 +286,88 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
                     Make this template public (available to all users)
                   </label>
                 </div>
-                
+
+                {/* Share with Users */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Share with specific users (optional)
                   </label>
                   <input
                     type="text"
+                    value={templateData.permissions.sharedWith.join(', ')}
+                    onChange={(e) => setTemplateData(prev => ({
+                      ...prev,
+                      permissions: { 
+                        ...prev.permissions, 
+                        sharedWith: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                      }
+                    }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter email addresses separated by commas"
                   />
                   <p className="mt-1 text-sm text-gray-500">
                     Leave empty if template is public or for personal use only
                   </p>
+                </div>
+
+                {/* Share with Roles */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Share with roles (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={templateData.permissions.sharedWithRoles.join(', ')}
+                    onChange={(e) => setTemplateData(prev => ({
+                      ...prev,
+                      permissions: { 
+                        ...prev.permissions, 
+                        sharedWithRoles: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                      }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter role names separated by commas (e.g., Program Manager, Finance)"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    Users with these roles will have access to this template
+                  </p>
+                </div>
+
+                {/* Permissions */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-900">Permissions</h4>
+                  
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="allowCopy"
+                      checked={templateData.permissions.allowCopy}
+                      onChange={(e) => setTemplateData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, allowCopy: e.target.checked }
+                      }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="allowCopy" className="ml-2 block text-sm text-gray-900">
+                      Allow others to copy this template
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="allowModify"
+                      checked={templateData.permissions.allowModify}
+                      onChange={(e) => setTemplateData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, allowModify: e.target.checked }
+                      }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="allowModify" className="ml-2 block text-sm text-gray-900">
+                      Allow others to modify this template
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -311,9 +411,43 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
                     <h4 className="font-medium text-gray-900 mb-3">Permissions</h4>
                     <dl className="space-y-2 text-sm">
                       <div>
+                        <dt className="font-medium text-gray-700">Access Level:</dt>
+                        <dd className="text-gray-900">{templateData.permissions.accessLevel}</dd>
+                      </div>
+                      <div>
                         <dt className="font-medium text-gray-700">Public Access:</dt>
                         <dd className="text-gray-900">{templateData.permissions.isPublic ? 'Yes' : 'No'}</dd>
                       </div>
+                      <div>
+                        <dt className="font-medium text-gray-700">Shared Users:</dt>
+                        <dd className="text-gray-900">
+                          {templateData.permissions.sharedWith.length > 0 
+                            ? templateData.permissions.sharedWith.join(', ') 
+                            : 'None'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-gray-700">Shared Roles:</dt>
+                        <dd className="text-gray-900">
+                          {templateData.permissions.sharedWithRoles.length > 0 
+                            ? templateData.permissions.sharedWithRoles.join(', ') 
+                            : 'None'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-gray-700">Allow Copy:</dt>
+                        <dd className="text-gray-900">{templateData.permissions.allowCopy ? 'Yes' : 'No'}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-gray-700">Allow Modify:</dt>
+                        <dd className="text-gray-900">{templateData.permissions.allowModify ? 'Yes' : 'No'}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Structure</h4>
+                    <dl className="space-y-2 text-sm">
                       <div>
                         <dt className="font-medium text-gray-700">WBS Elements:</dt>
                         <dd className="text-gray-900">{templateData.wbsStructure.length} elements</dd>

@@ -18,10 +18,9 @@ const boeApi = axios.create({
   },
 });
 
-// Request interceptor for logging
+// Request interceptor for error handling
 boeApi.interceptors.request.use(
   (config) => {
-    console.log(`BOE API Request: ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => {
@@ -33,7 +32,6 @@ boeApi.interceptors.request.use(
 // Response interceptor for error handling
 boeApi.interceptors.response.use(
   (response) => {
-    console.log(`BOE API Response: ${response.status} ${response.config.url}`);
     return response;
   },
   (error) => {
@@ -210,6 +208,35 @@ export const boeCalculationsApi = {
   },
 };
 
+// WBS Template Integration API
+export const wbsTemplateIntegrationApi = {
+  // Get available WBS templates for import
+  getAvailableTemplates: async (): Promise<any[]> => {
+    const response = await boeApi.get('/boe/wbs-templates');
+    return response.data as any[];
+  },
+
+  // Clear all elements from BOE
+  clearElements: async (programId: string, boeVersionId: string): Promise<any> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/${boeVersionId}/clear-elements`);
+    return response.data;
+  },
+
+  // Import WBS template into BOE
+  importTemplate: async (programId: string, boeVersionId: string, wbsTemplateId: string): Promise<any> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/${boeVersionId}/import-wbs-template`, {
+      wbsTemplateId
+    });
+    return response.data;
+  },
+
+  // Push BOE WBS to program WBS
+  pushToProgramWBS: async (programId: string, boeVersionId: string): Promise<any> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/${boeVersionId}/push-to-program-wbs`);
+    return response.data;
+  },
+};
+
 // Export all APIs
 export const boeApiService = {
   templates: boeTemplatesApi,
@@ -218,6 +245,7 @@ export const boeApiService = {
   managementReserve: managementReserveApi,
   approvals: boeApprovalsApi,
   calculations: boeCalculationsApi,
+  wbsTemplateIntegration: wbsTemplateIntegrationApi,
 };
 
 export default boeApiService; 

@@ -6,6 +6,9 @@ import { BOETemplateElement } from '../entities/BOETemplateElement';
 import { ManagementReserve } from '../entities/ManagementReserve';
 import { Program } from '../entities/Program';
 import { LedgerEntry } from '../entities/LedgerEntry';
+import { WbsTemplate } from '../entities/WbsTemplate';
+import { WbsTemplateElement } from '../entities/WbsTemplateElement';
+import { WbsElement } from '../entities/WbsElement';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
@@ -14,6 +17,9 @@ const boeTemplateElementRepository = AppDataSource.getRepository(BOETemplateElem
 const managementReserveRepository = AppDataSource.getRepository(ManagementReserve);
 const programRepository = AppDataSource.getRepository(Program);
 const ledgerRepository = AppDataSource.getRepository(LedgerEntry);
+const wbsTemplateRepository = AppDataSource.getRepository(WbsTemplate);
+const wbsTemplateElementRepository = AppDataSource.getRepository(WbsTemplateElement);
+const wbsElementRepository = AppDataSource.getRepository(WbsElement);
 
 export class BOEService {
   /**
@@ -52,7 +58,7 @@ export class BOEService {
         percentage = 10;
     }
 
-    const amount = (totalCost * percentage) / 100;
+    const amount = totalCost > 0 ? (totalCost * percentage) / 100 : 0;
 
     return {
       amount: Math.round(amount * 100) / 100, // Round to 2 decimal places
@@ -155,10 +161,10 @@ export class BOEService {
     // Recalculate management reserve
     const managementReserve = this.calculateManagementReserve(totalCost);
 
-    // Update BOE version
-    boeVersion.totalEstimatedCost = totalCost;
-    boeVersion.managementReserveAmount = managementReserve.amount;
-    boeVersion.managementReservePercentage = managementReserve.percentage;
+    // Update BOE version - ensure we have valid numeric values
+    boeVersion.totalEstimatedCost = totalCost || 0;
+    boeVersion.managementReserveAmount = managementReserve.amount || 0;
+    boeVersion.managementReservePercentage = managementReserve.percentage || 0;
     boeVersion.updatedAt = new Date();
 
     await boeVersionRepository.save(boeVersion);
@@ -331,6 +337,227 @@ export class BOEService {
       success: true,
       entriesCreated,
       message: `Successfully created ${entriesCreated} ledger entries from BOE`
+    };
+  }
+
+  /**
+   * Import WBS template into BOE
+   */
+  static async importWBSTemplateIntoBOE(boeVersionId: string, wbsTemplateId: string, userId?: string): Promise<{
+    success: boolean;
+    elementsCreated: number;
+    message: string;
+    importedElements: BOEElement[];
+  }> {
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId },
+      relations: ['program']
+    });
+
+    if (!boeVersion) {
+      throw new Error('BOE version not found');
+    }
+
+    // Get the WBS template with all its elements
+    const wbsTemplate = await wbsTemplateRepository.findOne({
+      where: { id: wbsTemplateId },
+      relations: ['elements', 'elements.children']
+    });
+
+    if (!wbsTemplate) {
+      throw new Error('WBS template not found');
+    }
+
+    // Check if BOE already has elements
+    const existingElements = await boeElementRepository.find({
+      where: { boeVersion: { id: boeVersionId } }
+    });
+
+    if (existingElements.length > 0) {
+      throw new Error('Cannot import WBS template into BOE that already has elements. Please clear existing elements first.');
+    }
+
+    // Import template elements into BOE
+    const importedElements: BOEElement[] = [];
+    const elementMap = new Map<string, string>(); // template element ID -> new element ID
+
+    // First pass: create all elements without parent relationships
+    for (const templateElement of wbsTemplate.elements) {
+      const boeElement = new BOEElement();
+      boeElement.code = templateElement.code;
+      boeElement.name = templateElement.name;
+      boeElement.description = templateElement.description;
+      boeElement.level = templateElement.level;
+      boeElement.estimatedCost = 0; // Start with zero cost
+      boeElement.actualCost = 0;
+      boeElement.variance = 0;
+      boeElement.managementReserveAmount = 0;
+      boeElement.isRequired = true; // Default to required
+      boeElement.isOptional = false;
+      boeElement.notes = `Imported from WBS template: ${wbsTemplate.name}`;
+      boeElement.assumptions = null;
+      boeElement.risks = null;
+      boeElement.boeVersion = boeVersion;
+
+      const savedElement = await boeElementRepository.save(boeElement);
+      elementMap.set(templateElement.id, savedElement.id);
+      importedElements.push(savedElement);
+    }
+
+    // Second pass: establish parent-child relationships
+    for (const templateElement of wbsTemplate.elements) {
+      if (templateElement.parentId) {
+        const newElementId = elementMap.get(templateElement.id);
+        const newParentId = elementMap.get(templateElement.parentId);
+        
+        if (newElementId && newParentId) {
+          await boeElementRepository.update(newElementId, {
+            parentElementId: newParentId
+          });
+        }
+      }
+    }
+
+    // Update BOE version to track the imported template
+    boeVersion.templateId = wbsTemplateId;
+    boeVersion.updatedAt = new Date();
+    await boeVersionRepository.save(boeVersion);
+
+    // Recalculate BOE totals
+    await this.updateBOECalculations(boeVersionId);
+
+    return {
+      success: true,
+      elementsCreated: importedElements.length,
+      message: `Successfully imported ${importedElements.length} elements from WBS template "${wbsTemplate.name}"`,
+      importedElements
+    };
+  }
+
+  /**
+   * Clear all elements from a BOE version
+   */
+  static async clearBOEElements(boeVersionId: string): Promise<{
+    success: boolean;
+    elementsDeleted: number;
+    message: string;
+  }> {
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId }
+    });
+
+    if (!boeVersion) {
+      throw new Error('BOE version not found');
+    }
+
+    // Delete all BOE elements for this version
+    const deleteResult = await boeElementRepository.delete({
+      boeVersion: { id: boeVersionId }
+    });
+
+    // Update BOE version to reflect the change
+    boeVersion.updatedAt = new Date();
+    await boeVersionRepository.save(boeVersion);
+
+    // Recalculate totals (should be zero now)
+    await this.updateBOECalculations(boeVersionId);
+
+    return {
+      success: true,
+      elementsDeleted: deleteResult.affected || 0,
+      message: `Successfully cleared ${deleteResult.affected || 0} elements from BOE`
+    };
+  }
+
+  /**
+   * Push BOE WBS structure to program WBS
+   */
+  static async pushBOEWBSToProgram(boeVersionId: string, userId?: string): Promise<{
+    success: boolean;
+    elementsCreated: number;
+    elementsUpdated: number;
+    message: string;
+  }> {
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId },
+      relations: ['program', 'elements', 'elements.costCategory', 'elements.vendor']
+    });
+
+    if (!boeVersion) {
+      throw new Error('BOE version not found');
+    }
+
+    if (boeVersion.status !== 'Approved' && boeVersion.status !== 'Baseline') {
+      throw new Error('Can only push approved or baseline BOE to program WBS');
+    }
+
+    const program = boeVersion.program;
+    const boeElements = boeVersion.elements || [];
+    
+    // Get existing program WBS elements
+    const existingWbsElements = await wbsElementRepository.find({
+      where: { program: { id: program.id } }
+    });
+
+    let elementsCreated = 0;
+    let elementsUpdated = 0;
+    const elementMap = new Map<string, string>(); // BOE element ID -> WBS element ID
+
+    // First pass: create or update WBS elements
+    for (const boeElement of boeElements) {
+      // Check if WBS element already exists with same code
+      const existingWbsElement = existingWbsElements.find(e => e.code === boeElement.code);
+      
+      if (existingWbsElement) {
+        // Update existing WBS element with BOE data
+        await wbsElementRepository.update(existingWbsElement.id, {
+          name: boeElement.name,
+          description: boeElement.description,
+          level: boeElement.level,
+          updatedAt: new Date()
+        });
+        elementMap.set(boeElement.id, existingWbsElement.id);
+        elementsUpdated++;
+      } else {
+        // Create new WBS element
+        const newWbsElement = wbsElementRepository.create({
+          code: boeElement.code,
+          name: boeElement.name,
+          description: boeElement.description,
+          level: boeElement.level,
+          program: program
+        });
+
+        const savedWbsElement = await wbsElementRepository.save(newWbsElement);
+        elementMap.set(boeElement.id, savedWbsElement.id);
+        elementsCreated++;
+      }
+    }
+
+    // Second pass: establish parent-child relationships
+    for (const boeElement of boeElements) {
+      if (boeElement.parentElementId) {
+        const wbsElementId = elementMap.get(boeElement.id);
+        const wbsParentId = elementMap.get(boeElement.parentElementId);
+        
+        if (wbsElementId && wbsParentId) {
+          await wbsElementRepository.update(wbsElementId, {
+            parentId: wbsParentId
+          });
+        }
+      }
+    }
+
+    // Update BOE version status to indicate it's been pushed to program
+    boeVersion.status = 'PushedToProgram';
+    boeVersion.updatedAt = new Date();
+    await boeVersionRepository.save(boeVersion);
+
+    return {
+      success: true,
+      elementsCreated,
+      elementsUpdated,
+      message: `Successfully pushed BOE WBS to program: ${elementsCreated} new elements created, ${elementsUpdated} elements updated`
     };
   }
 } 

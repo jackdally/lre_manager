@@ -8,6 +8,8 @@ import { BOETemplateElement } from '../entities/BOETemplateElement';
 import { BOEApproval } from '../entities/BOEApproval';
 import { ManagementReserve } from '../entities/ManagementReserve';
 import { BOEService } from '../services/boeService';
+import { BOETemplateService } from '../services/boeTemplateService';
+import { WbsTemplate } from '../entities/WbsTemplate';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -17,11 +19,46 @@ const boeTemplateRepository = AppDataSource.getRepository(BOETemplate);
 const boeTemplateElementRepository = AppDataSource.getRepository(BOETemplateElement);
 const boeApprovalRepository = AppDataSource.getRepository(BOEApproval);
 const managementReserveRepository = AppDataSource.getRepository(ManagementReserve);
+const wbsTemplateRepository = AppDataSource.getRepository(WbsTemplate);
 
 // Add UUID validation helper
 function isValidUUID(str: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
 }
+
+/**
+ * @swagger
+ * /api/boe/wbs-templates:
+ *   get:
+ *     summary: Get available WBS templates for BOE import
+ */
+router.get('/boe/wbs-templates', async (req, res) => {
+  try {
+    const templates = await wbsTemplateRepository.find({
+      relations: ['elements', 'elements.children'],
+      order: {
+        isDefault: 'DESC',
+        name: 'ASC'
+      }
+    });
+
+    const templatesWithHierarchy = templates.map(template => ({
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      isDefault: template.isDefault,
+      structure: template.elements ? template.elements.filter(e => !e.parentId) : [],
+      elementCount: template.elements ? template.elements.length : 0,
+      createdAt: template.createdAt,
+      updatedAt: template.updatedAt
+    }));
+
+    res.json(templatesWithHierarchy);
+  } catch (error) {
+    console.error('Error fetching WBS templates:', error);
+    res.status(500).json({ message: 'Error fetching WBS templates', error });
+  }
+});
 
 /**
  * @swagger
@@ -242,8 +279,20 @@ router.post('/boe-templates', async (req, res) => {
     template.name = req.body.name;
     template.description = req.body.description;
     template.category = req.body.category;
-    template.version = req.body.version;
+    template.version = req.body.version || '1.0.0';
+    template.majorVersion = req.body.majorVersion || 1;
+    template.minorVersion = req.body.minorVersion || 0;
+    template.patchVersion = req.body.patchVersion || 0;
     template.isActive = req.body.isActive !== undefined ? req.body.isActive : true;
+    template.isLatestVersion = true;
+    template.isPublic = req.body.isPublic || false;
+    template.sharedWithUsers = req.body.sharedWithUsers || [];
+    template.sharedWithRoles = req.body.sharedWithRoles || [];
+    template.accessLevel = req.body.accessLevel || 'Private';
+    template.allowCopy = req.body.allowCopy || false;
+    template.allowModify = req.body.allowModify || false;
+    template.createdBy = req.body.userId || req.headers['user-id'] as string || null;
+    template.updatedBy = req.body.userId || req.headers['user-id'] as string || null;
 
     const savedTemplate = await boeTemplateRepository.save(template);
 
@@ -251,6 +300,150 @@ router.post('/boe-templates', async (req, res) => {
   } catch (error) {
     console.error('Error creating BOE template:', error);
     res.status(500).json({ message: 'Error creating BOE template', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-templates/{id}/versions:
+ *   post:
+ *     summary: Create new version of BOE template
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Template ID
+ */
+router.post('/boe-templates/:id/versions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.body.userId || req.headers['user-id'] as string;
+    
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid template ID' });
+    }
+
+    const newVersion = await BOETemplateService.createNewVersion(id, req.body, userId);
+    res.status(201).json(newVersion);
+  } catch (error) {
+    console.error('Error creating template version:', error);
+    res.status(500).json({ message: 'Error creating template version', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-templates/{id}/versions:
+ *   get:
+ *     summary: Get version history for BOE template
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Template ID
+ */
+router.get('/boe-templates/:id/versions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid template ID' });
+    }
+
+    const versionHistory = await BOETemplateService.getVersionHistory(id);
+    res.json(versionHistory);
+  } catch (error) {
+    console.error('Error fetching template version history:', error);
+    res.status(500).json({ message: 'Error fetching template version history', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-templates/compare:
+ *   post:
+ *     summary: Compare two template versions
+ */
+router.post('/boe-templates/compare', async (req, res) => {
+  try {
+    const { version1Id, version2Id } = req.body;
+    
+    if (!version1Id || !version2Id) {
+      return res.status(400).json({ message: 'Both version IDs are required' });
+    }
+
+    if (!isValidUUID(version1Id) || !isValidUUID(version2Id)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    const comparison = await BOETemplateService.compareVersions(version1Id, version2Id);
+    res.json(comparison);
+  } catch (error) {
+    console.error('Error comparing template versions:', error);
+    res.status(500).json({ message: 'Error comparing template versions', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-templates/{id}/rollback/{targetVersionId}:
+ *   post:
+ *     summary: Rollback template to previous version
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Current template ID
+ *       - in: path
+ *         name: targetVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Target version ID to rollback to
+ */
+router.post('/boe-templates/:id/rollback/:targetVersionId', async (req, res) => {
+  try {
+    const { id, targetVersionId } = req.params;
+    const userId = req.body.userId || req.headers['user-id'] as string;
+    
+    if (!isValidUUID(id) || !isValidUUID(targetVersionId)) {
+      return res.status(400).json({ message: 'Invalid template ID' });
+    }
+
+    const newVersion = await BOETemplateService.rollbackToVersion(id, targetVersionId, userId);
+    res.status(201).json(newVersion);
+  } catch (error) {
+    console.error('Error rolling back template version:', error);
+    res.status(500).json({ message: 'Error rolling back template version', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-templates/accessible:
+ *   get:
+ *     summary: Get templates accessible to current user
+ */
+router.get('/boe-templates/accessible', async (req, res) => {
+  try {
+    const userId = req.headers['user-id'] as string;
+    const userRoles = req.headers['user-roles'] as string;
+    
+    const accessibleTemplates = await BOETemplateService.getAccessibleTemplates(
+      userId, 
+      userRoles ? userRoles.split(',') : undefined
+    );
+    
+    res.json(accessibleTemplates);
+  } catch (error) {
+    console.error('Error fetching accessible templates:', error);
+    res.status(500).json({ message: 'Error fetching accessible templates', error });
   }
 });
 
@@ -524,6 +717,122 @@ router.post('/programs/:id/boe/:versionId/push-to-ledger', async (req, res) => {
   } catch (error) {
     console.error('Error pushing BOE to ledger:', error);
     res.status(500).json({ message: 'Error pushing BOE to ledger', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/programs/{id}/boe/{versionId}/clear-elements:
+ *   post:
+ *     summary: Clear all elements from BOE version
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/programs/:id/boe/:versionId/clear-elements', async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+    
+    if (!isValidUUID(id) || !isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid program ID or version ID' });
+    }
+
+    const result = await BOEService.clearBOEElements(versionId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error clearing BOE elements:', error);
+    res.status(500).json({ message: 'Error clearing BOE elements', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/programs/{id}/boe/{versionId}/import-wbs-template:
+ *   post:
+ *     summary: Import WBS template into BOE
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               wbsTemplateId:
+ *                 type: string
+ *                 description: WBS Template ID to import
+ */
+router.post('/programs/:id/boe/:versionId/import-wbs-template', async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+    const { wbsTemplateId } = req.body;
+    
+    if (!isValidUUID(id) || !isValidUUID(versionId) || !isValidUUID(wbsTemplateId)) {
+      return res.status(400).json({ message: 'Invalid program ID, version ID, or WBS template ID' });
+    }
+
+    const result = await BOEService.importWBSTemplateIntoBOE(versionId, wbsTemplateId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error importing WBS template into BOE:', error);
+    res.status(500).json({ message: 'Error importing WBS template into BOE', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/programs/{id}/boe/{versionId}/push-to-program-wbs:
+ *   post:
+ *     summary: Push BOE WBS structure to program WBS
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/programs/:id/boe/:versionId/push-to-program-wbs', async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+    
+    if (!isValidUUID(id) || !isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid program ID or version ID' });
+    }
+
+    const result = await BOEService.pushBOEWBSToProgram(versionId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error pushing BOE WBS to program:', error);
+    res.status(500).json({ message: 'Error pushing BOE WBS to program', error });
   }
 });
 
