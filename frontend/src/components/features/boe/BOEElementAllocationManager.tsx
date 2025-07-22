@@ -7,9 +7,13 @@ import {
   LockOpenIcon,
   ArrowUpIcon,
   ArrowDownIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  FolderIcon,
+  DocumentIcon
 } from '@heroicons/react/24/outline';
-import { useBOEStore, BOEElementAllocation } from '../../../store/boeStore';
+import { useBOEStore, BOEElementAllocation, BOEElement } from '../../../store/boeStore';
 import { elementAllocationApi } from '../../../services/boeApi';
 import { formatCurrency, formatDate } from '../../../utils/formatters';
 import Button from '../../common/Button';
@@ -25,6 +29,7 @@ interface BOEElementAllocationManagerProps {
   boeVersionId: string;
   selectedElementId?: string;
   selectedElementName?: string;
+  selectedElement?: BOEElement; // Add the full element object
   onAllocationCreated?: () => void;
   sidebarWidth?: number;
 }
@@ -43,10 +48,20 @@ interface ElementAllocationFormData {
   risks: string;
 }
 
+interface ChildAllocationGroup {
+  childElement: BOEElement;
+  allocations: BOEElementAllocation[];
+  totalAmount: number;
+  allocatedAmount: number;
+  actualAmount: number;
+  variance: number;
+}
+
 const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = ({ 
   boeVersionId,
   selectedElementId,
   selectedElementName,
+  selectedElement,
   onAllocationCreated,
   sidebarWidth = 384 // Default width (w-96 = 384px)
 }) => {
@@ -57,7 +72,8 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     setElementAllocationsLoading, 
     setElementAllocationsError,
     setElementAllocations,
-    setElementAllocationSummary
+    setElementAllocationSummary,
+    elements
   } = useBOEStore();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -66,6 +82,7 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   const [editingAllocation, setEditingAllocation] = useState<BOEElementAllocation | null>(null);
   const [deletingAllocation, setDeletingAllocation] = useState<BOEElementAllocation | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expandedChildGroups, setExpandedChildGroups] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState<ElementAllocationFormData>({
     name: '',
     description: '',
@@ -83,6 +100,9 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
 
+  // Check if selected element is a parent
+  const isParentElement = selectedElement?.childElements && selectedElement.childElements.length > 0;
+
   // Calculate monthly breakdown when form data changes
   useEffect(() => {
     if (formData.startDate && formData.endDate && formData.totalAmount > 0) {
@@ -97,6 +117,49 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     }
   }, [formData.totalAmount, formData.totalQuantity, formData.startDate, formData.endDate, formData.allocationType]);
 
+  // Group allocations by child elements for parent elements
+  const getChildAllocationGroups = (): ChildAllocationGroup[] => {
+    if (!isParentElement || !selectedElement?.childElements) {
+      return [];
+    }
+
+    return selectedElement.childElements.map(childElement => {
+      const childAllocations = elementAllocations.filter(
+        allocation => allocation.boeElementId === childElement.id
+      );
+      
+      const totalAmount = childAllocations.reduce((sum, allocation) => sum + allocation.totalAmount, 0);
+      const allocatedAmount = childAllocations.reduce((sum, allocation) => {
+        const monthlyBreakdown = allocation.monthlyBreakdown || {};
+        return sum + Object.values(monthlyBreakdown).reduce((monthSum: number, month: any) => monthSum + (month.amount || 0), 0);
+      }, 0);
+      const actualAmount = childAllocations.reduce((sum, allocation) => {
+        const monthlyBreakdown = allocation.monthlyBreakdown || {};
+        return sum + Object.values(monthlyBreakdown).reduce((monthSum: number, month: any) => monthSum + (month.actualAmount || 0), 0);
+      }, 0);
+      const variance = actualAmount - allocatedAmount;
+
+      return {
+        childElement,
+        allocations: childAllocations,
+        totalAmount,
+        allocatedAmount,
+        actualAmount,
+        variance
+      };
+    }).filter(group => group.allocations.length > 0); // Only show groups with allocations
+  };
+
+  const toggleChildGroup = (childElementId: string) => {
+    const newExpanded = new Set(expandedChildGroups);
+    if (newExpanded.has(childElementId)) {
+      newExpanded.delete(childElementId);
+    } else {
+      newExpanded.add(childElementId);
+    }
+    setExpandedChildGroups(newExpanded);
+  };
+
   const calculateMonthlyBreakdown = (
     totalAmount: number,
     totalQuantity: number | undefined,
@@ -106,74 +169,69 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   ) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const months = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + 
+                   (end.getMonth() - start.getMonth());
+    const numberOfMonths = Math.max(1, months + 1);
     
-    if (months <= 0) return {};
-
     const breakdown: { [month: string]: { amount: number; quantity?: number; date: string; } } = {};
+    let currentDate = new Date(start);
     let remainingAmount = totalAmount;
     let remainingQuantity = totalQuantity;
 
-    for (let i = 0; i < months; i++) {
-      const currentDate = new Date(start);
-      currentDate.setMonth(start.getMonth() + i);
-      const monthKey = currentDate.toISOString().slice(0, 7); // YYYY-MM format
-      
+    for (let i = 0; i < numberOfMonths; i++) {
+      const monthKey = currentDate.toISOString().slice(0, 7);
       let monthlyAmount: number;
       let monthlyQuantity: number | undefined;
-      
+
       switch (allocationType) {
         case 'Linear':
-          monthlyAmount = Math.round((totalAmount / months) * 100) / 100;
-          monthlyQuantity = totalQuantity ? Math.round((totalQuantity / months) * 100) / 100 : undefined;
+          monthlyAmount = totalAmount / numberOfMonths;
+          monthlyQuantity = totalQuantity ? totalQuantity / numberOfMonths : undefined;
           break;
         case 'Front-Loaded':
-          // 60% in first 30% of months, 30% in next 40%, 10% in last 30%
-          if (i < Math.ceil(months * 0.3)) {
-            monthlyAmount = Math.round((totalAmount * 0.6 / Math.ceil(months * 0.3)) * 100) / 100;
-            monthlyQuantity = totalQuantity ? Math.round((totalQuantity * 0.6 / Math.ceil(months * 0.3)) * 100) / 100 : undefined;
-          } else if (i < Math.ceil(months * 0.7)) {
-            monthlyAmount = Math.round((totalAmount * 0.3 / (Math.ceil(months * 0.7) - Math.ceil(months * 0.3))) * 100) / 100;
-            monthlyQuantity = totalQuantity ? Math.round((totalQuantity * 0.3 / (Math.ceil(months * 0.7) - Math.ceil(months * 0.3))) * 100) / 100 : undefined;
+          if (i < Math.ceil(numberOfMonths * 0.3)) {
+            monthlyAmount = (totalAmount * 0.6) / Math.ceil(numberOfMonths * 0.3);
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.6) / Math.ceil(numberOfMonths * 0.3) : undefined;
+          } else if (i < Math.ceil(numberOfMonths * 0.7)) {
+            monthlyAmount = (totalAmount * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3)) : undefined;
           } else {
-            monthlyAmount = Math.round((totalAmount * 0.1 / (months - Math.ceil(months * 0.7))) * 100) / 100;
-            monthlyQuantity = totalQuantity ? Math.round((totalQuantity * 0.1 / (months - Math.ceil(months * 0.7))) * 100) / 100 : undefined;
+            monthlyAmount = (totalAmount * 0.1) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.1) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7)) : undefined;
           }
           break;
         case 'Back-Loaded':
-          // 10% in first 30% of months, 30% in next 40%, 60% in last 30%
-          if (i < Math.ceil(months * 0.3)) {
-            monthlyAmount = Math.round((totalAmount * 0.1 / Math.ceil(months * 0.3)) * 100) / 100;
-            monthlyQuantity = totalQuantity ? Math.round((totalQuantity * 0.1 / Math.ceil(months * 0.3)) * 100) / 100 : undefined;
-          } else if (i < Math.ceil(months * 0.7)) {
-            monthlyAmount = Math.round((totalAmount * 0.3 / (Math.ceil(months * 0.7) - Math.ceil(months * 0.3))) * 100) / 100;
-            monthlyQuantity = totalQuantity ? Math.round((totalQuantity * 0.3 / (Math.ceil(months * 0.7) - Math.ceil(months * 0.3))) * 100) / 100 : undefined;
+          if (i < Math.ceil(numberOfMonths * 0.3)) {
+            monthlyAmount = (totalAmount * 0.1) / Math.ceil(numberOfMonths * 0.3);
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.1) / Math.ceil(numberOfMonths * 0.3) : undefined;
+          } else if (i < Math.ceil(numberOfMonths * 0.7)) {
+            monthlyAmount = (totalAmount * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.3) / (Math.ceil(numberOfMonths * 0.7) - Math.ceil(numberOfMonths * 0.3)) : undefined;
           } else {
-            monthlyAmount = Math.round((totalAmount * 0.6 / (months - Math.ceil(months * 0.7))) * 100) / 100;
-            monthlyQuantity = totalQuantity ? Math.round((totalQuantity * 0.6 / (months - Math.ceil(months * 0.7))) * 100) / 100 : undefined;
+            monthlyAmount = (totalAmount * 0.6) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7));
+            monthlyQuantity = totalQuantity ? (totalQuantity * 0.6) / (numberOfMonths - Math.ceil(numberOfMonths * 0.7)) : undefined;
           }
           break;
         default:
-          monthlyAmount = Math.round((totalAmount / months) * 100) / 100;
-          monthlyQuantity = totalQuantity ? Math.round((totalQuantity / months) * 100) / 100 : undefined;
+          monthlyAmount = totalAmount / numberOfMonths;
+          monthlyQuantity = totalQuantity ? totalQuantity / numberOfMonths : undefined;
       }
 
-      // Adjust for rounding errors on last month
-      if (i === months - 1) {
-        monthlyAmount = remainingAmount;
-        monthlyQuantity = remainingQuantity;
+      monthlyAmount = Math.min(monthlyAmount, remainingAmount);
+      remainingAmount -= monthlyAmount;
+
+      if (monthlyQuantity && remainingQuantity) {
+        monthlyQuantity = Math.min(monthlyQuantity, remainingQuantity);
+        remainingQuantity -= monthlyQuantity;
       }
 
       breakdown[monthKey] = {
-        amount: monthlyAmount,
-        quantity: monthlyQuantity,
+        amount: Math.round(monthlyAmount * 100) / 100,
+        quantity: monthlyQuantity ? Math.round(monthlyQuantity * 100) / 100 : undefined,
         date: currentDate.toISOString().slice(0, 10)
       };
 
-      remainingAmount -= monthlyAmount;
-      if (remainingQuantity && monthlyQuantity) {
-        remainingQuantity -= monthlyQuantity;
-      }
+      currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
     return breakdown;
@@ -190,7 +248,7 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
       errors.push('Description is required');
     }
 
-    if (!formData.totalAmount || formData.totalAmount <= 0) {
+    if (formData.totalAmount <= 0) {
       errors.push('Total amount must be greater than 0');
     }
 
@@ -211,6 +269,10 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
       }
     }
 
+    if (!['Linear', 'Front-Loaded', 'Back-Loaded', 'Custom'].includes(formData.allocationType)) {
+      errors.push('Valid allocation type is required');
+    }
+
     if (formData.totalQuantity && formData.totalQuantity <= 0) {
       errors.push('Total quantity must be greater than 0 if provided');
     }
@@ -224,41 +286,32 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   };
 
   const handleCreateAllocation = async () => {
-    if (!validateForm() || !selectedElementId) {
-      return;
-    }
+    if (!validateForm() || !selectedElementId) return;
 
+    setCreating(true);
     try {
-      setCreating(true);
       const allocationData = {
         ...formData,
-        boeVersionId
+        boeElementId: selectedElementId,
+        boeVersionId,
+        monthlyBreakdown
       };
 
-      const newAllocation = await elementAllocationApi.createElementAllocation(
-        selectedElementId,
-        allocationData
-      );
-
+      await elementAllocationApi.createElementAllocation(selectedElementId, allocationData);
+      
       // Refresh allocations
       await loadElementAllocations();
       
+      // Reset form and close modal
+      resetForm();
       setShowCreateModal(false);
-      setFormData({
-        name: '',
-        description: '',
-        totalAmount: 0,
-        allocationType: 'Linear',
-        startDate: '',
-        endDate: '',
-        notes: '',
-        assumptions: '',
-        risks: ''
-      });
-      onAllocationCreated?.();
+      
+      if (onAllocationCreated) {
+        onAllocationCreated();
+      }
     } catch (error) {
-      console.error('Error creating element allocation:', error);
-      setValidationErrors(['Failed to create allocation']);
+      console.error('Error creating allocation:', error);
+      setElementAllocationsError('Failed to create allocation');
     } finally {
       setCreating(false);
     }
@@ -273,8 +326,8 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
       allocationType: allocation.allocationType,
       startDate: allocation.startDate,
       endDate: allocation.endDate,
-      totalQuantity: allocation.totalQuantity || undefined,
-      quantityUnit: allocation.quantityUnit || undefined,
+      totalQuantity: allocation.totalQuantity,
+      quantityUnit: allocation.quantityUnit,
       notes: allocation.notes || '',
       assumptions: allocation.assumptions || '',
       risks: allocation.risks || ''
@@ -290,16 +343,19 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   const handleConfirmDelete = async () => {
     if (!deletingAllocation) return;
 
+    setLoading(true);
     try {
-      setLoading(true);
       await elementAllocationApi.deleteElementAllocation(deletingAllocation.id);
       
-      // Remove from local state
-      const updatedAllocations = elementAllocations.filter(a => a.id !== deletingAllocation.id);
-      setElementAllocations(updatedAllocations);
+      // Refresh allocations
+      await loadElementAllocations();
       
       setShowDeleteModal(false);
       setDeletingAllocation(null);
+      
+      if (onAllocationCreated) {
+        onAllocationCreated();
+      }
     } catch (error) {
       console.error('Error deleting allocation:', error);
       setElementAllocationsError('Failed to delete allocation');
@@ -309,26 +365,27 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   };
 
   const handleUpdateAllocation = async () => {
-    if (!editingAllocation || !validateForm()) return;
+    if (!validateForm() || !editingAllocation) return;
 
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      const updatedAllocation = await elementAllocationApi.updateElementAllocation(editingAllocation.id, {
+      const updateData = {
         ...formData,
-        boeElementId: selectedElementId,
-        boeVersionId
-      });
+        monthlyBreakdown
+      };
 
-      // Update local state
-      const updatedAllocations = elementAllocations.map(a => 
-        a.id === editingAllocation.id ? updatedAllocation : a
-      );
-      setElementAllocations(updatedAllocations);
-
+      await elementAllocationApi.updateElementAllocation(editingAllocation.id, updateData);
+      
+      // Refresh allocations
+      await loadElementAllocations();
+      
       setShowEditModal(false);
       setEditingAllocation(null);
       resetForm();
+      
+      if (onAllocationCreated) {
+        onAllocationCreated();
+      }
     } catch (error) {
       console.error('Error updating allocation:', error);
       setElementAllocationsError('Failed to update allocation');
@@ -349,20 +406,19 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   };
 
   const loadElementAllocations = async () => {
+    if (!boeVersionId) return;
+    
+    setElementAllocationsLoading(true);
     try {
-      setElementAllocationsLoading(true);
-      setElementAllocationsError(null);
-      
-      const [allocations, summary] = await Promise.all([
-        elementAllocationApi.getElementAllocations(boeVersionId),
-        elementAllocationApi.getElementAllocationSummary(boeVersionId)
-      ]);
-      
+      const allocations = await elementAllocationApi.getElementAllocations(boeVersionId);
       setElementAllocations(allocations);
+      
+      // Load summary
+      const summary = await elementAllocationApi.getElementAllocationSummary(boeVersionId);
       setElementAllocationSummary(summary);
     } catch (error) {
       console.error('Error loading element allocations:', error);
-      setElementAllocationsError(error instanceof Error ? error.message : 'Failed to load element allocations');
+      setElementAllocationsError('Failed to load allocations');
     } finally {
       setElementAllocationsLoading(false);
     }
@@ -379,8 +435,8 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   };
 
   const getVarianceIcon = (variance: number) => {
-    if (variance > 0) return <ArrowUpIcon className="h-4 w-4 text-red-600" />;
-    if (variance < 0) return <ArrowDownIcon className="h-4 w-4 text-green-600" />;
+    if (variance > 0) return <ArrowUpIcon className="h-4 w-4" />;
+    if (variance < 0) return <ArrowDownIcon className="h-4 w-4" />;
     return null;
   };
 
@@ -413,6 +469,9 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     ? elementAllocations.filter(allocation => allocation.boeElementId === selectedElementId)
     : elementAllocations;
 
+  // Get child allocation groups for parent elements
+  const childAllocationGroups = getChildAllocationGroups();
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header - Compact */}
@@ -423,13 +482,15 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
               {selectedElementName ? `Allocations for ${selectedElementName}` : 'Element Allocations'}
             </h2>
             <p className="text-sm text-gray-600 truncate">
-              {selectedElementName 
-                ? `Manage monthly allocations for this element`
-                : 'Manage monthly allocations for BOE elements'
+              {isParentElement 
+                ? `View allocations from ${selectedElement?.childElements?.length || 0} child elements`
+                : selectedElementName 
+                  ? `Manage monthly allocations for this element`
+                  : 'Manage monthly allocations for BOE elements'
               }
             </p>
           </div>
-          {selectedElementId && (
+          {selectedElementId && !isParentElement && (
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex-shrink-0 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ml-2"
@@ -477,74 +538,186 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
       {/* Allocations List - Compact */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 bg-white">
-          <h3 className="text-sm font-medium text-gray-900">Allocations</h3>
+          <h3 className="text-sm font-medium text-gray-900">
+            {isParentElement ? 'Child Element Allocations' : 'Allocations'}
+          </h3>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
-          {filteredAllocations.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <ClockIcon className="mx-auto h-8 w-8 mb-2" />
-              <p className="text-sm">No allocations found</p>
-              {selectedElementId && (
-                <p className="text-xs text-gray-400 mt-1">Click "Create" to add an allocation</p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredAllocations.map((allocation) => (
-                <div key={allocation.id} className="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-sm transition-shadow">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h4 className="text-sm font-medium text-gray-900 truncate">
-                          {allocation.name}
-                        </h4>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {allocation.allocationType}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 mb-2">
-                        {formatDate(allocation.startDate)} - {formatDate(allocation.endDate)}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(allocation.totalAmount)}
+          {isParentElement ? (
+            // Parent element view - show grouped allocations by child
+            childAllocationGroups.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FolderIcon className="mx-auto h-8 w-8 mb-2" />
+                <p className="text-sm">No allocations found in child elements</p>
+                <p className="text-xs text-gray-400 mt-1">Create allocations in individual child elements</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {childAllocationGroups.map((group) => (
+                  <div key={group.childElement.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    {/* Child Element Header */}
+                    <div 
+                      className="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => toggleChildGroup(group.childElement.id)}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <button className="p-1 hover:bg-gray-200 rounded">
+                          {expandedChildGroups.has(group.childElement.id) ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4" />
+                          )}
+                        </button>
+                        <DocumentIcon className="h-4 w-4 text-blue-600" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {group.childElement.code} - {group.childElement.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {group.allocations.length} allocation{group.allocations.length !== 1 ? 's' : ''}
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="flex items-center">
-                            {allocation.isLocked ? (
-                              <LockClosedIcon className="h-3 w-3 text-green-600 mr-1" />
-                            ) : (
-                              <LockOpenIcon className="h-3 w-3 text-yellow-600 mr-1" />
-                            )}
-                            <span className={`text-xs ${allocation.isLocked ? 'text-green-600' : 'text-yellow-600'}`}>
-                              {allocation.isLocked ? 'Locked' : 'Draft'}
-                            </span>
-                          </div>
-                          <div className="flex space-x-1">
-                            <button
-                              className="text-blue-600 hover:text-blue-900 p-1"
-                              onClick={() => handleEditAllocation(allocation)}
-                              title="Edit allocation"
-                            >
-                              <PencilIcon className="h-3 w-3" />
-                            </button>
-                            {!allocation.isLocked && (
-                              <button
-                                className="text-red-600 hover:text-red-900 p-1"
-                                onClick={() => handleDeleteAllocation(allocation)}
-                                title="Delete allocation"
-                              >
-                                <TrashIcon className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-gray-900">
+                          {formatCurrency(group.totalAmount)}
+                        </div>
+                        <div className={`text-xs flex items-center justify-end ${getVarianceColor(group.variance)}`}>
+                          {getVarianceIcon(group.variance)}
+                          <span className="ml-1">{formatCurrency(group.variance)}</span>
                         </div>
                       </div>
                     </div>
+
+                    {/* Child Allocations */}
+                    {expandedChildGroups.has(group.childElement.id) && (
+                      <div className="p-3 space-y-3">
+                        {group.allocations.map((allocation) => (
+                          <div key={allocation.id} className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h4 className="text-sm font-medium text-gray-900 truncate">
+                                    {allocation.name}
+                                  </h4>
+                                  {allocation.isLocked ? (
+                                    <LockClosedIcon className="h-4 w-4 text-green-600" title="Locked" />
+                                  ) : (
+                                    <LockOpenIcon className="h-4 w-4 text-blue-600" title="Active" />
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 mb-2">{allocation.description}</p>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <span className="text-gray-500">Amount:</span>
+                                    <span className="ml-1 font-medium">{formatCurrency(allocation.totalAmount)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Type:</span>
+                                    <span className="ml-1 font-medium">{allocation.allocationType}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Start:</span>
+                                    <span className="ml-1 font-medium">{formatDate(allocation.startDate)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">End:</span>
+                                    <span className="ml-1 font-medium">{formatDate(allocation.endDate)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-1 ml-2">
+                                <button
+                                  onClick={() => handleEditAllocation(allocation)}
+                                  className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
+                                  title="Edit allocation"
+                                >
+                                  <PencilIcon className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteAllocation(allocation)}
+                                  className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-red-600"
+                                  title="Delete allocation"
+                                >
+                                  <TrashIcon className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
+          ) : (
+            // Leaf element view - show individual allocations
+            filteredAllocations.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <ClockIcon className="mx-auto h-8 w-8 mb-2" />
+                <p className="text-sm">No allocations found</p>
+                {selectedElementId && (
+                  <p className="text-xs text-gray-400 mt-1">Click "Create" to add an allocation</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredAllocations.map((allocation) => (
+                  <div key={allocation.id} className="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-sm transition-shadow">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <h4 className="text-sm font-medium text-gray-900 truncate">
+                            {allocation.name}
+                          </h4>
+                          {allocation.isLocked ? (
+                            <LockClosedIcon className="h-4 w-4 text-green-600" title="Locked" />
+                          ) : (
+                            <LockOpenIcon className="h-4 w-4 text-blue-600" title="Active" />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2">{allocation.description}</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Amount:</span>
+                            <span className="ml-1 font-medium">{formatCurrency(allocation.totalAmount)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Type:</span>
+                            <span className="ml-1 font-medium">{allocation.allocationType}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Start:</span>
+                            <span className="ml-1 font-medium">{formatDate(allocation.startDate)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">End:</span>
+                            <span className="ml-1 font-medium">{formatDate(allocation.endDate)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1 ml-2">
+                        <button
+                          onClick={() => handleEditAllocation(allocation)}
+                          className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
+                          title="Edit allocation"
+                        >
+                          <PencilIcon className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAllocation(allocation)}
+                          className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-red-600"
+                          title="Delete allocation"
+                        >
+                          <TrashIcon className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
       </div>

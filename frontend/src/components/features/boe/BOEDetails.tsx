@@ -45,6 +45,89 @@ interface BOETreeItemProps {
   elementAllocations: BOEElementAllocation[];
 }
 
+// Utility function to calculate recursive allocation status for parent elements
+const calculateElementAllocationStatus = (
+  element: BOEElement, 
+  elementAllocations: BOEElementAllocation[]
+): {
+  hasAllocation: boolean;
+  isAllocationLocked: boolean;
+  isParent: boolean;
+  childStatus: {
+    total: number;
+    allocated: number;
+    locked: number;
+    notAllocated: number;
+  };
+  aggregatedStatus: 'all-allocated' | 'partially-allocated' | 'not-allocated' | 'mixed';
+} => {
+  // Check if this element has children
+  const hasChildren = element.childElements && element.childElements.length > 0;
+  
+  if (!hasChildren) {
+    // Leaf element - check direct allocation
+    const elementAllocation = elementAllocations.find(allocation => allocation.boeElementId === element.id);
+    const hasAllocation = !!elementAllocation;
+    const isAllocationLocked = elementAllocation?.isLocked || false;
+    
+    return {
+      hasAllocation,
+      isAllocationLocked,
+      isParent: false,
+      childStatus: {
+        total: 1,
+        allocated: hasAllocation ? 1 : 0,
+        locked: isAllocationLocked ? 1 : 0,
+        notAllocated: hasAllocation ? 0 : 1
+      },
+      aggregatedStatus: hasAllocation ? (isAllocationLocked ? 'all-allocated' : 'partially-allocated') : 'not-allocated'
+    };
+  }
+  
+  // Parent element - calculate aggregated status from children
+  let totalChildren = 0;
+  let allocatedChildren = 0;
+  let lockedChildren = 0;
+  let notAllocatedChildren = 0;
+  
+  const processChildren = (children: BOEElement[]) => {
+    children.forEach(child => {
+      const childStatus = calculateElementAllocationStatus(child, elementAllocations);
+      totalChildren += childStatus.childStatus.total;
+      allocatedChildren += childStatus.childStatus.allocated;
+      lockedChildren += childStatus.childStatus.locked;
+      notAllocatedChildren += childStatus.childStatus.notAllocated;
+    });
+  };
+  
+  processChildren(element.childElements!);
+  
+  // Determine aggregated status
+  let aggregatedStatus: 'all-allocated' | 'partially-allocated' | 'not-allocated' | 'mixed';
+  if (lockedChildren === totalChildren) {
+    aggregatedStatus = 'all-allocated';
+  } else if (notAllocatedChildren === totalChildren) {
+    aggregatedStatus = 'not-allocated';
+  } else if (allocatedChildren > 0 && notAllocatedChildren > 0) {
+    aggregatedStatus = 'mixed';
+  } else {
+    aggregatedStatus = 'partially-allocated';
+  }
+  
+  return {
+    hasAllocation: allocatedChildren > 0,
+    isAllocationLocked: lockedChildren === totalChildren,
+    isParent: true,
+    childStatus: {
+      total: totalChildren,
+      allocated: allocatedChildren,
+      locked: lockedChildren,
+      notAllocated: notAllocatedChildren
+    },
+    aggregatedStatus
+  };
+};
+
 // Enhanced BOETreeItem with allocation status indicators
 const BOETreeItem: React.FC<BOETreeItemProps> = ({
   element,
@@ -65,10 +148,8 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
   const hasChildren = element.childElements && element.childElements.length > 0;
   const isSelected = selectedElementId === element.id;
 
-  // Check allocation status
-  const elementAllocation = elementAllocations.find(allocation => allocation.boeElementId === element.id);
-  const hasAllocation = !!elementAllocation;
-  const isAllocationLocked = elementAllocation?.isLocked || false;
+  // Calculate allocation status (recursive for parent elements)
+  const allocationStatus = calculateElementAllocationStatus(element, elementAllocations);
 
   const handleToggle = () => {
     if (hasChildren) {
@@ -84,15 +165,70 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
   const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
   const vendor = vendors.find(v => v.id === element.vendorId);
 
-  // Allocation status indicator
+  // Enhanced allocation status indicator with parent aggregation
   const getAllocationStatusIcon = () => {
-    if (!hasAllocation) {
-      return <div className="w-3 h-3 rounded-full bg-gray-300 border border-gray-400" title="No allocation" />;
+    if (allocationStatus.isParent) {
+      // Parent element - show aggregated status
+      const { total, allocated, locked, notAllocated } = allocationStatus.childStatus;
+      
+      switch (allocationStatus.aggregatedStatus) {
+        case 'all-allocated':
+          return (
+            <div className="flex items-center space-x-1" title={`All ${total} children allocated and locked`}>
+              <CheckCircleIcon className="w-4 h-4 text-green-600" />
+              <span className="text-xs text-green-600 font-medium">{total}</span>
+            </div>
+          );
+        case 'partially-allocated':
+          return (
+            <div className="flex items-center space-x-1" title={`${allocated} of ${total} children allocated`}>
+              <ClockIcon className="w-4 h-4 text-blue-600" />
+              <span className="text-xs text-blue-600 font-medium">{allocated}/{total}</span>
+            </div>
+          );
+        case 'mixed':
+          return (
+            <div className="flex items-center space-x-1" title={`${allocated} allocated, ${locked} locked, ${notAllocated} not allocated`}>
+              <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600" />
+              <span className="text-xs text-yellow-600 font-medium">{allocated}/{total}</span>
+            </div>
+          );
+        case 'not-allocated':
+          return (
+            <div className="flex items-center space-x-1" title={`None of ${total} children allocated`}>
+              <div className="w-4 h-4 rounded-full bg-gray-300 border border-gray-400" />
+              <span className="text-xs text-gray-500 font-medium">{total}</span>
+            </div>
+          );
+      }
+    } else {
+      // Leaf element - show individual status
+      if (!allocationStatus.hasAllocation) {
+        return <div className="w-4 h-4 rounded-full bg-gray-300 border border-gray-400" title="No allocation" />;
+      }
+      if (allocationStatus.isAllocationLocked) {
+        return <CheckCircleIcon className="w-4 h-4 text-green-600" title="Allocation locked" />;
+      }
+      return <ClockIcon className="w-4 h-4 text-blue-600" title="Allocation active" />;
     }
-    if (isAllocationLocked) {
-      return <CheckCircleIcon className="w-4 h-4 text-green-600" title="Allocation locked" />;
-    }
-    return <ClockIcon className="w-4 h-4 text-blue-600" title="Allocation active" />;
+  };
+
+  // Status summary for parent elements
+  const getStatusSummary = () => {
+    if (!allocationStatus.isParent) return null;
+    
+    const { total, allocated, locked, notAllocated } = allocationStatus.childStatus;
+    const parts = [];
+    
+    if (locked > 0) parts.push(`${locked} locked`);
+    if (allocated - locked > 0) parts.push(`${allocated - locked} active`);
+    if (notAllocated > 0) parts.push(`${notAllocated} not allocated`);
+    
+    return (
+      <div className="text-xs text-gray-500 ml-2">
+        ({parts.join(', ')})
+      </div>
+    );
   };
 
   return (
@@ -102,7 +238,7 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
           isSelected 
             ? 'bg-blue-100 border-blue-500 shadow-sm' 
             : 'border-transparent hover:border-blue-300 hover:shadow-sm'
-        }`}
+        } ${allocationStatus.isParent ? 'font-medium' : ''}`}
         style={{ paddingLeft: `${level * 24 + 8}px` }}
         onClick={handleSelect}
       >
@@ -126,7 +262,7 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
         )}
 
         {/* Allocation Status Indicator */}
-        <div className="mr-2">
+        <div className="mr-2 w-16 flex justify-center">
           {getAllocationStatusIcon()}
         </div>
 
@@ -135,10 +271,13 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
           {element.code}
         </span>
 
-        {/* Element Name */}
-        <span className="text-sm font-medium text-gray-900 flex-1 group-hover:text-blue-700 transition-colors">
-          {element.name}
-        </span>
+        {/* Element Name with Status Summary */}
+        <div className="flex-1 flex items-center">
+          <span className="text-sm font-medium text-gray-900 group-hover:text-blue-700 transition-colors">
+            {element.name}
+          </span>
+          {getStatusSummary()}
+        </div>
 
         {/* Estimated Cost */}
         <span className="text-sm text-gray-600 mr-3 min-w-[80px] text-right">
@@ -766,7 +905,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
             {/* WBS Tree Header */}
             <div className="flex items-center py-2 px-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
               <div className="w-6 mr-2" />
-              <div className="w-4 mr-2" /> {/* Allocation status */}
+              <div className="w-16 mr-2 text-center">Status</div> {/* Allocation status - wider for aggregated display */}
               <span className="mr-3 min-w-[60px]">Code</span>
               <span className="flex-1">Name</span>
               <span className="mr-3 min-w-[80px] text-right">Est. Cost</span>
@@ -871,6 +1010,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                     boeVersionId={currentBOE.id}
                     selectedElementId={selectedElement.id}
                     selectedElementName={selectedElement.name}
+                    selectedElement={selectedElement}
                     sidebarWidth={sidebarWidth}
                   />
                 </div>

@@ -173,7 +173,8 @@
 - **Edit/Delete Functionality**: Fix broken edit/delete buttons and save functionality ✅ **COMPLETED**
 - **Sidebar UX Improvements**: Resizable sidebar with better formatting and no scroll bars ✅ **COMPLETED**
 - **TypeScript Compilation Fixes**: Fixed BOEElementAllocationService save method return type issue ✅ **COMPLETED**
-- **Parent Element Status**: Implement recursive status aggregation for parent elements
+- **Parent Element Status**: Implement recursive status aggregation for parent elements ✅ **COMPLETED**
+- **Enhanced Sidebar for Parent Elements**: Show grouped child allocations in expandable sections ✅ **COMPLETED**
 - **System Cleanup**: Remove redundant Element Allocations tab, add BOE deletion
 - **Template Review**: Evaluate and simplify BOE templates for better usability
 
@@ -232,7 +233,7 @@
   - [ ] Approval workflow functions correctly
   - [x] Edit/delete functionality works properly for WBS elements and allocations
   - [x] Save button functions correctly with proper validation
-  - [ ] Parent elements show aggregated status from children
+  - [x] Parent elements show aggregated status from children
 
 - [x] **Performance Requirements**
   - [x] BOE page loads in under 3 seconds

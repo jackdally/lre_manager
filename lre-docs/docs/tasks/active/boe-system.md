@@ -299,13 +299,14 @@
   - [x] Add loading states for all actions
   - [x] Add success/error feedback for operations
 
-- [ ] **BOE-078C**: Parent Element Status Aggregation (Medium Priority)
-  - [ ] Implement recursive status calculation for parent elements
-  - [ ] Show aggregate status + count of children with each status
-  - [ ] Update BOETreeItem to display aggregated status for parents
-  - [ ] Add visual distinction between parent and leaf elements
-  - [ ] Implement status summary display (e.g., "3 complete, 2 in-progress, 1 not-started")
-  - [ ] Update status calculation on allocation changes
+- [x] **BOE-078C**: Parent Element Status Aggregation (Medium Priority) ✅ **COMPLETED**
+  - [x] Implement recursive status calculation for parent elements
+  - [x] Show aggregate status + count of children with each status
+  - [x] Update BOETreeItem to display aggregated status for parents
+  - [x] Add visual distinction between parent and leaf elements
+  - [x] Implement status summary display (e.g., "3 complete, 2 in-progress, 1 not-started")
+  - [x] Update status calculation on allocation changes
+  - [x] **NEW**: Enhanced sidebar for parent elements showing all child allocations grouped by child
 
 - [ ] **BOE-078D**: Remove Element Allocations Tab (Low Priority)
   - [ ] Remove "Element Allocations" tab from BOEPage navigation
@@ -562,7 +563,10 @@
 - ✅ **NEW**: Layout & UX improvements: Right-sidebar layout with full-width WBS tree
 - ✅ **NEW**: Sidebar UX improvements: Resizable sidebar with no scroll bars and state persistence
 - ✅ **NEW**: TypeScript compilation fixes: Fixed BOEElementAllocationService save method return type issue
-- 🔄 **NEW**: Parent element status aggregation: Needs implementation
+- ✅ **NEW**: Parent element status aggregation: Implemented recursive status calculation with aggregated display
+- ✅ **NEW**: Enhanced WBS tree with parent-child status aggregation and visual indicators
+- ✅ **NEW**: Status summary display with detailed breakdown (e.g., "3 locked, 2 active, 1 not allocated")
+- ✅ **NEW**: Enhanced sidebar for parent elements showing grouped child allocations in expandable sections
 
 **Next Phase**: Complete Phase 3A Enhancements, then Phase 3B - Ledger Integration & Invoice Processing
 
