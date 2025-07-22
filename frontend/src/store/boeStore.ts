@@ -128,6 +128,58 @@ export interface ManagementReserve {
   updatedBy?: string;
 }
 
+// Time Allocation Types
+export interface TimeAllocation {
+  id: string;
+  name: string;
+  description: string;
+  totalAmount: number;
+  allocationType: 'Linear' | 'Front-Loaded' | 'Back-Loaded' | 'Custom';
+  startDate: string;
+  endDate: string;
+  numberOfMonths: number;
+  monthlyAmount: number;
+  isActive: boolean;
+  isLocked: boolean;
+  notes?: string;
+  assumptions?: string;
+  risks?: string;
+  boeElementId?: string;
+  programId: string;
+  monthlyBreakdown?: {
+    [month: string]: {
+      amount: number;
+      date: string;
+      isLocked: boolean;
+      actualAmount?: number;
+      actualDate?: string;
+    };
+  };
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface TimeAllocationSummary {
+  totalAllocations: number;
+  totalAmount: number;
+  allocatedAmount: number;
+  actualAmount: number;
+  variance: number;
+  allocations: Array<{
+    id: string;
+    name: string;
+    totalAmount: number;
+    allocatedAmount: number;
+    actualAmount: number;
+    variance: number;
+    isLocked: boolean;
+    startDate: string;
+    endDate: string;
+  }>;
+}
+
 export interface BOESummary {
   hasBOE: boolean;
   program: {
@@ -171,11 +223,17 @@ interface BOEState {
   mrLoading: boolean;
   mrError: string | null;
 
+  // Time Allocations
+  timeAllocations: TimeAllocation[];
+  timeAllocationSummary: TimeAllocationSummary | null;
+  timeAllocationsLoading: boolean;
+  timeAllocationsError: string | null;
+
   // UI State
   isCreatingBOE: boolean;
   isUpdatingBOE: boolean;
   isDeletingBOE: boolean;
-  activeTab: 'overview' | 'details' | 'approval' | 'history';
+  activeTab: 'overview' | 'details' | 'approval' | 'history' | 'time-allocations';
   wizardStep: number;
   wizardData: any;
 
@@ -199,10 +257,15 @@ interface BOEState {
   setMRLoading: (loading: boolean) => void;
   setMRError: (error: string | null) => void;
 
+  setTimeAllocations: (allocations: TimeAllocation[]) => void;
+  setTimeAllocationSummary: (summary: TimeAllocationSummary | null) => void;
+  setTimeAllocationsLoading: (loading: boolean) => void;
+  setTimeAllocationsError: (error: string | null) => void;
+
   setCreatingBOE: (creating: boolean) => void;
   setUpdatingBOE: (updating: boolean) => void;
   setDeletingBOE: (deleting: boolean) => void;
-  setActiveTab: (tab: 'overview' | 'details' | 'approval' | 'history') => void;
+  setActiveTab: (tab: 'overview' | 'details' | 'approval' | 'history' | 'time-allocations') => void;
   setWizardStep: (step: number) => void;
   setWizardData: (data: any) => void;
 
@@ -244,6 +307,12 @@ const initialState = {
   mrLoading: false,
   mrError: null,
 
+  // Time Allocations
+  timeAllocations: [],
+  timeAllocationSummary: null,
+  timeAllocationsLoading: false,
+  timeAllocationsError: null,
+
   // UI State
   isCreatingBOE: false,
   isUpdatingBOE: false,
@@ -282,6 +351,12 @@ export const useBOEStore = create<BOEState>()(
       setMRLoading: (loading) => set({ mrLoading: loading }),
       setMRError: (error) => set({ mrError: error }),
 
+      // Time Allocation Actions
+      setTimeAllocations: (allocations) => set({ timeAllocations: allocations }),
+      setTimeAllocationSummary: (summary) => set({ timeAllocationSummary: summary }),
+      setTimeAllocationsLoading: (loading) => set({ timeAllocationsLoading: loading }),
+      setTimeAllocationsError: (error) => set({ timeAllocationsError: error }),
+
       // UI Actions
       setCreatingBOE: (creating) => set({ isCreatingBOE: creating }),
       setUpdatingBOE: (updating) => set({ isUpdatingBOE: updating }),
@@ -290,15 +365,15 @@ export const useBOEStore = create<BOEState>()(
       setWizardStep: (step) => set({ wizardStep: step }),
       setWizardData: (data) => set({ wizardData: data }),
 
-      // Computed Values
+      // Computed values
       getTotalEstimatedCost: () => {
         const { elements } = get();
         return elements.reduce((total, element) => total + (element.estimatedCost || 0), 0);
       },
 
       getManagementReserveAmount: () => {
-        const { managementReserve } = get();
-        return managementReserve?.adjustedAmount || 0;
+        const { currentBOE } = get();
+        return currentBOE?.managementReserveAmount || 0;
       },
 
       getTotalWithMR: () => {
@@ -313,33 +388,28 @@ export const useBOEStore = create<BOEState>()(
 
       getRequiredElementCount: () => {
         const { elements } = get();
-        return elements.filter(element => element.isRequired).length;
+        return elements.filter(e => e.isRequired).length;
       },
 
       getOptionalElementCount: () => {
         const { elements } = get();
-        return elements.filter(element => element.isOptional).length;
+        return elements.filter(e => e.isOptional).length;
       },
 
-      // Reset Actions
+      // Reset actions
       resetBOE: () => set({
         currentBOE: null,
-        boeVersions: [],
         elements: [],
         selectedElement: null,
         managementReserve: null,
-        boeLoading: false,
         boeError: null,
-        elementsLoading: false,
         elementsError: null,
-        mrLoading: false,
         mrError: null,
       }),
 
       resetWizard: () => set({
         wizardStep: 0,
         wizardData: {},
-        selectedTemplate: null,
       }),
     }),
     {

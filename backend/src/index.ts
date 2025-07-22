@@ -15,6 +15,7 @@ import settingsRouter from './routes/settings';
 import wbsReportingRouter from './routes/wbsReporting';
 import costCategoriesRouter from './routes/costCategories';
 import boeRouter from './routes/boe';
+import boeTimeAllocationRouter from './routes/boeTimeAllocation';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 
@@ -60,6 +61,7 @@ app.use('/api/import', importRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/cost-categories', costCategoriesRouter);
 app.use('/api', boeRouter);
+app.use('/api', boeTimeAllocationRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {

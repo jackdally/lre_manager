@@ -7,6 +7,7 @@ import BOEDetails from './BOEDetails';
 import BOEApproval from './BOEApproval';
 import BOEHistory from './BOEHistory';
 import BOETemplateSelector from './BOETemplateSelector';
+import TimeAllocationPage from './TimeAllocationPage';
 
 interface BOEPageProps {
   programId?: string;
@@ -194,6 +195,19 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
               Details
             </button>
             <button
+              onClick={() => setActiveTab('time-allocations')}
+              className={`
+                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                ${activeTab === 'time-allocations'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>⏰</span>
+              Time Allocations
+            </button>
+            <button
               onClick={() => setActiveTab('approval')}
               className={`
                 py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
@@ -226,6 +240,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         <div className="bg-white rounded-lg shadow">
           {activeTab === 'overview' && <BOEOverview programId={programId} />}
           {activeTab === 'details' && <BOEDetails programId={programId} />}
+          {activeTab === 'time-allocations' && <TimeAllocationPage programId={programId} />}
           {activeTab === 'approval' && <BOEApproval programId={programId} />}
           {activeTab === 'history' && <BOEHistory programId={programId} />}
         </div>

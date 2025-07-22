@@ -6,6 +6,8 @@ import {
   BOEApproval,
   ManagementReserve,
   BOESummary,
+  TimeAllocation,
+  TimeAllocationSummary,
 } from '../store/boeStore';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
@@ -99,46 +101,41 @@ export const boeVersionsApi = {
   },
 
   // Approve BOE version
-  approveBOE: async (programId: string, versionId: string, approvalData: any): Promise<BOEVersion> => {
-    const response = await boeApi.post(`/programs/${programId}/boe/approve/${versionId}`, approvalData);
+  approveBOE: async (programId: string, versionId: string): Promise<BOEVersion> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/approve/${versionId}`);
     return response.data as BOEVersion;
   },
 
-  // Get BOE version by ID
-  getBOEVersion: async (versionId: string): Promise<BOEVersion> => {
-    const response = await boeApi.get(`/boe-versions/${versionId}`);
-    return response.data as BOEVersion;
-  },
-
-  // Delete BOE version
-  deleteBOE: async (programId: string, versionId: string): Promise<void> => {
-    await boeApi.delete(`/programs/${programId}/boe/${versionId}`);
+  // Push BOE to ledger
+  pushToLedger: async (programId: string, versionId: string): Promise<any> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/${versionId}/push-to-ledger`);
+    return response.data;
   },
 };
 
 // BOE Elements API
 export const boeElementsApi = {
-  // Create BOE element
-  createElement: async (elementData: any): Promise<BOEElement> => {
-    const response = await boeApi.post('/boe-elements', elementData);
+  // Get elements for BOE version
+  getElements: async (boeVersionId: string): Promise<BOEElement[]> => {
+    const response = await boeApi.get(`/boe-versions/${boeVersionId}/elements`);
+    return response.data as BOEElement[];
+  },
+
+  // Create new element
+  createElement: async (boeVersionId: string, elementData: any): Promise<BOEElement> => {
+    const response = await boeApi.post(`/boe-versions/${boeVersionId}/elements`, elementData);
     return response.data as BOEElement;
   },
 
-  // Update BOE element
+  // Update element
   updateElement: async (elementId: string, elementData: any): Promise<BOEElement> => {
     const response = await boeApi.put(`/boe-elements/${elementId}`, elementData);
     return response.data as BOEElement;
   },
 
-  // Delete BOE element
+  // Delete element
   deleteElement: async (elementId: string): Promise<void> => {
     await boeApi.delete(`/boe-elements/${elementId}`);
-  },
-
-  // Get elements for BOE version
-  getElements: async (boeVersionId: string): Promise<BOEElement[]> => {
-    const response = await boeApi.get(`/boe-versions/${boeVersionId}/elements`);
-    return response.data as BOEElement[];
   },
 
   // Bulk update elements
@@ -169,6 +166,50 @@ export const managementReserveApi = {
       customPercentage,
     });
     return response.data as ManagementReserve;
+  },
+};
+
+// Time Allocation API
+export const timeAllocationApi = {
+  // Get time allocation summary for program
+  getTimeAllocationSummary: async (programId: string): Promise<TimeAllocationSummary> => {
+    const response = await boeApi.get(`/programs/${programId}/time-allocations`);
+    return response.data as TimeAllocationSummary;
+  },
+
+  // Create new time allocation
+  createTimeAllocation: async (programId: string, allocationData: any): Promise<TimeAllocation> => {
+    const response = await boeApi.post(`/programs/${programId}/time-allocations`, allocationData);
+    return response.data as TimeAllocation;
+  },
+
+  // Get time allocation by ID
+  getTimeAllocation: async (allocationId: string): Promise<TimeAllocation> => {
+    const response = await boeApi.get(`/time-allocations/${allocationId}`);
+    return response.data as TimeAllocation;
+  },
+
+  // Update time allocation
+  updateTimeAllocation: async (allocationId: string, allocationData: any): Promise<TimeAllocation> => {
+    const response = await boeApi.put(`/time-allocations/${allocationId}`, allocationData);
+    return response.data as TimeAllocation;
+  },
+
+  // Delete time allocation
+  deleteTimeAllocation: async (allocationId: string): Promise<void> => {
+    await boeApi.delete(`/time-allocations/${allocationId}`);
+  },
+
+  // Push time allocation to ledger
+  pushToLedger: async (allocationId: string): Promise<any> => {
+    const response = await boeApi.post(`/time-allocations/${allocationId}/push-to-ledger`);
+    return response.data;
+  },
+
+  // Update actuals from ledger
+  updateActuals: async (allocationId: string): Promise<any> => {
+    const response = await boeApi.post(`/time-allocations/${allocationId}/update-actuals`);
+    return response.data;
   },
 };
 
@@ -243,6 +284,7 @@ export const boeApiService = {
   versions: boeVersionsApi,
   elements: boeElementsApi,
   managementReserve: managementReserveApi,
+  timeAllocation: timeAllocationApi,
   approvals: boeApprovalsApi,
   calculations: boeCalculationsApi,
   wbsTemplateIntegration: wbsTemplateIntegrationApi,
