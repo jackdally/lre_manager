@@ -677,6 +677,86 @@ router.put('/boe-elements/:id', async (req, res) => {
 
 /**
  * @swagger
+ * /api/boe-versions/{versionId}/elements/bulk:
+ *   put:
+ *     summary: Bulk update BOE elements
+ *     parameters:
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               elements:
+ *                 type: array
+ *                 items:
+ *                   $ref: '#/components/schemas/BOEElement'
+ */
+router.put('/boe-versions/:versionId/elements/bulk', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    const { elements } = req.body;
+    
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    if (!Array.isArray(elements)) {
+      return res.status(400).json({ message: 'Elements must be an array' });
+    }
+
+    // Verify BOE version exists
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: versionId }
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    const updatedElements = [];
+    
+    // Update each element
+    for (const elementData of elements) {
+      if (!elementData.id) {
+        return res.status(400).json({ message: 'All elements must have an ID' });
+      }
+
+      const element = await boeElementRepository.findOne({
+        where: { id: elementData.id, boeVersion: { id: versionId } }
+      });
+
+      if (!element) {
+        return res.status(404).json({ message: `Element ${elementData.id} not found` });
+      }
+
+      // Update element properties
+      Object.assign(element, elementData);
+      element.updatedAt = new Date();
+      
+      const updatedElement = await boeElementRepository.save(element);
+      updatedElements.push(updatedElement);
+    }
+
+    // Update BOE calculations
+    await BOEService.updateBOECalculations(versionId);
+
+    res.json(updatedElements);
+  } catch (error) {
+    console.error('Error bulk updating BOE elements:', error);
+    res.status(500).json({ message: 'Error bulk updating BOE elements', error });
+  }
+});
+
+/**
+ * @swagger
  * /api/boe-elements/{id}:
  *   delete:
  *     summary: Delete BOE element

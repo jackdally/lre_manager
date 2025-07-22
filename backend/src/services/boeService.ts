@@ -32,7 +32,7 @@ export class BOEService {
       where: { boeVersion: { id: boeVersionId } }
     });
 
-    return elements.reduce((total, element) => total + (element.estimatedCost || 0), 0);
+    return elements.reduce((total, element) => total + (Number(element.estimatedCost) || 0), 0);
   }
 
   /**
@@ -63,8 +63,8 @@ export class BOEService {
     const amount = totalCost > 0 ? (totalCost * percentage) / 100 : 0;
 
     return {
-      amount: Math.round(amount * 100) / 100, // Round to 2 decimal places
-      percentage: Math.round(percentage * 100) / 100
+      amount: Math.round(Number(amount) * 100) / 100, // Round to 2 decimal places
+      percentage: Math.round(Number(percentage) * 100) / 100
     };
   }
 
@@ -389,9 +389,9 @@ export class BOEService {
     const managementReserve = this.calculateManagementReserve(totalCost);
 
     // Update BOE version - ensure we have valid numeric values
-    boeVersion.totalEstimatedCost = totalCost || 0;
-    boeVersion.managementReserveAmount = managementReserve.amount || 0;
-    boeVersion.managementReservePercentage = managementReserve.percentage || 0;
+    boeVersion.totalEstimatedCost = Number(totalCost) || 0;
+    boeVersion.managementReserveAmount = Number(managementReserve.amount) || 0;
+    boeVersion.managementReservePercentage = Number(managementReserve.percentage) || 0;
     boeVersion.updatedAt = new Date();
 
     await boeVersionRepository.save(boeVersion);

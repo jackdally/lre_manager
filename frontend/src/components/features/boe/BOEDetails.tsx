@@ -246,6 +246,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [addingToParentId, setAddingToParentId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [elementToDelete, setElementToDelete] = useState<BOEElement | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Calculate real-time totals and breakdowns
   const calculationResult = useMemo((): BOECalculationResult => {
@@ -297,6 +298,24 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     }
   }, [currentBOE?.id]);
 
+  // Warn user about unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    if (hasUnsavedChanges) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
+
   const loadBOEData = async () => {
     try {
       setLoading(true);
@@ -347,6 +366,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
       await boeElementsApi.bulkUpdateElements(currentBOE!.id, elements);
       
       setIsEditing(false);
+      setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Error saving BOE:', error);
       setElementsError('Failed to save BOE');
@@ -413,6 +433,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         
         const updatedElements = updateElementInArray(elements, updatedElement);
         setElements(updatedElements);
+        setHasUnsavedChanges(true);
       } else {
         // Create new element
         const newElement = await boeElementsApi.createElement(currentBOE!.id, elementData);
@@ -437,9 +458,11 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
           
           const updatedElements = addChildToParent(elements, addingToParentId, newElement);
           setElements(updatedElements);
+          setHasUnsavedChanges(true);
         } else {
           // Add as root element
           setElements([...elements, newElement]);
+          setHasUnsavedChanges(true);
         }
       }
       
@@ -476,8 +499,9 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         });
       };
       
-      const updatedElements = removeElementAndChildren(elements, elementToDelete.id);
-      setElements(updatedElements);
+              const updatedElements = removeElementAndChildren(elements, elementToDelete.id);
+        setElements(updatedElements);
+        setHasUnsavedChanges(true);
       
       // Clear selection if deleted element was selected
       if (selectedElement?.id === elementToDelete.id) {
@@ -580,7 +604,10 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
           {isEditing && (
             <>
               <Button
-                onClick={() => setIsEditing(false)}
+                onClick={() => {
+                  setIsEditing(false);
+                  setHasUnsavedChanges(false);
+                }}
                 variant="secondary"
                 size="sm"
               >
@@ -590,9 +617,9 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                 onClick={handleSave}
                 variant="primary"
                 size="sm"
-                disabled={loading || !validationResult.isValid}
+                disabled={loading}
               >
-                {loading ? 'Saving...' : 'Save Changes'}
+                {loading ? 'Saving...' : hasUnsavedChanges ? 'Save Changes*' : 'Save Changes'}
               </Button>
             </>
           )}
