@@ -1,6 +1,6 @@
 # LRE Manager
 
-A comprehensive tool for managing Laboratory Research Equipment (LRE) programs, tracking expenses, and maintaining financial records.
+A comprehensive tool for managing Latest Revised Estimate (LRE) programs, tracking expenses, and maintaining financial records.
 
 ## Features
 
@@ -49,25 +49,25 @@ The application includes a sophisticated upload system that allows you to:
 - Review and confirm matches with confidence scoring
 - Track upload sessions and processing status
 
-For detailed information about the actuals upload feature, see [IMPORT_FEATURE.md](docs/IMPORT_FEATURE.md).
+For detailed information about the actuals upload feature, see [IMPORT_FEATURE.md](lre-docs/docs/IMPORT_FEATURE.md).
 
 ## Documentation
 
-For detailed documentation, see the [docs](docs/) directory:
-- [Setup Guide](docs/SETUP.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [API Examples](docs/API_EXAMPLES.md)
-- [NetSuite Actuals Upload Feature](docs/IMPORT_FEATURE.md)
-- [FAQ](docs/FAQ.md)
+For detailed documentation, see the [Docusaurus documentation site](lre-docs/):
+- [Setup Guide](lre-docs/docs/SETUP.md)
+- [Architecture](lre-docs/docs/ARCHITECTURE.md)
+- [API Examples](lre-docs/docs/API_EXAMPLES.md)
+- [NetSuite Actuals Upload Feature](lre-docs/docs/IMPORT_FEATURE.md)
+- [FAQ](lre-docs/docs/FAQ.md)
 
 ### Project Management
-- [Project Management Overview](docs/PROJECT_MANAGEMENT.md) - Development workflow and tracking
-- [Feature Development Checklist](docs/FEATURE_DEVELOPMENT_CHECKLIST.md) - **Essential guide for feature development sessions**
-- [Feature Roadmap](docs/FEATURES.md) - Planned features and status
-- [Implementation Plans](docs/implementation-plans/) - Detailed technical plans
-- [Sprint Planning](docs/sprints/) - Sprint management and tracking
-- [Task Management](docs/tasks/) - Organized task tracking by category
-- [Legacy Task List](docs/archive/TODO-LEGACY.md) - Original task list (archived)
+- [Project Management Overview](lre-docs/docs/PROJECT_MANAGEMENT.md) - Development workflow and tracking
+- [Feature Development Checklist](lre-docs/docs/FEATURE_DEVELOPMENT_CHECKLIST.md) - **Essential guide for feature development sessions**
+- [Feature Roadmap](lre-docs/docs/FEATURES.md) - Planned features and status
+- [Implementation Plans](lre-docs/docs/implementation-plans/) - Detailed technical plans
+- [Sprint Planning](lre-docs/docs/sprints/) - Sprint management and tracking
+- [Task Management](lre-docs/docs/tasks/) - Organized task tracking by category
+- [Legacy Task List](lre-docs/docs/archive/TODO-LEGACY.md) - Original task list (archived)
 
 ## Development
 

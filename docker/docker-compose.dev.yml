@@ -36,6 +36,19 @@ services:
     depends_on:
       - db
 
+  docs:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.docs.dev
+    ports:
+      - "3001:3000"
+    volumes:
+      - ../lre-docs:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "start", "--", "--host", "0.0.0.0"]
+
   db:
     image: postgres:15-alpine
     ports:

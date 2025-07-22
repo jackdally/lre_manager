@@ -4,81 +4,49 @@ services:
   frontend:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.frontend
-      args:
-        - REACT_APP_API_URL=http://localhost:4000/api
-    image: lre_manager_take2-frontend:prod
-    container_name: lre_manager_take2-frontend-prod
+      dockerfile: docker/Dockerfile.frontend.prod
     ports:
-      - "80:80"
-    depends_on:
-      - backend
+      - "3000:80"
     environment:
       - NODE_ENV=production
+    depends_on:
+      - backend
     restart: unless-stopped
 
   backend:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.backend
-    image: lre_manager_take2-backend:prod
-    container_name: lre_manager_take2-backend-prod
+      dockerfile: docker/Dockerfile.backend.prod
     ports:
       - "4000:4000"
     environment:
       - NODE_ENV=production
-      - DB_HOST=${DB_HOST:-db}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - DB_NAME=${DB_NAME:-lre_manager}
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
-      - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
-      - REDIS_HOST=${REDIS_HOST:-redis}
+      - DATABASE_URL=postgresql://postgres:password@db:5432/lre_manager
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - db
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+  docs:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.docs.prod
+    ports:
+      - "3001:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
 
   db:
     image: postgres:15-alpine
-    container_name: lre_manager_take2-db-prod
-    ports:
-      - "5432:5432"
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-lre_manager}
+      - POSTGRES_DB=lre_manager
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  redis:
-    image: redis:7-alpine
-    container_name: lre_manager_take2-redis-prod
     ports:
-      - "6379:6379"
+      - "5432:5432"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
 volumes:
-  postgres_data:
-    driver: local 
+  postgres_data: 
