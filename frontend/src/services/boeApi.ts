@@ -100,6 +100,12 @@ export const boeVersionsApi = {
     return response.data as BOEVersion;
   },
 
+  // Delete BOE version (draft only)
+  deleteBOE: async (programId: string, versionId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await boeApi.delete(`/programs/${programId}/boe/${versionId}`);
+    return response.data as { success: boolean; message: string };
+  },
+
   // Approve BOE version
   approveBOE: async (programId: string, versionId: string): Promise<BOEVersion> => {
     const response = await boeApi.post(`/programs/${programId}/boe/approve/${versionId}`);

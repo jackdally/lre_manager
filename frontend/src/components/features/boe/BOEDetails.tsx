@@ -395,6 +395,8 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [elementToDelete, setElementToDelete] = useState<BOEElement | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletingBOE, setDeletingBOE] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     // Calculate responsive default width based on screen size
     const screenWidth = window.innerWidth;
@@ -743,6 +745,36 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     setElementToDelete(null);
   };
 
+  const handleDeleteBOE = async () => {
+    if (!currentBOE) return;
+
+    try {
+      setDeletingBOE(true);
+      
+      // Call the delete BOE API
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/programs/${programId}/boe/${currentBOE.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete BOE');
+      }
+
+      // Clear the current BOE from state
+      setCurrentBOE(null);
+      setDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Error deleting BOE:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete BOE');
+    } finally {
+      setDeletingBOE(false);
+    }
+  };
+
   const getVarianceColor = (variance: number) => {
     if (variance > 0) return 'text-red-600';
     if (variance < 0) return 'text-green-600';
@@ -816,13 +848,26 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         
         <div className="flex space-x-2">
           {!isEditing && (
-            <Button
-              onClick={() => setIsEditing(true)}
-              variant="secondary"
-              size="sm"
-            >
-              Edit BOE
-            </Button>
+            <>
+              <Button
+                onClick={() => setIsEditing(true)}
+                variant="secondary"
+                size="sm"
+              >
+                Edit BOE
+              </Button>
+              {currentBOE?.status === 'Draft' && (
+                <Button
+                  onClick={() => setDeleteModalOpen(true)}
+                  variant="danger"
+                  size="sm"
+                  className="flex items-center space-x-1"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  <span>Delete BOE</span>
+                </Button>
+              )}
+            </>
           )}
           
           {isEditing && (
@@ -1313,6 +1358,52 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
           </div>
         </Modal>
       )}
+
+      {/* BOE Delete Confirmation Modal */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Delete BOE"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h4 className="font-medium text-red-800 mb-2">⚠️ Warning</h4>
+            <p className="text-sm text-red-700">
+              This action will permanently delete the BOE version and all associated data. 
+              This action cannot be undone.
+            </p>
+          </div>
+          
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="font-medium mb-2">BOE Details</h4>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>• Version: {currentBOE?.versionNumber}</li>
+              <li>• Name: {currentBOE?.name}</li>
+              <li>• Status: {currentBOE?.status}</li>
+              <li>• Total Elements: {elements.length}</li>
+              <li>• Total Cost: {formatCurrency(calculationResult.totalEstimatedCost)}</li>
+            </ul>
+          </div>
+          
+          <div className="flex justify-end space-x-2">
+            <Button
+              onClick={() => setDeleteModalOpen(false)}
+              variant="secondary"
+              size="sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteBOE}
+              variant="danger"
+              size="sm"
+              disabled={deletingBOE}
+            >
+              {deletingBOE ? 'Deleting...' : 'Delete BOE'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -315,13 +315,13 @@
   - [x] Remove any remaining component references
   - [x] Update documentation to reflect removal
 
-- [ ] **BOE-078E**: Add BOE Deletion (Medium Priority)
-  - [ ] Add delete button for draft BOEs only
-  - [ ] Implement confirmation dialog with BOE details
-  - [ ] Add backend delete endpoint with proper validation
-  - [ ] Update program state after successful deletion
-  - [ ] Add proper cleanup of related data
-  - [ ] Show appropriate error messages for non-draft BOEs
+- [x] **BOE-078E**: Add BOE Deletion (Medium Priority) ✅ **COMPLETED**
+  - [x] Add delete button for draft BOEs only (Overview and Details tabs)
+  - [x] Implement confirmation dialog with BOE details
+  - [x] Add backend delete endpoint with proper validation
+  - [x] Update program state after successful deletion
+  - [x] Add proper cleanup of related data
+  - [x] Show appropriate error messages for non-draft BOEs
 
 - [ ] **BOE-078F**: BOE Templates Review (Future Task)
   - [ ] Evaluate current template structure and usage
@@ -572,6 +572,7 @@
 - ✅ **NEW**: Status summary display with detailed breakdown (e.g., "3 locked, 2 active, 1 not allocated")
 - ✅ **NEW**: Enhanced sidebar for parent elements showing grouped child allocations in expandable sections
 - ✅ **NEW**: Removed redundant Element Allocations tab (cleanup completed)
+- ✅ **NEW**: BOE deletion functionality for draft BOEs with confirmation dialog
 
 **Next Phase**: Complete Phase 3A Enhancements, then Phase 3B - Ledger Integration & Invoice Processing
 

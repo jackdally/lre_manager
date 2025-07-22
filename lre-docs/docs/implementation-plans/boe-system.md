@@ -400,11 +400,11 @@
   - ✅ Clean up store references and routing logic
   - ✅ Remove any remaining component references
   - ✅ Update documentation to reflect removal
-- 🔄 **BOE Deletion (BOE-078E)**:
-  - 🔄 Add delete button for draft BOEs only
-  - 🔄 Implement confirmation dialog with BOE details
-  - 🔄 Add backend delete endpoint with proper validation
-  - 🔄 Update program state after successful deletion
+- ✅ **BOE Deletion (BOE-078E)** - **COMPLETED**:
+  - ✅ Add delete button for draft BOEs only (Overview and Details tabs)
+  - ✅ Implement confirmation dialog with BOE details
+  - ✅ Add backend delete endpoint with proper validation
+  - ✅ Update program state after successful deletion
 
 - 🔄 **Template Review (BOE-078F)**:
   - 🔄 Evaluate current template structure and usage

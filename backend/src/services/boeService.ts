@@ -3,6 +3,7 @@ import { BOEVersion } from '../entities/BOEVersion';
 import { BOEElement } from '../entities/BOEElement';
 import { BOETemplate } from '../entities/BOETemplate';
 import { BOETemplateElement } from '../entities/BOETemplateElement';
+import { BOEApproval } from '../entities/BOEApproval';
 import { ManagementReserve } from '../entities/ManagementReserve';
 import { Program } from '../entities/Program';
 import { LedgerEntry } from '../entities/LedgerEntry';
@@ -22,6 +23,7 @@ const wbsTemplateRepository = AppDataSource.getRepository(WbsTemplate);
 const wbsTemplateElementRepository = AppDataSource.getRepository(WbsTemplateElement);
 const wbsElementRepository = AppDataSource.getRepository(WbsElement);
 const elementAllocationRepository = AppDataSource.getRepository(BOEElementAllocation);
+const boeApprovalRepository = AppDataSource.getRepository(BOEApproval);
 
 export class BOEService {
   /**
@@ -786,5 +788,63 @@ export class BOEService {
       elementsUpdated,
       message: `Successfully pushed BOE WBS to program: ${elementsCreated} new elements created, ${elementsUpdated} elements updated`
     };
+  }
+
+  /**
+   * Delete BOE version (draft only)
+   */
+  static async deleteBOEVersion(boeVersionId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      const boeVersion = await boeVersionRepository.findOne({
+        where: { id: boeVersionId },
+        relations: ['program', 'elements', 'approvals', 'managementReserve']
+      });
+
+      if (!boeVersion) {
+        throw new Error('BOE version not found');
+      }
+
+      // Only allow deletion of draft BOEs
+      if (boeVersion.status !== 'Draft') {
+        throw new Error(`Cannot delete BOE with status '${boeVersion.status}'. Only draft BOEs can be deleted.`);
+      }
+
+      // Check if this is the current BOE for the program
+      const isCurrentBOE = boeVersion.program?.currentBOEVersionId === boeVersionId;
+
+      // Delete related data in the correct order
+      // 1. Delete element allocations
+      await elementAllocationRepository.delete({ boeVersion: { id: boeVersionId } });
+
+      // 2. Delete BOE elements
+      await boeElementRepository.delete({ boeVersion: { id: boeVersionId } });
+
+      // 3. Delete approvals
+      await boeApprovalRepository.delete({ boeVersion: { id: boeVersionId } });
+
+      // 4. Delete management reserve
+      await managementReserveRepository.delete({ boeVersion: { id: boeVersionId } });
+
+      // 5. Delete the BOE version itself
+      await boeVersionRepository.delete(boeVersionId);
+
+      // 6. Update program if this was the current BOE
+      if (isCurrentBOE && boeVersion.program) {
+        await programRepository.update(boeVersion.program.id, {
+          currentBOEVersionId: undefined
+        });
+      }
+
+      return {
+        success: true,
+        message: 'BOE version deleted successfully'
+      };
+    } catch (error) {
+      console.error('Error deleting BOE version:', error);
+      throw error;
+    }
   }
 } 

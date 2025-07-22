@@ -944,4 +944,60 @@ router.post('/programs/:id/boe/:versionId/push-to-program-wbs', async (req, res)
   }
 });
 
+/**
+ * @swagger
+ * /api/programs/{id}/boe/{versionId}:
+ *   delete:
+ *     summary: Delete BOE version (draft only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ *     responses:
+ *       200:
+ *         description: BOE version deleted successfully
+ *       400:
+ *         description: Invalid program ID or version ID
+ *       403:
+ *         description: Cannot delete non-draft BOE
+ *       404:
+ *         description: BOE version not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/programs/:id/boe/:versionId', async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+    
+    if (!isValidUUID(id) || !isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid program ID or version ID' });
+    }
+
+    const result = await BOEService.deleteBOEVersion(versionId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error deleting BOE version:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Cannot delete BOE with status')) {
+        return res.status(403).json({ message: error.message });
+      }
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ message: error.message });
+      }
+    }
+    
+    res.status(500).json({ message: 'Error deleting BOE version', error });
+  }
+});
+
 export default router; 
