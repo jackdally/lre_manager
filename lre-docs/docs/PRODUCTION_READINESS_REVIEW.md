@@ -40,7 +40,7 @@ This document provides a comprehensive analysis of the LRE Manager project's cur
 
 ### Security Improvements
 
-#### 1.1 Environment Configuration
+#### Environment Configuration
 **Current Issue**: Hardcoded credentials in docker-compose files
 
 **Solution**: Create environment-specific configuration files
@@ -65,7 +65,7 @@ environment:
   - FRONTEND_URL=${FRONTEND_URL}
 ```
 
-#### 1.2 Add Security Middleware
+#### Add Security Middleware
 **Create**: `backend/src/middleware/security.ts`
 
 ```typescript
@@ -91,7 +91,7 @@ export const securityMiddleware = (app: Express) => {
 };
 ```
 
-#### 1.3 Input Validation
+#### Input Validation
 **Create**: `backend/src/middleware/validation.ts`
 
 ```typescript
@@ -114,7 +114,7 @@ export const validateRequest = (schema: Joi.ObjectSchema) => {
 
 ### Performance Optimizations
 
-#### 2.1 Database Query Optimization
+#### Database Query Optimization
 **Issue**: N+1 queries in ledger summary calculations
 
 **Solution**: Create optimized queries in `backend/src/services/ledgerService.ts`
@@ -138,7 +138,7 @@ export class LedgerService {
 }
 ```
 
-#### 2.2 Add Caching Layer
+#### Add Caching Layer
 **Install Redis and create caching service**
 
 ```typescript
@@ -173,7 +173,7 @@ export class CacheService {
 }
 ```
 
-#### 2.3 Implement Pagination
+#### Implement Pagination
 **Update ledger endpoint to use proper pagination**
 
 ```typescript
@@ -210,7 +210,7 @@ router.get('/:programId/ledger', async (req, res) => {
 
 ### Code Quality Improvements
 
-#### 3.1 Centralized Error Handling
+#### Centralized Error Handling
 **Create**: `backend/src/middleware/errorHandler.ts`
 
 ```typescript
@@ -248,7 +248,7 @@ export const errorHandler = (
 };
 ```
 
-#### 3.2 Structured Logging
+#### Structured Logging
 **Create**: `backend/src/utils/logger.ts`
 
 ```typescript
@@ -269,7 +269,7 @@ export const logger = winston.createLogger({
 });
 ```
 
-#### 3.3 Type Safety Improvements
+#### Type Safety Improvements
 **Create shared types in**: `backend/src/types/index.ts`
 
 ```typescript
@@ -299,7 +299,7 @@ export interface PaginationParams {
 
 ### Frontend Optimizations
 
-#### 4.1 Bundle Size Optimization
+#### Bundle Size Optimization
 **Update**: `frontend/package.json`
 
 ```json
@@ -311,7 +311,7 @@ export interface PaginationParams {
 }
 ```
 
-#### 4.2 Add React Query for Caching
+#### Add React Query for Caching
 **Install and configure React Query**
 
 ```typescript
@@ -336,7 +336,7 @@ export const useLedgerEntries = (programId: string, params: any) => {
 };
 ```
 
-#### 4.3 Code Splitting
+#### Code Splitting
 **Update**: `frontend/src/App.tsx`
 
 ```typescript
@@ -364,7 +364,7 @@ const App: React.FC = () => {
 
 ### Infrastructure Improvements
 
-#### 5.1 Health Checks
+#### Health Checks
 **Add health check endpoints**
 
 ```typescript
@@ -386,7 +386,7 @@ router.get('/health', async (req, res) => {
 export const healthRouter = router;
 ```
 
-#### 5.2 Docker Optimizations
+#### Docker Optimizations
 **Update**: `docker/Dockerfile.backend`
 
 ```dockerfile
@@ -411,7 +411,7 @@ EXPOSE 4000
 CMD ["node", "dist/index.js"]
 ```
 
-#### 5.3 Environment-Specific Configurations
+#### Environment-Specific Configurations
 **Create**: `docker/docker-compose.prod.yml`
 
 ```yaml
@@ -478,7 +478,7 @@ volumes:
 
 ### Testing Improvements
 
-#### 6.1 Add Integration Tests
+#### Add Integration Tests
 **Create**: `backend/src/__tests__/integration/`
 
 ```typescript
@@ -513,7 +513,7 @@ describe('Program API', () => {
 });
 ```
 
-#### 6.2 Add Performance Tests
+#### Add Performance Tests
 **Create**: `backend/src/__tests__/performance/`
 
 ```typescript

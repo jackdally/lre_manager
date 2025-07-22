@@ -5,6 +5,7 @@
 - **Priority**: Medium
 - **Estimated Effort**: 5 weeks
 - **Dependencies**: Settings store, authentication system
+- **Task Tracking**: [User Preferences Tasks](../tasks/active/user-preferences.md)
 
 ## Requirements
 - [ ] User interface customization (theme, layout, dashboard preferences)
@@ -38,39 +39,34 @@
 ## Implementation Phases
 
 ### Phase 1: Backend Foundation (Week 1)
-- [ ] Task 1.1: Create user_preferences database table and migration
-- [ ] Task 1.2: Create UserPreference entity and service
-- [ ] Task 1.3: Implement API routes with authentication
-- [ ] Task 1.4: Add validation and error handling
-- [ ] Task 1.5: Create default preferences migration script
+**Tasks**: See [User Preferences Tasks](../tasks/active/user-preferences.md) for detailed task breakdown
+- Backend database schema and API endpoints
+- UserPreference entity and service implementation
+- Authentication and validation setup
 
 ### Phase 2: Frontend Enhancement (Week 2)
-- [ ] Task 2.1: Expand UserPreferences interface in settings store
-- [ ] Task 2.2: Create userPreferencesApi service
-- [ ] Task 2.3: Enhance UserPreferencesTab with new sections
-- [ ] Task 2.4: Add preference persistence and loading
-- [ ] Task 2.5: Implement preference reset functionality
+**Tasks**: See [User Preferences Tasks](../tasks/active/user-preferences.md) for detailed task breakdown
+- Frontend store and API integration
+- UserPreferencesTab component enhancement
+- Preference persistence and reset functionality
 
 ### Phase 3: Advanced Features (Week 3)
-- [ ] Task 3.1: Implement accessibility preferences (high contrast, font size)
-- [ ] Task 3.2: Add export format preferences
-- [ ] Task 3.3: Create dashboard view preferences
-- [ ] Task 3.4: Implement language and regional settings
-- [ ] Task 3.5: Add notification frequency controls
+**Tasks**: See [User Preferences Tasks](../tasks/active/user-preferences.md) for detailed task breakdown
+- Accessibility preferences implementation
+- Export format and dashboard preferences
+- Language and regional settings
 
 ### Phase 4: System Integration (Week 4)
-- [ ] Task 4.1: Integrate theme preferences across the application
-- [ ] Task 4.2: Apply currency and date format preferences
-- [ ] Task 4.3: Implement export format preferences in download functions
-- [ ] Task 4.4: Apply dashboard preferences to program views
-- [ ] Task 4.5: Add notification system integration
+**Tasks**: See [User Preferences Tasks](../tasks/active/user-preferences.md) for detailed task breakdown
+- Application-wide preference integration
+- Theme, currency, and date formatting
+- Notification system integration
 
 ### Phase 5: Testing & Polish (Week 5)
-- [ ] Task 5.1: Write unit tests for all new components
-- [ ] Task 5.2: Create integration tests for API endpoints
-- [ ] Task 5.3: Perform accessibility testing
-- [ ] Task 5.4: User acceptance testing
-- [ ] Task 5.5: Performance optimization and final polish
+**Tasks**: See [User Preferences Tasks](../tasks/active/user-preferences.md) for detailed task breakdown
+- Comprehensive testing suite
+- User acceptance testing
+- Performance optimization
 
 ## Testing Strategy
 - [ ] Unit tests for UserPreference service and API routes

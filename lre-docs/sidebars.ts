@@ -54,14 +54,15 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'In Progress',
       items: [
-        'tasks/active/user-preferences',
+        'implementation-plans/user-preferences',
+        'implementation-plans/boe-system',
       ],
     },
     {
       type: 'category',
       label: 'Planned Features',
       items: [
-        'implementation-plans/user-preferences',
+        // Add future planned features here when they're ready
       ],
     },
     {
@@ -94,6 +95,7 @@ const sidebars: SidebarsConfig = {
         'tasks/active/general',
         'tasks/active/user-preferences',
         'tasks/active/multi-currency',
+        'tasks/active/boe-system',
       ],
     },
     {
@@ -117,6 +119,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'implementation-plans/README',
         'implementation-plans/user-preferences',
+        'implementation-plans/boe-system',
       ],
     },
     {
@@ -125,6 +128,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'sprints/sprint-template',
         'sprints/sprint-1-user-preferences',
+        'sprints/sprint-2-boe-phase1',
       ],
     },
     {

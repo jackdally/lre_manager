@@ -5,7 +5,9 @@ WORKDIR /app
 
 # Accept build arguments for environment variables
 ARG REACT_APP_API_URL
+ARG REACT_APP_DOCS_URL
 ENV REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:4000/api}
+ENV REACT_APP_DOCS_URL=${REACT_APP_DOCS_URL:-http://localhost:3001/lre_manager/docs/intro}
 
 # Copy package files
 COPY frontend/package*.json ./

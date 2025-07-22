@@ -13,6 +13,7 @@ services:
     environment:
       - NODE_ENV=development
       - REACT_APP_API_URL=http://localhost:4000/api
+      - REACT_APP_DOCS_URL=http://localhost:3001/lre_manager/docs/intro
     depends_on:
       - backend
 

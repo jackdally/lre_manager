@@ -9,6 +9,7 @@ services:
       - "3000:80"
     environment:
       - NODE_ENV=production
+      - REACT_APP_DOCS_URL=http://localhost:3001/lre_manager/docs/intro
     depends_on:
       - backend
     restart: unless-stopped

@@ -9,21 +9,21 @@
 ## Sprint Backlog
 
 ### High Priority
-- [ ] Task 1.1: Create user_preferences database table and migration - 3 points
-- [ ] Task 1.2: Create UserPreference entity and service - 5 points
-- [ ] Task 1.3: Implement API routes with authentication - 5 points
-- [ ] Task 2.1: Expand UserPreferences interface in settings store - 3 points
-- [ ] Task 2.2: Create userPreferencesApi service - 3 points
+- [ ] Task: Create user_preferences database table and migration - 3 points
+- [ ] Task: Create UserPreference entity and service - 5 points
+- [ ] Task: Implement API routes with authentication - 5 points
+- [ ] Task: Expand UserPreferences interface in settings store - 3 points
+- [ ] Task: Create userPreferencesApi service - 3 points
 
 ### Medium Priority
-- [ ] Task 1.4: Add validation and error handling - 2 points
-- [ ] Task 1.5: Create default preferences migration script - 2 points
-- [ ] Task 2.3: Enhance UserPreferencesTab with new sections - 5 points
-- [ ] Task 2.4: Add preference persistence and loading - 3 points
+- [ ] Task: Add validation and error handling - 2 points
+- [ ] Task: Create default preferences migration script - 2 points
+- [ ] Task: Enhance UserPreferencesTab with new sections - 5 points
+- [ ] Task: Add preference persistence and loading - 3 points
 
 ### Low Priority (If Time Permits)
-- [ ] Task 2.5: Implement preference reset functionality - 2 points
-- [ ] Task 3.1: Implement accessibility preferences (high contrast, font size) - 5 points
+- [ ] Task: Implement preference reset functionality - 2 points
+- [ ] Task: Implement accessibility preferences (high contrast, font size) - 5 points
 
 ## Acceptance Criteria
 - [ ] User preferences can be saved and retrieved from database

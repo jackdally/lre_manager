@@ -39,12 +39,17 @@ This document provides a high-level roadmap of planned, in-progress, and complet
 ### High Priority
 
 #### BOE (Basis of Estimate) System
-- [ ] Comprehensive BOE page with ledger creation workflow
-- [ ] BOE templates and wizards for different project types
-- [ ] BOE approval workflow and versioning
-- [ ] User-friendly forms for entering baseline estimates
-- [ ] Preliminary Management Reserve calculation based on industry standards
-- [ ] Integration with existing ledger management system
+- [~] Comprehensive BOE page with ledger creation workflow
+- [~] BOE templates and wizards for different project types
+- [~] BOE approval workflow and versioning
+- [~] User-friendly forms for entering baseline estimates
+- [~] Preliminary Management Reserve calculation based on industry standards
+- [~] Integration with existing ledger management system
+
+**Implementation Plan**: [docs/implementation-plans/boe-system.md](implementation-plans/boe-system.md)  
+**Task Tracking**: [docs/tasks/active/boe-system.md](tasks/active/boe-system.md)  
+**Sprint Planning**: [docs/sprints/sprint-2-boe-phase1.md](sprints/sprint-2-boe-phase1.md)  
+**Estimated Completion**: Q1 2026
 
 #### Risks & Opportunities System
 - [ ] **Risk/Opportunity Entry & Management**
@@ -280,8 +285,8 @@ This document provides a high-level roadmap of planned, in-progress, and complet
 
 - **Total Features**: 15 major feature areas
 - **Completed**: 5 features (33%)
-- **In Progress**: 1 feature (7%)
-- **Planned**: 9 features (60%)
+- **In Progress**: 2 features (13%)
+- **Planned**: 8 features (53%)
 - **High Priority**: 3 features
 - **Medium Priority**: 3 features
 - **Low Priority**: 3 features
