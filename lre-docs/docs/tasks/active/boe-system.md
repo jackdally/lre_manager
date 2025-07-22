@@ -92,9 +92,9 @@
   - [x] Create template search and filtering
   - [x] Add template selection workflow
 
-- [ ] **BOE-041**: Implement BOE template management
-  - [ ] Create template creation wizard
-  - [ ] Add template editing capabilities
+- [x] **BOE-041**: Implement BOE template management
+  - [x] Create template creation wizard
+  - [x] Add template editing capabilities
   - [ ] Implement template versioning
   - [ ] Add template sharing and permissions
 

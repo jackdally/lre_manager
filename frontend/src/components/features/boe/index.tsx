@@ -4,4 +4,5 @@ export { default as BOEDetails } from './BOEDetails';
 export { default as BOEApproval } from './BOEApproval';
 export { default as BOEHistory } from './BOEHistory';
 export { default as BOETemplateSelector } from './BOETemplateSelector';
+export { default as BOETemplateWizard } from './BOETemplateWizard';
 export { default as BOEWizard } from './BOEWizard'; 

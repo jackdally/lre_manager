@@ -6,6 +6,7 @@ import BOEOverview from './BOEOverview';
 import BOEDetails from './BOEDetails';
 import BOEApproval from './BOEApproval';
 import BOEHistory from './BOEHistory';
+import BOETemplateSelector from './BOETemplateSelector';
 
 interface BOEPageProps {
   programId?: string;
@@ -27,6 +28,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   } = useBOEStore();
 
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showTemplateManagement, setShowTemplateManagement] = useState(false);
 
   useEffect(() => {
     if (!programId) {
@@ -99,10 +101,31 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Basis of Estimate (BOE)</h1>
-          <p className="mt-2 text-gray-600">
-            Manage and track project estimates, costs, and management reserve
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Basis of Estimate (BOE)</h1>
+              <p className="mt-2 text-gray-600">
+                Manage and track project estimates, costs, and management reserve
+              </p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowTemplateManagement(!showTemplateManagement)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  showTemplateManagement
+                    ? 'bg-gray-600 text-white hover:bg-gray-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  {showTemplateManagement ? 'Hide Templates' : 'Manage Templates'}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Error Display */}
@@ -119,6 +142,25 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 <div className="mt-2 text-sm text-red-700">{boeError}</div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Template Management */}
+        {showTemplateManagement && (
+          <div className="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">BOE Template Management</h2>
+              <p className="text-gray-600">
+                Create, edit, and manage BOE templates that can be used to create new BOEs.
+              </p>
+            </div>
+            <BOETemplateSelector
+              onTemplateSelect={(template) => {
+                console.log('Template selected:', template);
+                // You can add logic here to create a new BOE from this template
+              }}
+              showCreateNew={true}
+            />
           </div>
         )}
 

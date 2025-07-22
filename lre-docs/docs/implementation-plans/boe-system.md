@@ -112,7 +112,7 @@
 
 ### Phase 2: Core BOE Functionality (Week 3-4) ✅ **PARTIALLY COMPLETED**
 **Tasks**: See [BOE System Tasks](../tasks/active/boe-system.md) for detailed task breakdown
-- ✅ BOE template system and wizard components
+- ✅ BOE template system with creation wizard and editing capabilities
 - ✅ Frontend foundation with tab navigation and placeholder content
 - ✅ Consistent UI styling matching Settings page
 - [ ] Hierarchical WBS editing functionality
