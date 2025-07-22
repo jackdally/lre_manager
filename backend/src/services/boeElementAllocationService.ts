@@ -81,7 +81,6 @@ export class BOEElementAllocationService {
    * Get element allocations for a BOE version
    */
   static async getElementAllocations(boeVersionId: string) {
-    // TODO: Fix TypeScript compilation issue
     const result = await elementAllocationRepository.find({
       where: { boeVersionId, isActive: true },
       relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor']
