@@ -97,10 +97,10 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
   return (
     <div className="boe-tree-item">
       <div 
-        className={`flex items-center py-2 px-3 hover:bg-gray-50 cursor-pointer border-l-4 transition-colors ${
+        className={`flex items-center py-2 px-3 hover:bg-blue-50 cursor-pointer border-l-4 transition-all duration-200 group ${
           isSelected 
-            ? 'bg-blue-100 border-blue-500' 
-            : 'border-transparent hover:border-gray-300'
+            ? 'bg-blue-100 border-blue-500 shadow-sm' 
+            : 'border-transparent hover:border-blue-300 hover:shadow-sm'
         }`}
         style={{ paddingLeft: `${level * 24 + 8}px` }}
         onClick={handleSelect}
@@ -135,7 +135,7 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
         </span>
 
         {/* Element Name */}
-        <span className="text-sm font-medium text-gray-900 flex-1">
+        <span className="text-sm font-medium text-gray-900 flex-1 group-hover:text-blue-700 transition-colors">
           {element.name}
         </span>
 
@@ -153,6 +153,13 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
         <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
           {vendor?.name || 'Unassigned'}
         </span>
+
+        {/* Click indicator */}
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
 
         {/* Actions */}
         {!isReadOnly && (
@@ -247,6 +254,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [elementToDelete, setElementToDelete] = useState<BOEElement | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Calculate real-time totals and breakdowns
   const calculationResult = useMemo((): BOECalculationResult => {
@@ -315,6 +323,20 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [hasUnsavedChanges]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sidebarOpen]);
 
   const loadBOEData = async () => {
     try {
@@ -391,6 +413,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
 
   const handleElementSelect = (element: BOEElement) => {
     setSelectedElement(element);
+    setSidebarOpen(true);
   };
 
   const handleEdit = (element: BOEElement) => {
@@ -696,15 +719,32 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         </div>
       </div>
 
-      {/* Two-Panel Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Panel: WBS Tree */}
+      {/* Full-Width WBS Tree with Slide-out Sidebar */}
+      <div className="relative">
+        {/* Main WBS Tree */}
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="p-4 border-b border-gray-200">
-            <h4 className="text-lg font-medium text-gray-900">Work Breakdown Structure</h4>
-            <p className="text-sm text-gray-600 mt-1">
-              Click on an element to view its allocation details
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">Work Breakdown Structure</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Click on any element to view and manage its allocations in the sidebar
+                </p>
+              </div>
+              {selectedElement && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500">
+                    Selected: <span className="font-medium text-gray-900">{selectedElement.name}</span>
+                  </span>
+                  <button
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    {sidebarOpen ? 'Hide Details' : 'Show Details'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="p-4">
@@ -749,30 +789,52 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
           </div>
         </div>
 
-        {/* Right Panel: Allocation Details */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="text-lg font-medium text-gray-900">Element Allocations</h4>
-            <p className="text-sm text-gray-600 mt-1">
-              {selectedElement ? `Allocation details for ${selectedElement.name}` : 'Select an element to view allocations'}
-            </p>
-          </div>
-          
-          <div className="p-4">
-            {selectedElement ? (
-              <BOEElementAllocationManager 
-                boeVersionId={currentBOE.id}
-                selectedElementId={selectedElement.id}
-                selectedElementName={selectedElement.name}
-              />
-            ) : (
-              <div className="text-center py-12 text-gray-500">
-                <ClockIcon className="mx-auto h-12 w-12 mb-4" />
-                <p>Select a WBS element to view and manage its allocations</p>
+        {/* Slide-out Sidebar */}
+        <div className={`fixed inset-y-0 right-0 z-50 w-96 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="h-full flex flex-col">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">Element Allocations</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  {selectedElement ? `Allocation details for ${selectedElement.name}` : 'Select an element to view allocations'}
+                </p>
               </div>
-            )}
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Sidebar Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {selectedElement ? (
+                <BOEElementAllocationManager 
+                  boeVersionId={currentBOE.id}
+                  selectedElementId={selectedElement.id}
+                  selectedElementName={selectedElement.name}
+                />
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <ClockIcon className="mx-auto h-12 w-12 mb-4" />
+                  <p>Select a WBS element to view and manage its allocations</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Backdrop */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 z-40 bg-black bg-opacity-25 transition-opacity duration-300"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
       </div>
 
       {/* Cost Category Breakdown */}
