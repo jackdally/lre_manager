@@ -327,6 +327,16 @@
   - [ ] Update template documentation and usage examples
   - [ ] Consider removing if not valuable to users
 
+- [x] **BOE-078G**: Sidebar UX Improvements (High Priority) ✅ **COMPLETED**
+  - [x] Fix sidebar formatting to eliminate scroll bars
+  - [x] Add resizable sidebar with drag handle
+  - [x] Implement better content layout and spacing
+  - [x] Add collapsible sections for better organization
+  - [x] Improve allocation table formatting and readability
+  - [x] Add quick actions and shortcuts in sidebar
+  - [x] Implement responsive sidebar behavior
+  - [x] Add sidebar state persistence (remember width/position)
+
 ### Ledger Integration & Invoice Processing (Phase 3B - Week 6)
 - [ ] **BOE-079**: Enhance ledger integration
   - [ ] Create ledger entries from BOE element allocations
@@ -504,8 +514,9 @@
   - ✅ Ledger integration for pushing allocations to baseline
   - ✅ Actuals tracking and variance calculation
 - 🔄 **Phase 3A IN PROGRESS - System Enhancements**:
-  - 🔄 Layout & UX improvements (sidebar conversion, user guidance)
+  - ✅ Layout & UX improvements (sidebar conversion, user guidance) - **COMPLETED**
   - ✅ Edit/delete functionality fixes (WBS elements, allocations, save button) - **COMPLETED**
+  - ✅ Sidebar UX improvements (resizable, better formatting, no scroll bars) - **COMPLETED**
   - 🔄 Parent element status aggregation (recursive status calculation)
   - 🔄 Element Allocations tab removal (cleanup)
   - 🔄 BOE deletion functionality (draft BOEs only)
@@ -543,6 +554,7 @@
 - ✅ **NEW**: Edit/delete functionality: Fixed and working
 - ✅ **NEW**: Save button functionality: Fixed and working (with unsaved changes tracking and backend support)
 - ✅ **NEW**: Layout & UX improvements: Right-sidebar layout with full-width WBS tree
+- ✅ **NEW**: Sidebar UX improvements: Resizable sidebar with no scroll bars and state persistence
 - 🔄 **NEW**: Parent element status aggregation: Needs implementation
 
 **Next Phase**: Complete Phase 3A Enhancements, then Phase 3B - Ledger Integration & Invoice Processing

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
 import { boeVersionsApi, boeElementsApi, elementAllocationApi } from '../../../services/boeApi';
 import BOECalculationService, { BOECalculationResult } from '../../../services/boeCalculationService';
@@ -20,7 +20,8 @@ import {
   ChevronDownIcon,
   PlusIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  ArrowsPointingOutIcon
 } from '@heroicons/react/24/outline';
 import { BOEElement, BOEElementAllocation } from '../../../store/boeStore';
 
@@ -255,6 +256,8 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [elementToDelete, setElementToDelete] = useState<BOEElement | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(300); // Default sidebar width
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Calculate real-time totals and breakdowns
   const calculationResult = useMemo((): BOECalculationResult => {
@@ -337,6 +340,18 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [sidebarOpen]);
+
+  // Persist sidebar width to localStorage
+  useEffect(() => {
+    const savedWidth = localStorage.getItem('sidebarWidth');
+    if (savedWidth) {
+      setSidebarWidth(parseInt(savedWidth, 10));
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('sidebarWidth', sidebarWidth.toString());
+  }, [sidebarWidth]);
 
   const loadBOEData = async () => {
     try {
@@ -790,38 +805,81 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         </div>
 
         {/* Slide-out Sidebar */}
-        <div className={`fixed inset-y-0 right-0 z-50 w-96 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div 
+          className={`fixed inset-y-0 right-0 z-50 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          style={{ width: `${sidebarWidth}px` }}
+          ref={sidebarRef}
+        >
+          {/* Drag Handle for Resizing */}
+          <div 
+            className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = sidebarWidth;
+              
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = startX - moveEvent.clientX;
+                const newWidth = Math.max(300, Math.min(600, startWidth + deltaX));
+                setSidebarWidth(newWidth);
+              };
+              
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+              };
+              
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
+            title="Drag to resize sidebar"
+          >
+            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-400 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-200" />
+          </div>
+
           <div className="h-full flex flex-col">
             {/* Sidebar Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-              <div>
-                <h4 className="text-lg font-medium text-gray-900">Element Allocations</h4>
-                <p className="text-sm text-gray-600 mt-1">
+              <div className="flex-1 min-w-0">
+                <h4 className="text-lg font-medium text-gray-900 truncate">Element Allocations</h4>
+                <p className="text-sm text-gray-600 mt-1 truncate">
                   {selectedElement ? `Allocation details for ${selectedElement.name}` : 'Select an element to view allocations'}
                 </p>
               </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center space-x-2 ml-2">
+                {/* Resize Indicator */}
+                <div className="text-xs text-gray-400 px-2 py-1 bg-gray-100 rounded">
+                  {sidebarWidth}px
+                </div>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600 p-1"
+                  title="Close sidebar"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             
-            {/* Sidebar Content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            {/* Sidebar Content - Optimized Layout */}
+            <div className="flex-1 flex flex-col overflow-hidden">
               {selectedElement ? (
-                <BOEElementAllocationManager 
-                  boeVersionId={currentBOE.id}
-                  selectedElementId={selectedElement.id}
-                  selectedElementName={selectedElement.name}
-                />
+                <div className="flex-1 overflow-hidden">
+                  <BOEElementAllocationManager 
+                    boeVersionId={currentBOE.id}
+                    selectedElementId={selectedElement.id}
+                    selectedElementName={selectedElement.name}
+                    sidebarWidth={sidebarWidth}
+                  />
+                </div>
               ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <ClockIcon className="mx-auto h-12 w-12 mb-4" />
-                  <p>Select a WBS element to view and manage its allocations</p>
+                <div className="flex-1 flex items-center justify-center p-4">
+                  <div className="text-center text-gray-500">
+                    <ClockIcon className="mx-auto h-12 w-12 mb-4" />
+                    <p className="text-sm">Select a WBS element to view and manage its allocations</p>
+                  </div>
                 </div>
               )}
             </div>
