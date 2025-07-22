@@ -4,7 +4,9 @@ import { boeVersionsApi, boeElementsApi, elementAllocationApi } from '../../../s
 import BOECalculationService, { BOECalculationResult } from '../../../services/boeCalculationService';
 import BOEForm from './BOEForm';
 import BOEElementAllocationManager from './BOEElementAllocationManager';
+import BOEElementModal from './BOEElementModal';
 import Button from '../../common/Button';
+import Modal from '../../common/Modal';
 import { formatCurrency, safeNumber } from '../../../utils/currencyUtils';
 import { 
   ChartBarIcon, 
@@ -237,6 +239,13 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [costCategories, setCostCategories] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
+  
+  // Modal state management
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingElement, setEditingElement] = useState<BOEElement | null>(null);
+  const [addingToParentId, setAddingToParentId] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [elementToDelete, setElementToDelete] = useState<BOEElement | null>(null);
 
   // Calculate real-time totals and breakdowns
   const calculationResult = useMemo((): BOECalculationResult => {
@@ -365,18 +374,135 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   };
 
   const handleEdit = (element: BOEElement) => {
-    // TODO: Implement edit modal
-    console.log('Edit element:', element);
+    setEditingElement(element);
+    setAddingToParentId(null);
+    setModalOpen(true);
   };
 
   const handleDelete = (element: BOEElement) => {
-    // TODO: Implement delete confirmation
-    console.log('Delete element:', element);
+    setElementToDelete(element);
+    setDeleteConfirmOpen(true);
   };
 
   const handleAddChild = (parentId: string) => {
-    // TODO: Implement add child modal
-    console.log('Add child to:', parentId);
+    setEditingElement(null);
+    setAddingToParentId(parentId);
+    setModalOpen(true);
+  };
+
+  const handleSaveElement = async (elementData: BOEElement) => {
+    try {
+      setLoading(true);
+      
+      if (editingElement) {
+        // Update existing element
+        const updatedElement = await boeElementsApi.updateElement(editingElement.id, elementData);
+        
+        // Update elements array
+        const updateElementInArray = (elements: BOEElement[], updatedElement: BOEElement): BOEElement[] => {
+          return elements.map(element => {
+            if (element.id === updatedElement.id) {
+              return updatedElement;
+            }
+            if (element.childElements) {
+              element.childElements = updateElementInArray(element.childElements, updatedElement);
+            }
+            return element;
+          });
+        };
+        
+        const updatedElements = updateElementInArray(elements, updatedElement);
+        setElements(updatedElements);
+      } else {
+        // Create new element
+        const newElement = await boeElementsApi.createElement(currentBOE!.id, elementData);
+        
+        // Add to elements array
+        if (addingToParentId) {
+          // Add as child
+          const addChildToParent = (elements: BOEElement[], parentId: string, newElement: BOEElement): BOEElement[] => {
+            return elements.map(element => {
+              if (element.id === parentId) {
+                return {
+                  ...element,
+                  childElements: [...(element.childElements || []), newElement]
+                };
+              }
+              if (element.childElements) {
+                element.childElements = addChildToParent(element.childElements, parentId, newElement);
+              }
+              return element;
+            });
+          };
+          
+          const updatedElements = addChildToParent(elements, addingToParentId, newElement);
+          setElements(updatedElements);
+        } else {
+          // Add as root element
+          setElements([...elements, newElement]);
+        }
+      }
+      
+      setModalOpen(false);
+      setEditingElement(null);
+      setAddingToParentId(null);
+    } catch (error) {
+      console.error('Error saving element:', error);
+      setElementsError('Failed to save element');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!elementToDelete) return;
+    
+    try {
+      setLoading(true);
+      
+      // Delete from API
+      await boeElementsApi.deleteElement(elementToDelete.id);
+      
+      // Remove from elements array
+      const removeElementAndChildren = (elements: BOEElement[], elementId: string): BOEElement[] => {
+        return elements.filter(element => {
+          if (element.id === elementId) {
+            return false;
+          }
+          if (element.childElements) {
+            element.childElements = removeElementAndChildren(element.childElements, elementId);
+          }
+          return true;
+        });
+      };
+      
+      const updatedElements = removeElementAndChildren(elements, elementToDelete.id);
+      setElements(updatedElements);
+      
+      // Clear selection if deleted element was selected
+      if (selectedElement?.id === elementToDelete.id) {
+        setSelectedElement(null);
+      }
+      
+      setDeleteConfirmOpen(false);
+      setElementToDelete(null);
+    } catch (error) {
+      console.error('Error deleting element:', error);
+      setElementsError('Failed to delete element');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelModal = () => {
+    setModalOpen(false);
+    setEditingElement(null);
+    setAddingToParentId(null);
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setElementToDelete(null);
   };
 
   const getVarianceColor = (variance: number) => {
@@ -726,6 +852,54 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Element Modal */}
+      {modalOpen && (
+        <Modal
+          isOpen={modalOpen}
+          onClose={handleCancelModal}
+          title={editingElement ? 'Edit Element' : 'Add Element'}
+        >
+          <BOEElementModal
+            element={editingElement}
+            parentId={addingToParentId}
+            onSave={handleSaveElement}
+            onCancel={handleCancelModal}
+          />
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmOpen && (
+        <Modal
+          isOpen={deleteConfirmOpen}
+          onClose={handleCancelDelete}
+          title="Confirm Deletion"
+        >
+          <div className="text-center">
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{elementToDelete?.name}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <Button
+                onClick={handleCancelDelete}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmDelete}
+                variant="danger"
+                size="sm"
+                disabled={loading}
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

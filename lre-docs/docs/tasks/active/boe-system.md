@@ -291,13 +291,13 @@
   - [ ] Move cost breakdowns to collapsible sections (low priority)
   - [ ] Implement smooth slide-in/out animations
 
-- [ ] **BOE-078B**: Fix Edit/Delete Functionality (High Priority)
-  - [ ] Implement proper event handlers for WBS element edit/delete buttons
-  - [ ] Add confirmation dialogs for delete actions
-  - [ ] Fix allocation edit/delete buttons in sidebar
-  - [ ] Fix save button validation and state management
-  - [ ] Add loading states for all actions
-  - [ ] Add success/error feedback for operations
+- [x] **BOE-078B**: Fix Edit/Delete Functionality (High Priority) ✅ **COMPLETED**
+  - [x] Implement proper event handlers for WBS element edit/delete buttons
+  - [x] Add confirmation dialogs for delete actions
+  - [x] Fix allocation edit/delete buttons in sidebar
+  - [x] Fix save button validation and state management
+  - [x] Add loading states for all actions
+  - [x] Add success/error feedback for operations
 
 - [ ] **BOE-078C**: Parent Element Status Aggregation (Medium Priority)
   - [ ] Implement recursive status calculation for parent elements
@@ -505,7 +505,7 @@
   - ✅ Actuals tracking and variance calculation
 - 🔄 **Phase 3A IN PROGRESS - System Enhancements**:
   - 🔄 Layout & UX improvements (sidebar conversion, user guidance)
-  - 🔄 Edit/delete functionality fixes (WBS elements, allocations, save button)
+  - ✅ Edit/delete functionality fixes (WBS elements, allocations, save button) - **COMPLETED**
   - 🔄 Parent element status aggregation (recursive status calculation)
   - 🔄 Element Allocations tab removal (cleanup)
   - 🔄 BOE deletion functionality (draft BOEs only)
@@ -540,8 +540,8 @@
 - ✅ **NEW**: Element allocation system: Working
 - ✅ **NEW**: Element allocation API endpoints: Working
 - ✅ **NEW**: Element allocation frontend components: Working
-- 🔄 **NEW**: Edit/delete functionality: Needs fixing
-- 🔄 **NEW**: Save button functionality: Needs fixing
+- ✅ **NEW**: Edit/delete functionality: Fixed and working
+- ✅ **NEW**: Save button functionality: Fixed and working
 - 🔄 **NEW**: Parent element status aggregation: Needs implementation
 - 🔄 **NEW**: Sidebar layout conversion: Needs implementation
 

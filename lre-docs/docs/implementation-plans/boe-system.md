@@ -228,8 +228,8 @@
   - [x] BOE integrates seamlessly with ledger system
   - [ ] Management Reserve is calculated automatically
   - [ ] Approval workflow functions correctly
-  - [ ] Edit/delete functionality works properly for WBS elements and allocations
-  - [ ] Save button functions correctly with proper validation
+  - [x] Edit/delete functionality works properly for WBS elements and allocations
+  - [x] Save button functions correctly with proper validation
   - [ ] Parent elements show aggregated status from children
 
 - [x] **Performance Requirements**
@@ -363,13 +363,13 @@
   - 🔄 Move cost breakdowns to collapsible sections (low priority)
   - 🔄 Implement smooth slide-in/out animations
 
-- 🔄 **Edit/Delete Functionality Fixes (BOE-078B)**:
-  - 🔄 Implement proper event handlers for WBS element edit/delete buttons
-  - 🔄 Add confirmation dialogs for delete actions
-  - 🔄 Fix allocation edit/delete buttons in sidebar
-  - 🔄 Fix save button validation and state management
-  - 🔄 Add loading states for all actions
-  - 🔄 Add success/error feedback for operations
+- ✅ **Edit/Delete Functionality Fixes (BOE-078B)** - **COMPLETED**:
+  - ✅ Implement proper event handlers for WBS element edit/delete buttons
+  - ✅ Add confirmation dialogs for delete actions
+  - ✅ Fix allocation edit/delete buttons in sidebar
+  - ✅ Fix save button validation and state management
+  - ✅ Add loading states for all actions
+  - ✅ Add success/error feedback for operations
 
 - 🔄 **Parent Element Status Aggregation (BOE-078C)**:
   - 🔄 Implement recursive status calculation for parent elements

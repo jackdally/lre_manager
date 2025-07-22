@@ -12,6 +12,14 @@ import {
 import { useBOEStore, BOEElementAllocation } from '../../../store/boeStore';
 import { elementAllocationApi } from '../../../services/boeApi';
 import { formatCurrency, formatDate } from '../../../utils/formatters';
+import Button from '../../common/Button';
+import Modal from '../../common/Modal';
+import { 
+  CalendarIcon, 
+  CurrencyDollarIcon,
+  ClockIcon,
+  CheckCircleIcon
+} from '@heroicons/react/24/outline';
 
 interface BOEElementAllocationManagerProps {
   boeVersionId: string;
@@ -51,6 +59,11 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   } = useBOEStore();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [editingAllocation, setEditingAllocation] = useState<BOEElementAllocation | null>(null);
+  const [deletingAllocation, setDeletingAllocation] = useState<BOEElementAllocation | null>(null);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<ElementAllocationFormData>({
     name: '',
     description: '',
@@ -249,6 +262,90 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     }
   };
 
+  const handleEditAllocation = (allocation: BOEElementAllocation) => {
+    setEditingAllocation(allocation);
+    setFormData({
+      name: allocation.name,
+      description: allocation.description,
+      totalAmount: allocation.totalAmount,
+      allocationType: allocation.allocationType,
+      startDate: allocation.startDate,
+      endDate: allocation.endDate,
+      totalQuantity: allocation.totalQuantity || undefined,
+      quantityUnit: allocation.quantityUnit || undefined,
+      notes: allocation.notes || '',
+      assumptions: allocation.assumptions || '',
+      risks: allocation.risks || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleDeleteAllocation = (allocation: BOEElementAllocation) => {
+    setDeletingAllocation(allocation);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingAllocation) return;
+
+    try {
+      setLoading(true);
+      await elementAllocationApi.deleteElementAllocation(deletingAllocation.id);
+      
+      // Remove from local state
+      const updatedAllocations = elementAllocations.filter(a => a.id !== deletingAllocation.id);
+      setElementAllocations(updatedAllocations);
+      
+      setShowDeleteModal(false);
+      setDeletingAllocation(null);
+    } catch (error) {
+      console.error('Error deleting allocation:', error);
+      setElementAllocationsError('Failed to delete allocation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateAllocation = async () => {
+    if (!editingAllocation || !validateForm()) return;
+
+    try {
+      setLoading(true);
+      
+      const updatedAllocation = await elementAllocationApi.updateElementAllocation(editingAllocation.id, {
+        ...formData,
+        boeElementId: selectedElementId,
+        boeVersionId
+      });
+
+      // Update local state
+      const updatedAllocations = elementAllocations.map(a => 
+        a.id === editingAllocation.id ? updatedAllocation : a
+      );
+      setElementAllocations(updatedAllocations);
+
+      setShowEditModal(false);
+      setEditingAllocation(null);
+      resetForm();
+    } catch (error) {
+      console.error('Error updating allocation:', error);
+      setElementAllocationsError('Failed to update allocation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setShowEditModal(false);
+    setEditingAllocation(null);
+    resetForm();
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeletingAllocation(null);
+  };
+
   const loadElementAllocations = async () => {
     try {
       setElementAllocationsLoading(true);
@@ -283,6 +380,22 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     if (variance > 0) return <ArrowUpIcon className="h-4 w-4 text-red-600" />;
     if (variance < 0) return <ArrowDownIcon className="h-4 w-4 text-green-600" />;
     return null;
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      totalAmount: 0,
+      allocationType: 'Linear',
+      startDate: '',
+      endDate: '',
+      notes: '',
+      assumptions: '',
+      risks: ''
+    });
+    setMonthlyBreakdown({});
+    setValidationErrors([]);
   };
 
   if (elementAllocationsLoading) {
@@ -420,14 +533,14 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
                     <div className="flex justify-end space-x-2">
                       <button
                         className="text-blue-600 hover:text-blue-900"
-                        onClick={() => {/* TODO: Edit allocation */}}
+                        onClick={() => handleEditAllocation(allocation)}
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
                       {!allocation.isLocked && (
                         <button
                           className="text-red-600 hover:text-red-900"
-                          onClick={() => {/* TODO: Delete allocation */}}
+                          onClick={() => handleDeleteAllocation(allocation)}
                         >
                           <TrashIcon className="h-4 w-4" />
                         </button>
@@ -443,233 +556,502 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
 
       {/* Create Allocation Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Create Element Allocation</h3>
-              
-              {/* Form */}
-              <div className="space-y-4">
-                {/* Basic Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Allocation Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., Software Development - Level 1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Allocation Type *
-                    </label>
-                    <select
-                      value={formData.allocationType}
-                      onChange={(e) => setFormData({ ...formData, allocationType: e.target.value as any })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Linear">Linear</option>
-                      <option value="Front-Loaded">Front-Loaded</option>
-                      <option value="Back-Loaded">Back-Loaded</option>
-                      <option value="Custom">Custom</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description *
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Describe the allocation..."
-                  />
-                </div>
-
-                {/* Amount and Quantity */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Total Amount *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.totalAmount}
-                      onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Total Quantity
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.totalQuantity || ''}
-                      onChange={(e) => setFormData({ ...formData, totalQuantity: parseFloat(e.target.value) || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., 1000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quantity Unit
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.quantityUnit || ''}
-                      onChange={(e) => setFormData({ ...formData, quantityUnit: e.target.value || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., hours, units"
-                    />
-                  </div>
-                </div>
-
-                {/* Date Range */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      End Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Monthly Breakdown Preview */}
-                {Object.keys(monthlyBreakdown).length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Monthly Breakdown Preview
-                    </label>
-                    <div className="bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto">
-                      <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-700 mb-2">
-                        <div>Month</div>
-                        <div>Amount</div>
-                        <div>Quantity</div>
-                        <div>Date</div>
-                      </div>
-                      {Object.entries(monthlyBreakdown).map(([month, data]) => (
-                        <div key={month} className="grid grid-cols-4 gap-4 text-sm text-gray-600 py-1 border-b border-gray-200">
-                          <div>{month}</div>
-                          <div>{formatCurrency(data.amount)}</div>
-                          <div>{data.quantity ? `${data.quantity} ${formData.quantityUnit || ''}` : '-'}</div>
-                          <div>{data.date}</div>
-                        </div>
-                      ))}
-                      <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-900 pt-2 border-t border-gray-300">
-                        <div>Total</div>
-                        <div>{formatCurrency(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0))}</div>
-                        <div>{formData.totalQuantity ? `${formData.totalQuantity} ${formData.quantityUnit || ''}` : '-'}</div>
-                        <div></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Additional Notes */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Notes
-                    </label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Additional notes..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Assumptions
-                    </label>
-                    <textarea
-                      value={formData.assumptions}
-                      onChange={(e) => setFormData({ ...formData, assumptions: e.target.value })}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Key assumptions..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Risks
-                    </label>
-                    <textarea
-                      value={formData.risks}
-                      onChange={(e) => setFormData({ ...formData, risks: e.target.value })}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Potential risks..."
-                    />
-                  </div>
-                </div>
-
-                {/* Validation Errors */}
-                {validationErrors.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                    <div className="flex">
-                      <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
-                      <div>
-                        <h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
-                        <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
-                          {validationErrors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Modal Actions */}
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateAllocation}
-                    disabled={creating || !selectedElementId}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {creating ? 'Creating...' : 'Create Allocation'}
-                  </button>
-                </div>
+        <Modal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          title="Create Element Allocation"
+        >
+          {/* Form */}
+          <div className="space-y-4">
+            {/* Basic Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Allocation Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Software Development - Level 1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Allocation Type *
+                </label>
+                <select
+                  value={formData.allocationType}
+                  onChange={(e) => setFormData({ ...formData, allocationType: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Linear">Linear</option>
+                  <option value="Front-Loaded">Front-Loaded</option>
+                  <option value="Back-Loaded">Back-Loaded</option>
+                  <option value="Custom">Custom</option>
+                </select>
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description *
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Describe the allocation..."
+              />
+            </div>
+
+            {/* Amount and Quantity */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Total Amount *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.totalAmount}
+                  onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Total Quantity
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.totalQuantity || ''}
+                  onChange={(e) => setFormData({ ...formData, totalQuantity: parseFloat(e.target.value) || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., 1000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Quantity Unit
+                </label>
+                <input
+                  type="text"
+                  value={formData.quantityUnit || ''}
+                  onChange={(e) => setFormData({ ...formData, quantityUnit: e.target.value || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., hours, units"
+                />
+              </div>
+            </div>
+
+            {/* Date Range */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Monthly Breakdown Preview */}
+            {Object.keys(monthlyBreakdown).length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Monthly Breakdown Preview
+                </label>
+                <div className="bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-700 mb-2">
+                    <div>Month</div>
+                    <div>Amount</div>
+                    <div>Quantity</div>
+                    <div>Date</div>
+                  </div>
+                  {Object.entries(monthlyBreakdown).map(([month, data]) => (
+                    <div key={month} className="grid grid-cols-4 gap-4 text-sm text-gray-600 py-1 border-b border-gray-200">
+                      <div>{month}</div>
+                      <div>{formatCurrency(data.amount)}</div>
+                      <div>{data.quantity ? `${data.quantity} ${formData.quantityUnit || ''}` : '-'}</div>
+                      <div>{data.date}</div>
+                    </div>
+                  ))}
+                  <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-900 pt-2 border-t border-gray-300">
+                    <div>Total</div>
+                    <div>{formatCurrency(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0))}</div>
+                    <div>{formData.totalQuantity ? `${formData.totalQuantity} ${formData.quantityUnit || ''}` : '-'}</div>
+                    <div></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Additional Notes */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Additional notes..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Assumptions
+                </label>
+                <textarea
+                  value={formData.assumptions}
+                  onChange={(e) => setFormData({ ...formData, assumptions: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Key assumptions..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Risks
+                </label>
+                <textarea
+                  value={formData.risks}
+                  onChange={(e) => setFormData({ ...formData, risks: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Potential risks..."
+                />
+              </div>
+            </div>
+
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
+                    <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+                      {validationErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                onClick={() => setShowCreateModal(false)}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateAllocation}
+                variant="primary"
+                size="sm"
+                disabled={creating || !selectedElementId}
+              >
+                {creating ? 'Creating...' : 'Create Allocation'}
+              </Button>
+            </div>
           </div>
-        </div>
+        </Modal>
+      )}
+
+      {/* Edit Allocation Modal */}
+      {showEditModal && editingAllocation && (
+                 <Modal
+           isOpen={showEditModal}
+           onClose={handleCancelEdit}
+           title="Edit Element Allocation"
+         >
+          {/* Form */}
+          <div className="space-y-4">
+            {/* Basic Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Allocation Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Software Development - Level 1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Allocation Type *
+                </label>
+                <select
+                  value={formData.allocationType}
+                  onChange={(e) => setFormData({ ...formData, allocationType: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Linear">Linear</option>
+                  <option value="Front-Loaded">Front-Loaded</option>
+                  <option value="Back-Loaded">Back-Loaded</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description *
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Describe the allocation..."
+              />
+            </div>
+
+            {/* Amount and Quantity */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Total Amount *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.totalAmount}
+                  onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Total Quantity
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.totalQuantity || ''}
+                  onChange={(e) => setFormData({ ...formData, totalQuantity: parseFloat(e.target.value) || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., 1000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Quantity Unit
+                </label>
+                <input
+                  type="text"
+                  value={formData.quantityUnit || ''}
+                  onChange={(e) => setFormData({ ...formData, quantityUnit: e.target.value || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., hours, units"
+                />
+              </div>
+            </div>
+
+            {/* Date Range */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Monthly Breakdown Preview */}
+            {Object.keys(monthlyBreakdown).length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Monthly Breakdown Preview
+                </label>
+                <div className="bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-700 mb-2">
+                    <div>Month</div>
+                    <div>Amount</div>
+                    <div>Quantity</div>
+                    <div>Date</div>
+                  </div>
+                  {Object.entries(monthlyBreakdown).map(([month, data]) => (
+                    <div key={month} className="grid grid-cols-4 gap-4 text-sm text-gray-600 py-1 border-b border-gray-200">
+                      <div>{month}</div>
+                      <div>{formatCurrency(data.amount)}</div>
+                      <div>{data.quantity ? `${data.quantity} ${formData.quantityUnit || ''}` : '-'}</div>
+                      <div>{data.date}</div>
+                    </div>
+                  ))}
+                  <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-900 pt-2 border-t border-gray-300">
+                    <div>Total</div>
+                    <div>{formatCurrency(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0))}</div>
+                    <div>{formData.totalQuantity ? `${formData.totalQuantity} ${formData.quantityUnit || ''}` : '-'}</div>
+                    <div></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Additional Notes */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Additional notes..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Assumptions
+                </label>
+                <textarea
+                  value={formData.assumptions}
+                  onChange={(e) => setFormData({ ...formData, assumptions: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Key assumptions..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Risks
+                </label>
+                <textarea
+                  value={formData.risks}
+                  onChange={(e) => setFormData({ ...formData, risks: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Potential risks..."
+                />
+              </div>
+            </div>
+
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
+                    <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+                      {validationErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                onClick={handleCancelEdit}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateAllocation}
+                variant="primary"
+                size="sm"
+                disabled={loading || !selectedElementId}
+              >
+                {loading ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deletingAllocation && (
+                 <Modal
+           isOpen={showDeleteModal}
+           onClose={handleCancelDelete}
+           title="Confirm Deletion"
+         >
+          <div className="text-center py-4">
+            <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-red-500" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900">
+              Are you sure you want to delete this allocation?
+            </h3>
+            <div className="mt-2 px-7 py-3">
+              <p className="text-sm text-gray-500">
+                This action cannot be undone. This will permanently delete the allocation.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                onClick={handleCancelDelete}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmDelete}
+                variant="danger"
+                size="sm"
+                disabled={loading}
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
