@@ -263,22 +263,22 @@
 
 ### Ledger Integration & Invoice Processing (Phase 3B - Week 6)
 - [ ] **BOE-079**: Enhance ledger integration
-  - [ ] Link ledger entries to BOE element allocations
-  - [ ] Implement invoice-to-allocation mapping
+  - [ ] Create ledger entries from BOE element allocations
+  - [ ] Implement baseline vs. planned amount tracking
   - [ ] Add quantity tracking in ledger entries
-  - [ ] Create allocation status updates
+  - [ ] Create ledger entry audit trail system
 
-- [ ] **BOE-080**: Create InvoiceAllocationSelector component
-  - [ ] Build invoice processing interface
-  - [ ] Add allocation selection dropdown
+- [ ] **BOE-080**: Create InvoiceLedgerMatcher component
+  - [ ] Build invoice-to-ledger-entry matching interface
+  - [ ] Add smart matching with allocation suggestions
   - [ ] Implement quantity mapping for hardware
   - [ ] Add contractor hours allocation
 
-- [ ] **BOE-081**: Implement re-forecasting tools
-  - [ ] Create allocation adjustment wizard
-  - [ ] Add drag-and-drop reallocation
-  - [ ] Implement allocation splitting/merging
-  - [ ] Add re-forecasting impact analysis
+- [ ] **BOE-081**: Implement ledger entry splitting and re-forecasting
+  - [ ] Create ledger entry splitting functionality
+  - [ ] Add re-forecasting wizard for planned amounts
+  - [ ] Implement baseline amount constraint warnings
+  - [ ] Add re-forecasting session tracking
 
 ### Management Reserve System (Phase 3C - Week 7)
 - [ ] **BOE-082**: Create ManagementReserveCalculator component

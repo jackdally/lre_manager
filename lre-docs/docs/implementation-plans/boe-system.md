@@ -150,10 +150,12 @@
 - **Quantity Tracking**: Support for both amount and quantity-based allocations
 
 #### Phase 3B: Ledger Integration & Invoice Processing (Week 6)
-- **Enhanced Invoice Processing**: Link invoices to specific BOE element allocations
-- **Allocation Selection Interface**: User-friendly invoice-to-allocation mapping
-- **Re-forecasting Tools**: Adjust allocations based on actual invoice timing
+- **Enhanced Invoice Processing**: Link invoices to specific ledger entries (created from allocations)
+- **Ledger Entry Splitting**: Split ledger entries when invoices don't match planned quantities
+- **Re-forecasting Tools**: Adjust planned amounts and dates based on actual invoice timing
 - **Flexible Quantity Mapping**: Support for hardware quantities and contractor hours
+- **Baseline vs. Planned Tracking**: Maintain baseline amounts from BOE while allowing planned amount adjustments
+- **Audit Trail System**: Track individual changes and re-forecasting sessions
 
 #### Phase 3C: Management Reserve & Reporting (Week 7)
 - **Management Reserve calculation engine**
