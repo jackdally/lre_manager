@@ -556,72 +556,48 @@
     - [ ] Version approval workflow integration
 
 ### BOE Comments System ✅ **COMPLETED**
-- [x] **BOE-091A**: Create BOEComments entity ✅ **COMPLETED**
-  - [x] Design database schema for multiple comments per version
-  - [x] Implement comment types (Review, Approval, Rejection, General, Revision, Clarification)
-  - [x] Add author tracking and role management
-  - [x] Create database migration
+- [x] **BOE-091**: Create BOE Comments System ✅ **COMPLETED**
+  - [x] **BOE-091A**: Create BOEComments entity ✅ **COMPLETED**
+    - [x] Design database schema for multiple comments per version
+    - [x] Implement comment types (Review, Approval, Rejection, General, Revision, Clarification)
+    - [x] Add author tracking and role management
+    - [x] Create database migration
 
-- [x] **BOE-091B**: Implement BOEComments service ✅ **COMPLETED**
-  - [x] Create CRUD operations for comments
-  - [x] Add comment statistics and reporting
-  - [x] Implement comment resolution workflow
-  - [x] Add bulk comment operations
+  - [x] **BOE-091B**: Implement BOEComments service ✅ **COMPLETED**
+    - [x] Create CRUD operations for comments
+    - [x] Add comment statistics and reporting
+    - [x] Implement comment resolution workflow
+    - [x] Add bulk comment operations
 
-- [x] **BOE-091C**: Create BOEComments API endpoints ✅ **COMPLETED**
-  - [x] GET /api/boe-versions/:versionId/comments - Get all comments for version
-  - [x] POST /api/boe-versions/:versionId/comments - Create new comment
-  - [x] PUT /api/boe-versions/:versionId/comments/:commentId - Update comment
-  - [x] DELETE /api/boe-versions/:versionId/comments/:commentId - Delete comment
-  - [x] GET /api/boe-versions/:versionId/comments/stats - Get comment statistics
-  - [x] POST /api/boe-versions/:versionId/comments/resolve - Resolve multiple comments
+  - [x] **BOE-091C**: Create BOEComments API endpoints ✅ **COMPLETED**
+    - [x] GET /api/boe-versions/:versionId/comments - Get all comments for version
+    - [x] POST /api/boe-versions/:versionId/comments - Create new comment
+    - [x] PUT /api/boe-versions/:versionId/comments/:commentId - Update comment
+    - [x] DELETE /api/boe-versions/:versionId/comments/:commentId - Delete comment
+    - [x] GET /api/boe-versions/:versionId/comments/stats - Get comment statistics
+    - [x] POST /api/boe-versions/:versionId/comments/resolve - Resolve multiple comments
 
-- [x] **BOE-091D**: Update frontend for multi-comment support ✅ **COMPLETED**
-  - [x] Update BOEHistory component to fetch and display all comments
-  - [x] Implement comment list display with author, role, type, and timestamp
-  - [x] Add new comment creation functionality
-  - [x] Update comment badges and counters in timeline
-  - [x] Remove single-comment logic and assumptions
+  - [x] **BOE-091D**: Update frontend for multi-comment support ✅ **COMPLETED**
+    - [x] Update BOEHistory component to fetch and display all comments
+    - [x] Implement comment list display with author, role, type, and timestamp
+    - [x] Add new comment creation functionality
+    - [x] Update comment badges and counters in timeline
+    - [x] Remove single-comment logic and assumptions
 
 ### Approval Workflow
-- [x] **BOE-091**: Create BOEApprovalWorkflow component ✅ **COMPLETED**
+- [x] **BOE-092**: Create BOEApprovalWorkflow component ✅ **COMPLETED**
   - [x] Implement approval status display
   - [x] Add approval action buttons
   - [x] Create approval history view
   - [x] Add approval comments and feedback
 
-### BOE-091A: Enhanced BOE UX - Status-First Design (NEW TASK)
-- [ ] **Phase 1: Create BOE Status Banner Component**
-  - [ ] Create `BOEStatusBanner` component with status display and visual indicators
-  - [ ] Add contextual action buttons (Submit for Approval, View Approval Status, etc.)
-  - [ ] Implement workflow progress bar showing approval stages
-  - [ ] Add responsive design for mobile compatibility
-
-- [ ] **Phase 2: Reorganize Tab Navigation**
-  - [ ] Simplify primary tabs to Overview, Details, Management Reserve only
-  - [ ] Remove Approval and History from main tab navigation
-  - [ ] Add secondary action area with Approval Status and History buttons/links
-  - [ ] Implement contextual actions based on BOE status
-
-- [ ] **Phase 3: Update Component Integration**
-  - [ ] Update `BOEApproval` component to work as modal or separate page
-  - [ ] Update `BOEHistory` component to work as modal or separate page
-  - [ ] Integrate status banner into `BOEPage` layout
-  - [ ] Update tab content rendering logic
-
-- [ ] **Phase 4: Enhanced UX Features**
-  - [ ] Add workflow progress visualization with clear stage indicators
-  - [ ] Implement contextual help and guidance based on BOE status
-  - [ ] Add status-based navigation suggestions
-  - [ ] Create smooth transitions between status changes
-
-- [ ] **BOE-092**: Implement approval system
+- [ ] **BOE-094**: Implement approval system
   - [ ] Create approval state management
   - [ ] Add approver assignment
   - [ ] Implement approval notifications
   - [ ] Add approval escalation rules
 
-- [ ] **BOE-093**: Implement pre-approval validation system
+- [ ] **BOE-095**: Implement pre-approval validation system
   - [ ] Create BOE validation service with comprehensive checks
   - [ ] Validate all BOE elements have allocations before approval
   - [ ] Validate all BOE elements have vendors assigned before approval
@@ -633,14 +609,40 @@
   - [ ] Create validation API endpoints for real-time status checking
   - [ ] Add validation to "Push to Ledger" workflow to prevent incomplete data
 
+### Enhanced BOE UX - Status-First Design
+- [ ] **BOE-093**: Enhanced BOE UX - Status-First Design
+  - [ ] **BOE-093A**: Create BOE Status Banner Component
+    - [ ] Create `BOEStatusBanner` component with status display and visual indicators
+    - [ ] Add contextual action buttons (Submit for Approval, View Approval Status, etc.)
+    - [ ] Implement workflow progress bar showing approval stages
+    - [ ] Add responsive design for mobile compatibility
+
+  - [ ] **BOE-093B**: Reorganize Tab Navigation
+    - [ ] Simplify primary tabs to Overview, Details, Management Reserve only
+    - [ ] Remove Approval and History from main tab navigation
+    - [ ] Add secondary action area with Approval Status and History buttons/links
+    - [ ] Implement contextual actions based on BOE status
+
+  - [ ] **BOE-093C**: Update Component Integration
+    - [ ] Update `BOEApproval` component to work as modal or separate page
+    - [ ] Update `BOEHistory` component to work as modal or separate page
+    - [ ] Integrate status banner into `BOEPage` layout
+    - [ ] Update tab content rendering logic
+
+  - [ ] **BOE-093D**: Enhanced UX Features
+    - [ ] Add workflow progress visualization with clear stage indicators
+    - [ ] Implement contextual help and guidance based on BOE status
+    - [ ] Add status-based navigation suggestions
+    - [ ] Create smooth transitions between status changes
+
 ### Analysis & Reporting
-- [ ] **BOE-094**: Create BOE comparison tools
+- [ ] **BOE-096**: Create BOE comparison tools
   - [ ] Implement BOE vs actuals comparison
   - [ ] Add variance analysis
   - [ ] Create trend analysis
   - [ ] Add forecasting capabilities
 
-- [ ] **BOE-095**: Add export capabilities
+- [ ] **BOE-097**: Add export capabilities
   - [ ] Implement PDF export
   - [ ] Add Excel export with formatting
   - [ ] Create CSV export for data analysis
@@ -649,33 +651,33 @@
 ## Phase 4: Integration & Testing (Week 8-9)
 
 ### System Integration
-- [ ] **BOE-096**: Integrate with ledger system
+- [ ] **BOE-098**: Integrate with ledger system
   - [ ] Connect BOE to ledger entries
   - [ ] Implement actuals comparison
   - [ ] Add variance reporting
   - [ ] Create data synchronization
 
-- [ ] **BOE-097**: Integrate with program management
+- [ ] **BOE-099**: Integrate with program management
   - [ ] Connect BOE to program lifecycle
   - [ ] Add program status updates
   - [ ] Implement program-level reporting
   - [ ] Create program dashboard integration
 
 ### Performance & Optimization
-- [ ] **BOE-098**: Implement performance optimizations
+- [ ] **BOE-100**: Implement performance optimizations
   - [ ] Add virtual scrolling for large BOEs
   - [ ] Implement calculation caching
   - [ ] Optimize database queries
   - [ ] Add lazy loading for components
 
-- [ ] **BOE-099**: Add error handling
+- [ ] **BOE-101**: Add error handling
   - [ ] Implement comprehensive error boundaries
   - [ ] Add retry mechanisms
   - [ ] Create user-friendly error messages
   - [ ] Add error reporting and logging
 
 ### Code Structure Cleanup & Refactoring
-- [ ] **BOE-100**: Frontend Component Refactoring
+- [ ] **BOE-102**: Frontend Component Refactoring
   - [ ] Break down large BOE components into smaller, focused components
   - [ ] Extract reusable hooks from BOE-specific logic
   - [ ] Refactor BOE store to separate concerns (state, actions, selectors)
@@ -684,7 +686,7 @@
   - [ ] Extract utility functions from components to dedicated utils
   - [ ] Standardize component naming conventions and file structure
 
-- [ ] **BOE-101**: Backend Service Layer Cleanup
+- [ ] **BOE-103**: Backend Service Layer Cleanup
   - [ ] Refactor large BOE service methods into smaller, focused functions
   - [ ] Extract business logic from controllers to dedicated service methods
   - [ ] Consolidate duplicate validation logic across BOE endpoints
@@ -693,7 +695,7 @@
   - [ ] Standardize API response formats and error messages
   - [ ] Add comprehensive input validation and sanitization
 
-- [ ] **BOE-102**: API Route Organization
+- [ ] **BOE-104**: API Route Organization
   - [ ] Reorganize BOE routes by functionality (CRUD, calculations, approvals)
   - [ ] Implement consistent route naming conventions
   - [ ] Add proper route-level middleware for authentication and validation
@@ -701,7 +703,7 @@
   - [ ] Add comprehensive route documentation and examples
   - [ ] Implement proper HTTP status codes and error responses
 
-- [ ] **BOE-103**: State Management Optimization
+- [ ] **BOE-105**: State Management Optimization
   - [ ] Refactor BOE store to use proper Zustand patterns
   - [ ] Separate concerns between different BOE features (elements, allocations, MR)
   - [ ] Implement proper state persistence and hydration
@@ -709,7 +711,7 @@
   - [ ] Optimize state updates to prevent unnecessary re-renders
   - [ ] Add state debugging and development tools
 
-- [ ] **BOE-104**: Utility and Helper Function Cleanup
+- [ ] **BOE-106**: Utility and Helper Function Cleanup
   - [ ] Consolidate duplicate utility functions across BOE components
   - [ ] Create dedicated utility modules for BOE-specific calculations
   - [ ] Extract date/time handling utilities to shared modules
@@ -717,7 +719,7 @@
   - [ ] Add comprehensive unit tests for all utility functions
   - [ ] Remove unused utility functions and dead code
 
-- [ ] **BOE-105**: Database Query Optimization
+- [ ] **BOE-107**: Database Query Optimization
   - [ ] Optimize complex BOE queries with proper indexing
   - [ ] Implement query result caching for frequently accessed data
   - [ ] Add database query logging and performance monitoring
@@ -725,7 +727,7 @@
   - [ ] Implement proper database transaction handling
   - [ ] Add database connection pooling and optimization
 
-- [ ] **BOE-106**: TypeScript and Type Safety Improvements
+- [ ] **BOE-108**: TypeScript and Type Safety Improvements
   - [ ] Add comprehensive TypeScript interfaces for all BOE data structures
   - [ ] Implement strict type checking for BOE-related code
   - [ ] Add runtime type validation for API responses
@@ -733,7 +735,7 @@
   - [ ] Remove any types and replace with proper interfaces
   - [ ] Add TypeScript documentation and examples
 
-- [ ] **BOE-107**: Testing Infrastructure Cleanup
+- [ ] **BOE-109**: Testing Infrastructure Cleanup
   - [ ] Organize test files to match source code structure
   - [ ] Implement consistent testing patterns across BOE components
   - [ ] Add comprehensive test utilities and mocks
@@ -741,7 +743,7 @@
   - [ ] Add integration test setup for BOE workflows
   - [ ] Implement proper test data management and cleanup
 
-- [ ] **BOE-108**: Documentation and Code Comments
+- [ ] **BOE-110**: Documentation and Code Comments
   - [ ] Add comprehensive JSDoc comments to all BOE functions
   - [ ] Document complex business logic and algorithms
   - [ ] Add inline comments for non-obvious code sections
@@ -749,7 +751,7 @@
   - [ ] Document API contracts and data flow
   - [ ] Add troubleshooting guides for common issues
 
-- [ ] **BOE-109**: Performance Monitoring and Metrics
+- [ ] **BOE-111**: Performance Monitoring and Metrics
   - [ ] Add performance monitoring for BOE page load times
   - [ ] Implement memory usage tracking for large BOE operations
   - [ ] Add database query performance metrics
@@ -757,7 +759,7 @@
   - [ ] Add user interaction performance tracking
   - [ ] Implement performance regression testing
 
-- [ ] **BOE-110**: Security and Validation Improvements
+- [ ] **BOE-112**: Security and Validation Improvements
   - [ ] Add comprehensive input validation for all BOE forms
   - [ ] Implement proper CSRF protection for BOE endpoints
   - [ ] Add rate limiting for BOE API calls
@@ -766,43 +768,43 @@
   - [ ] Validate data integrity across BOE-related operations
 
 ### Testing & Quality Assurance
-- [ ] **BOE-111**: Create unit tests
+- [ ] **BOE-113**: Create unit tests
   - [ ] Test BOE calculation engine
   - [ ] Test API endpoints
   - [ ] Test UI components
   - [ ] Test state management
 
-- [ ] **BOE-112**: Create integration tests
+- [ ] **BOE-114**: Create integration tests
   - [ ] Test BOE workflow integration
   - [ ] Test ledger system integration
   - [ ] Test approval workflow
   - [ ] Test data consistency
 
-- [ ] **BOE-113**: Perform user acceptance testing
+- [ ] **BOE-115**: Perform user acceptance testing
   - [ ] Test BOE creation workflow
   - [ ] Test approval process
   - [ ] Test export functionality
   - [ ] Test performance with large datasets
 
 ## Testing Tasks
-- [ ] **BOE-114**: Write unit tests for BOE entities
-- [ ] **BOE-115**: Test BOE calculation algorithms
-- [ ] **BOE-116**: Test API endpoints with various scenarios
-- [ ] **BOE-117**: Test frontend components and interactions
-- [ ] **BOE-118**: Test approval workflow end-to-end
-- [ ] **BOE-119**: Test integration with existing systems
-- [ ] **BOE-120**: Performance testing with large BOEs
-- [ ] **BOE-121**: Security testing for approval workflows
+- [ ] **BOE-116**: Write unit tests for BOE entities
+- [ ] **BOE-117**: Test BOE calculation algorithms
+- [ ] **BOE-118**: Test API endpoints with various scenarios
+- [ ] **BOE-119**: Test frontend components and interactions
+- [ ] **BOE-120**: Test approval workflow end-to-end
+- [ ] **BOE-121**: Test integration with existing systems
+- [ ] **BOE-122**: Performance testing with large BOEs
+- [ ] **BOE-123**: Security testing for approval workflows
 
 ## Documentation Tasks
-- [ ] **BOE-122**: Create user documentation
-- [ ] **BOE-123**: Create API documentation
-- [ ] **BOE-124**: Create technical documentation
-- [ ] **BOE-125**: Create training materials
-- [ ] **BOE-126**: Update feature roadmap
+- [ ] **BOE-124**: Create user documentation
+- [ ] **BOE-125**: Create API documentation
+- [ ] **BOE-126**: Create technical documentation
+- [ ] **BOE-127**: Create training materials
+- [ ] **BOE-128**: Update feature roadmap
 
 ## Phase 1, 2, & 3A Progress Summary ✅
-**Last Updated**: January 27, 2025
+**Last Updated**: July 23, 2025
 **Key Achievements**:
 - ✅ All database entities created and tested
 - ✅ Complete API backend implemented
@@ -920,4 +922,5 @@
 ---
 *Created: [Current Date]*  
 *Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Complete - Phase 3B Started (BOE-079 Complete)*  
-*Next Step: Phase 3B - Ledger Integration & Invoice Processing (BOE-080 Next)* 
+*Next Step: Phase 3B - Ledger Integration & Invoice Processing (BOE-081A Next)*  
+*Last Updated: July 23, 2025* 
