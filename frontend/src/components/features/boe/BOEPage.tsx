@@ -6,11 +6,13 @@ import BOEOverview from './BOEOverview';
 import BOEDetails from './BOEDetails';
 import BOEApproval from './BOEApproval';
 import BOEHistory from './BOEHistory';
+import ManagementReserveTab from './ManagementReserveTab';
 import BOETemplateSelector from './BOETemplateSelector';
-import BOEWizard from './BOEWizard';
+import BOEWizardModal from './BOEWizardModal';
 import { BOETemplate } from '../../../store/boeStore';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
+import { boeApiService } from '../../../services/boeApi';
 
 
 interface BOEPageProps {
@@ -21,6 +23,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   const { id: urlProgramId } = useParams<{ id: string }>();
   const programId = propProgramId || urlProgramId;
   
+
+  
   const {
     currentBOE,
     boeLoading,
@@ -30,13 +34,18 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     setCurrentBOE,
     setBOELoading,
     setBOEError,
+    openWizard,
   } = useBOEStore();
+  
+
 
   const [isInitialized, setIsInitialized] = useState(false);
   const [showTemplateManagement, setShowTemplateManagement] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<BOETemplate | null>(null);
-  const [showWizard, setShowWizard] = useState(false);
   const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
+  const [localCurrentBOE, setLocalCurrentBOE] = useState<any>(null);
+
+
 
   useEffect(() => {
     if (!programId) {
@@ -49,15 +58,16 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         setBOELoading(true);
         setBOEError(null);
         
-        // TODO: Replace with actual API call
-        // const boeData = await boeApiService.versions.getCurrentBOE(programId);
-        // setCurrentBOE(boeData.currentBOE || null);
+        // Load current BOE from API
+        const boeData = await boeApiService.versions.getCurrentBOE(programId);
+        // The API returns { program, currentBOE, hasBOE, lastBOEUpdate }
+        // not the BOESummary structure we expected
+        setCurrentBOE(boeData.currentBOE || null);
+        setLocalCurrentBOE(boeData.currentBOE || null);
+
         
-        // For now, simulate loading
-        setTimeout(() => {
-          setBOELoading(false);
-          setIsInitialized(true);
-        }, 1000);
+        setBOELoading(false);
+        setIsInitialized(true);
       } catch (error) {
         console.error('Error loading BOE:', error);
         setBOEError(error instanceof Error ? error.message : 'Failed to load BOE');
@@ -73,7 +83,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     if (currentBOE && currentBOE.status === 'Draft') {
       setShowDraftOverwriteModal(true);
     } else {
-      setShowWizard(true);
+      openWizard(programId!);
       setShowTemplateManagement(false);
     }
   };
@@ -104,7 +114,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
       }
     }
     
-    setShowWizard(true);
+    openWizard(programId!);
     setShowTemplateManagement(false);
   };
 
@@ -241,33 +251,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
           </div>
         )}
 
-        {/* BOE Wizard Modal */}
-        {showWizard && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Create New BOE</h2>
-                <p className="text-gray-600 mt-1">Follow the steps below to create a new Basis of Estimate</p>
-              </div>
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                <BOEWizard
-                  programId={programId!}
-                  onComplete={(boeData) => {
-                    console.log('BOE created:', boeData);
-                    setShowWizard(false);
-                    setSelectedTemplate(null);
-                    // Refresh the page to show the new BOE
-                    window.location.reload();
-                  }}
-                  onCancel={() => {
-                    setShowWizard(false);
-                    setSelectedTemplate(null);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Centralized BOE Wizard Modal */}
+        <BOEWizardModal />
 
         {/* Draft Overwrite Confirmation Modal */}
         <Modal
@@ -348,6 +333,19 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
               Approval
             </button>
             <button
+              onClick={() => setActiveTab('management-reserve')}
+              className={`
+                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                ${activeTab === 'management-reserve'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>💰</span>
+              Management Reserve
+            </button>
+            <button
               onClick={() => setActiveTab('history')}
               className={`
                 py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
@@ -367,9 +365,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         <div className="bg-white rounded-lg shadow">
           {activeTab === 'overview' && <BOEOverview programId={programId} />}
           {activeTab === 'details' && <BOEDetails programId={programId} />}
-
-
           {activeTab === 'approval' && <BOEApproval programId={programId} />}
+          {activeTab === 'management-reserve' && <ManagementReserveTab programId={programId} />}
           {activeTab === 'history' && <BOEHistory programId={programId} />}
         </div>
       </div>

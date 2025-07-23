@@ -233,6 +233,9 @@ interface BOEState {
   managementReserve: ManagementReserve | null;
   mrLoading: boolean;
   mrError: string | null;
+  mrUtilizationHistory: any[];
+  mrUtilizationLoading: boolean;
+  mrUtilizationError: string | null;
 
 
 
@@ -246,9 +249,13 @@ interface BOEState {
   isCreatingBOE: boolean;
   isUpdatingBOE: boolean;
   isDeletingBOE: boolean;
-  activeTab: 'overview' | 'details' | 'approval' | 'history';
+  activeTab: 'overview' | 'details' | 'approval' | 'management-reserve' | 'history';
   wizardStep: number;
   wizardData: any;
+  
+  // Global Wizard State
+  showWizard: boolean;
+  wizardProgramId: string | null;
 
   // Actions
   setTemplates: (templates: BOETemplate[]) => void;
@@ -269,6 +276,9 @@ interface BOEState {
   setManagementReserve: (mr: ManagementReserve | null) => void;
   setMRLoading: (loading: boolean) => void;
   setMRError: (error: string | null) => void;
+  setMRUtilizationHistory: (history: any[]) => void;
+  setMRUtilizationLoading: (loading: boolean) => void;
+  setMRUtilizationError: (error: string | null) => void;
 
 
 
@@ -280,9 +290,13 @@ interface BOEState {
   setCreatingBOE: (creating: boolean) => void;
   setUpdatingBOE: (updating: boolean) => void;
   setDeletingBOE: (deleting: boolean) => void;
-  setActiveTab: (tab: 'overview' | 'details' | 'approval' | 'history') => void;
+  setActiveTab: (tab: 'overview' | 'details' | 'approval' | 'management-reserve' | 'history') => void;
   setWizardStep: (step: number) => void;
   setWizardData: (data: any) => void;
+  
+  // Global Wizard Actions
+  openWizard: (programId: string) => void;
+  closeWizard: () => void;
 
   // Computed values
   getTotalEstimatedCost: () => number;
@@ -321,6 +335,9 @@ const initialState = {
   managementReserve: null,
   mrLoading: false,
   mrError: null,
+  mrUtilizationHistory: [],
+  mrUtilizationLoading: false,
+  mrUtilizationError: null,
 
 
 
@@ -337,6 +354,10 @@ const initialState = {
   activeTab: 'overview' as const,
   wizardStep: 0,
   wizardData: {},
+  
+  // Global Wizard State
+  showWizard: false,
+  wizardProgramId: null,
 };
 
 // Store
@@ -367,6 +388,9 @@ export const useBOEStore = create<BOEState>()(
       setManagementReserve: (mr) => set({ managementReserve: mr }),
       setMRLoading: (loading) => set({ mrLoading: loading }),
       setMRError: (error) => set({ mrError: error }),
+      setMRUtilizationHistory: (history) => set({ mrUtilizationHistory: history }),
+      setMRUtilizationLoading: (loading) => set({ mrUtilizationLoading: loading }),
+      setMRUtilizationError: (error) => set({ mrUtilizationError: error }),
 
 
 
@@ -383,6 +407,10 @@ export const useBOEStore = create<BOEState>()(
       setActiveTab: (tab) => set({ activeTab: tab }),
       setWizardStep: (step) => set({ wizardStep: step }),
       setWizardData: (data) => set({ wizardData: data }),
+      
+      // Global Wizard Actions
+      openWizard: (programId) => set({ showWizard: true, wizardProgramId: programId }),
+      closeWizard: () => set({ showWizard: false, wizardProgramId: null }),
 
       // Computed values
       getTotalEstimatedCost: () => {

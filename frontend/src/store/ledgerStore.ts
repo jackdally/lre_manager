@@ -305,16 +305,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
             if (response.data) {
               const { entries: newEntries, total: newTotal } = response.data as { entries: LedgerEntry[]; total: number };
               
-              // Debug: Log the first entry to see if relationships are loaded
-              if (newEntries.length > 0) {
-                console.log('Entries refreshed:', {
-                  id: newEntries[0].id,
-                  costCategoryId: newEntries[0].costCategoryId,
-                  costCategory: newEntries[0].costCategory,
-                  wbsElementId: newEntries[0].wbsElementId,
-                  wbsElement: newEntries[0].wbsElement
-                });
-              }
+
               
               // Don't update dropdown options from filtered results
               set({

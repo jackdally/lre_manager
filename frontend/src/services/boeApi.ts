@@ -77,9 +77,9 @@ export const boeTemplatesApi = {
 // BOE Versions API
 export const boeVersionsApi = {
   // Get current BOE for program
-  getCurrentBOE: async (programId: string): Promise<BOESummary> => {
+  getCurrentBOE: async (programId: string): Promise<any> => {
     const response = await boeApi.get(`/programs/${programId}/boe`);
-    return response.data as BOESummary;
+    return response.data;
   },
 
   // Create new BOE version
@@ -171,6 +171,70 @@ export const managementReserveApi = {
       method,
       customPercentage,
     });
+    return response.data as ManagementReserve;
+  },
+
+  // Utilize management reserve
+  utilizeManagementReserve: async (boeVersionId: string, amount: number, reason: string, description?: string): Promise<ManagementReserve> => {
+    const response = await boeApi.post(`/boe-versions/${boeVersionId}/management-reserve/utilize`, {
+      amount,
+      reason,
+      description,
+    });
+    return response.data as ManagementReserve;
+  },
+
+  // Get management reserve history
+  getManagementReserveHistory: async (boeVersionId: string): Promise<any[]> => {
+    const response = await boeApi.get(`/boe-versions/${boeVersionId}/management-reserve/history`);
+    return response.data as any[];
+  },
+
+  // Get management reserve utilization
+  getManagementReserveUtilization: async (boeVersionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${boeVersionId}/management-reserve/utilization`);
+    return response.data as any;
+  },
+
+  // Calculate MR with breakdown information
+  calculateMRWithBreakdown: async (boeVersionId: string, calculationData: {
+    method: string;
+    customPercentage?: number;
+    projectComplexity?: string;
+    riskFactors?: string[];
+  }): Promise<{
+    amount: number;
+    percentage: number;
+    breakdown: {
+      basePercentage: number;
+      complexityAdjustment: number;
+      riskAdjustment: number;
+      finalPercentage: number;
+      roAdjustment?: number;
+    };
+  }> => {
+    const response = await boeApi.post(`/boe-versions/${boeVersionId}/management-reserve/calculate-breakdown`, calculationData);
+    return response.data as {
+      amount: number;
+      percentage: number;
+      breakdown: {
+        basePercentage: number;
+        complexityAdjustment: number;
+        riskAdjustment: number;
+        finalPercentage: number;
+        roAdjustment?: number;
+      };
+    };
+  },
+
+  // R&O Integration placeholder endpoints (for future use)
+  getRiskMatrix: async (boeVersionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${boeVersionId}/management-reserve/risk-matrix`);
+    return response.data;
+  },
+
+  calculateRODrivenMR: async (boeVersionId: string, riskMatrixData: any): Promise<ManagementReserve> => {
+    const response = await boeApi.post(`/boe-versions/${boeVersionId}/management-reserve/calculate-ro-driven`, riskMatrixData);
     return response.data as ManagementReserve;
   },
 };

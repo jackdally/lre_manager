@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
 import BOETemplateSelector from './BOETemplateSelector';
 import { BOETemplate, BOEElementAllocation } from '../../../store/boeStore';
@@ -15,6 +15,8 @@ interface BOEWizardProps {
   programId: string;
   onComplete: (boeData: any) => void;
   onCancel: () => void;
+  sourceBOE?: any; // BOE to copy from
+  currentBOE?: any; // Current BOE for copy option
 }
 
 interface WizardData {
@@ -41,30 +43,54 @@ interface AllocationSetupData {
   notes: string;
 }
 
-const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel }) => {
+const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, sourceBOE, currentBOE }) => {
   const { wizardStep, wizardData, setWizardStep, setWizardData } = useBOEStore();
   
-  const [currentData, setCurrentData] = useState<WizardData>({
-    basicInfo: {
-      name: '',
-      description: '',
-      versionNumber: '1.0',
-    },
-    wbsStructure: [],
-    costEstimates: [],
-    allocations: [],
-    review: false,
+
+  
+
+  
+  const [currentData, setCurrentData] = useState<WizardData>(() => {
+    if (sourceBOE) {
+      // Pre-populate with source BOE data
+      return {
+        template: sourceBOE.template,
+        basicInfo: {
+          name: `${sourceBOE.name} (Copy)`,
+          description: `${sourceBOE.description} - Copy`,
+          versionNumber: `${parseFloat(sourceBOE.versionNumber) + 0.1}`.replace(/\.0$/, ''),
+        },
+        wbsStructure: sourceBOE.elements || [],
+        costEstimates: sourceBOE.elements || [],
+        allocations: sourceBOE.elementAllocations || [],
+        review: false,
+      };
+    }
+    
+    return {
+      basicInfo: {
+        name: '',
+        description: '',
+        versionNumber: '1.0',
+      },
+      wbsStructure: [],
+      costEstimates: [],
+      allocations: [],
+      review: false,
+    };
   });
 
   const [allocationSetup, setAllocationSetup] = useState<AllocationSetupData[]>([]);
+  const [creationMethod, setCreationMethod] = useState<'template' | 'copy' | 'manual' | null>(null);
 
   const steps = [
-    { id: 0, title: 'Template Selection', description: 'Choose a BOE template' },
-    { id: 1, title: 'Basic Information', description: 'Enter BOE details' },
-    { id: 2, title: 'WBS Structure', description: 'Define work breakdown structure' },
-    { id: 3, title: 'Cost Estimation', description: 'Enter cost estimates' },
-    { id: 4, title: 'Allocation Planning', description: 'Plan monthly allocations' },
-    { id: 5, title: 'Review & Create', description: 'Review and create BOE' },
+    { id: 0, title: 'Creation Method', description: 'Choose how to create your BOE' },
+    { id: 1, title: 'Template Selection', description: 'Choose a BOE template' },
+    { id: 2, title: 'Basic Information', description: 'Enter BOE details' },
+    { id: 3, title: 'WBS Structure', description: 'Define work breakdown structure' },
+    { id: 4, title: 'Cost Estimation', description: 'Enter cost estimates' },
+    { id: 5, title: 'Allocation Planning', description: 'Plan monthly allocations' },
+    { id: 6, title: 'Review & Create', description: 'Review and create BOE' },
   ];
 
   const handleTemplateSelect = (template: BOETemplate) => {
@@ -90,10 +116,17 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel }
 
   const handleNext = () => {
     if (wizardStep < steps.length - 1) {
-      setWizardStep(wizardStep + 1);
+      let nextStep = wizardStep + 1;
+      
+      // Skip template step if copying from existing BOE or creating manually
+      if (wizardStep === 0 && (creationMethod === 'copy' || creationMethod === 'manual')) {
+        nextStep = 2; // Skip to basic info step
+      }
+      
+      setWizardStep(nextStep);
       
       // Initialize allocation setup when moving to allocation step
-      if (wizardStep === 3 && currentData.wbsStructure.length > 0) {
+      if ((wizardStep === 4 || (wizardStep === 0 && (creationMethod === 'copy' || creationMethod === 'manual'))) && currentData.wbsStructure.length > 0) {
         const initialAllocations = currentData.wbsStructure.map(element => ({
           elementId: element.id,
           elementName: element.name,
@@ -130,17 +163,19 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel }
   const isStepValid = (step: number): boolean => {
     switch (step) {
       case 0:
-        return !!currentData.template;
+        return creationMethod !== null;
       case 1:
-        return !!(currentData.basicInfo.name && currentData.basicInfo.description);
+        return creationMethod === 'copy' || creationMethod === 'manual' || !!currentData.template;
       case 2:
-        return currentData.wbsStructure.length > 0;
+        return !!(currentData.basicInfo.name && currentData.basicInfo.description);
       case 3:
-        return currentData.costEstimates.length > 0;
+        return currentData.wbsStructure.length > 0;
       case 4:
+        return currentData.costEstimates.length > 0;
+      case 5:
         // At least one allocation must be configured
         return allocationSetup.some(a => a.startDate && a.endDate && a.totalAmount > 0);
-      case 5:
+      case 6:
         return true;
       default:
         return false;
@@ -177,9 +212,133 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel }
       case 0:
         return (
           <div className="wizard-step">
-            <h5>Select a BOE Template</h5>
+            <h5>Choose Creation Method</h5>
             <p className="text-muted mb-4">
-              Choose a template that best matches your project type. Templates provide a starting structure for your BOE.
+              Select how you'd like to create your new BOE.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Template Option */}
+              <div 
+                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
+                  creationMethod === 'template' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setCreationMethod('template')}
+              >
+                <div className="flex items-center mb-4">
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${
+                    creationMethod === 'template' 
+                      ? 'border-blue-500 bg-blue-500' 
+                      : 'border-gray-300'
+                  }`}>
+                    {creationMethod === 'template' && (
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <h6 className="text-lg font-medium text-gray-900">Start from Template</h6>
+                </div>
+                <p className="text-gray-600 mb-4">
+                  Create a new BOE using a predefined template with standard work breakdown structures and cost categories.
+                </p>
+                <div className="flex items-center text-sm text-gray-500">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  Best for new projects
+                </div>
+              </div>
+
+              {/* Copy Option */}
+              <div 
+                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
+                  creationMethod === 'copy' 
+                    ? 'border-green-500 bg-green-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                } ${!currentBOE ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => currentBOE && setCreationMethod('copy')}
+              >
+                <div className="flex items-center mb-4">
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${
+                    creationMethod === 'copy' 
+                      ? 'border-green-500 bg-green-500' 
+                      : 'border-gray-300'
+                  }`}>
+                    {creationMethod === 'copy' && (
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <h6 className="text-lg font-medium text-gray-900">Copy from Current BOE</h6>
+                </div>
+                <p className="text-gray-600 mb-4">
+                  Create a new version based on your existing BOE. All elements, costs, and allocations will be copied.
+                </p>
+                <div className="flex items-center text-sm text-gray-500">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Best for updates and revisions
+                </div>
+                {currentBOE ? (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-sm font-medium text-gray-900">Current BOE: {currentBOE.name}</div>
+                    <div className="text-sm text-gray-600">Version {currentBOE.versionNumber}</div>
+                  </div>
+                ) : (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-sm text-gray-500">No existing BOE to copy from</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Manual Option */}
+              <div 
+                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
+                  creationMethod === 'manual' 
+                    ? 'border-purple-500 bg-purple-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setCreationMethod('manual')}
+              >
+                <div className="flex items-center mb-4">
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${
+                    creationMethod === 'manual' 
+                      ? 'border-purple-500 bg-purple-500' 
+                      : 'border-gray-300'
+                  }`}>
+                    {creationMethod === 'manual' && (
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <h6 className="text-lg font-medium text-gray-900">Create Manually</h6>
+                </div>
+                <p className="text-gray-600 mb-4">
+                  Start with a blank BOE and build your work breakdown structure from scratch. Complete freedom to customize.
+                </p>
+                <div className="flex items-center text-sm text-gray-500">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Best for custom projects
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 1:
+        return (
+          <div className="wizard-step">
+            <h5>Template Selection</h5>
+            <p className="text-muted mb-4">
+              Choose a BOE template to start with. Templates provide predefined work breakdown structures and cost categories.
             </p>
             <BOETemplateSelector
               onTemplateSelect={handleTemplateSelect}
@@ -446,6 +605,8 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel }
 
   return (
     <div className="boe-wizard">
+
+
       {/* Progress Bar */}
       <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
         <div
@@ -455,7 +616,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel }
       </div>
 
       {/* Step Indicators */}
-      <div className="grid grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-7 gap-4 mb-8">
         {steps.map((step, index) => (
           <div key={step.id} className="text-center">
             <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full mb-2 ${

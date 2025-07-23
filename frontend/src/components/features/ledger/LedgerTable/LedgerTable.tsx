@@ -120,18 +120,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const storeProgramId = useLedgerProgramId();
   const storeShowAll = useLedgerShowAll();
 
-  // Debug: Log when entries change
-  useEffect(() => {
-    if (entries.length > 0) {
-      console.log('LedgerTable received updated entries:', {
-        id: entries[0].id,
-        costCategoryId: entries[0].costCategoryId,
-        costCategory: entries[0].costCategory,
-        wbsElementId: entries[0].wbsElementId,
-        wbsElement: entries[0].wbsElement
-      });
-    }
-  }, [entries]);
+
 
   // Zustand store actions - use individual hooks to avoid stale closures
   const initialize = useLedgerInitialize();

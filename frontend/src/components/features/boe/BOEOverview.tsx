@@ -3,7 +3,7 @@ import { useBOEStore } from '../../../store/boeStore';
 import { boeVersionsApi } from '../../../services/boeApi';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
-import BOEWizard from './BOEWizard';
+import BOEWizardModal from './BOEWizardModal';
 import { formatCurrency, safeNumber } from '../../../utils/currencyUtils';
 import { 
   CurrencyDollarIcon, 
@@ -22,14 +22,16 @@ interface BOEOverviewProps {
 }
 
 const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
-  const { currentBOE, boeLoading, boeError, setCurrentBOE, setBOELoading, setBOEError } = useBOEStore();
+  const { currentBOE, boeLoading, boeError, setCurrentBOE, setBOELoading, setBOEError, openWizard } = useBOEStore();
+  
+
   
   const [pushToLedgerModalOpen, setPushToLedgerModalOpen] = useState(false);
   const [pushingToLedger, setPushingToLedger] = useState(false);
   const [ledgerPushResult, setLedgerPushResult] = useState<any>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingBOE, setDeletingBOE] = useState(false);
-  const [showWizard, setShowWizard] = useState(false);
+
   const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
 
   // Load BOE data
@@ -59,7 +61,7 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
     if (currentBOE && currentBOE.status === 'Draft') {
       setShowDraftOverwriteModal(true);
     } else {
-      setShowWizard(true);
+      openWizard(programId);
     }
   };
 
@@ -71,7 +73,7 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
       await handleDeleteExistingDraft();
     }
     
-    setShowWizard(true);
+    openWizard(programId);
   };
 
   const handleDeleteExistingDraft = async () => {
@@ -248,31 +250,8 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
           </Button>
         </div>
 
-        {/* BOE Wizard Modal */}
-        {showWizard && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Create New BOE</h2>
-                <p className="text-gray-600 mt-1">Follow the steps below to create a new Basis of Estimate</p>
-              </div>
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                <BOEWizard
-                  programId={programId}
-                                  onComplete={async (boeData) => {
-                  console.log('BOE created:', boeData);
-                  setShowWizard(false);
-                  // Refresh the page to show the new BOE
-                  window.location.reload();
-                }}
-                  onCancel={() => {
-                    setShowWizard(false);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Centralized BOE Wizard Modal */}
+        <BOEWizardModal />
       </div>
     );
   }
@@ -610,31 +589,7 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
         </div>
       </Modal>
 
-      {/* BOE Wizard Modal */}
-      {showWizard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">Create New BOE</h2>
-              <p className="text-gray-600 mt-1">Follow the steps below to create a new Basis of Estimate</p>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <BOEWizard
-                programId={programId}
-                onComplete={async (boeData) => {
-                  console.log('BOE created:', boeData);
-                  setShowWizard(false);
-                  // Refresh the page to show the new BOE
-                  window.location.reload();
-                }}
-                onCancel={() => {
-                  setShowWizard(false);
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };
