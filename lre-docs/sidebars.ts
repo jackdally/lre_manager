@@ -43,7 +43,7 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // Features sidebar
+  // Consolidated Features & Implementation sidebar
   features: [
     {
       type: 'doc',
@@ -52,14 +52,49 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'In Progress',
+      label: 'Cross-Cutting',
       items: [
-        'implementation-plans/user-preferences',
-        'implementation-plans/boe-system',
-        'implementation-plans/risk-opportunity-system',
+        'tasks/active/bugs',
+        'tasks/active/general',
       ],
     },
-    // Planned Features category removed - will be added when features are ready
+    {
+      type: 'category',
+      label: 'Active Features',
+      items: [
+        {
+          type: 'category',
+          label: 'BOE System',
+          items: [
+            'implementation-plans/boe-system',
+            'tasks/active/boe-system',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Risk & Opportunity System',
+          items: [
+            'implementation-plans/risk-opportunity-system',
+            'tasks/active/risk-opportunity-system',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'User Preferences',
+          items: [
+            'implementation-plans/user-preferences',
+            'tasks/active/user-preferences',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Multi-Currency',
+          items: [
+            'tasks/active/multi-currency',
+          ],
+        },
+      ],
+    },
     {
       type: 'category',
       label: 'Completed Features',
@@ -73,7 +108,9 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // Tasks sidebar
+  // Legacy sidebars - keeping for reference but not using
+  // These can be removed after confirming the new structure works
+  /*
   tasks: [
     {
       type: 'doc',
@@ -105,7 +142,6 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // Implementation sidebar
   implementation: [
     {
       type: 'doc',
@@ -121,7 +157,6 @@ const sidebars: SidebarsConfig = {
         'implementation-plans/risk-opportunity-system',
       ],
     },
-    // Planning section removed - will be added when implementation plans are created
     {
       type: 'category',
       label: 'Archived Plans',
@@ -141,6 +176,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
   ],
+  */
 };
 
 export default sidebars;

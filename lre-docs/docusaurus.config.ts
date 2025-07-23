@@ -89,19 +89,7 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'features',
           position: 'left',
-          label: 'Features',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'tasks',
-          position: 'left',
-          label: 'Tasks',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'implementation',
-          position: 'left',
-          label: 'Implementation',
+          label: 'Features & Implementation',
         },
         {to: '/blog', label: 'Updates', position: 'left'},
         {
