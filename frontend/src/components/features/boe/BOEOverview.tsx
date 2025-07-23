@@ -26,7 +26,7 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
   const { currentBOE, boeLoading, boeError, setCurrentBOE, setBOELoading, setBOEError, openWizard } = useBOEStore();
   
   // Load Management Reserve data
-  const { managementReserve: mrData, mrLoading } = useManagementReserve(currentBOE?.id);
+  const { managementReserve: mrData } = useManagementReserve(currentBOE?.id);
   
 
   

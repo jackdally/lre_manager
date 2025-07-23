@@ -113,8 +113,8 @@ export const boeVersionsApi = {
   },
 
   // Approve BOE version
-  approveBOE: async (programId: string, versionId: string): Promise<BOEVersion> => {
-    const response = await boeApi.post(`/programs/${programId}/boe/approve/${versionId}`);
+  approveBOE: async (programId: string, versionId: string, approvalData?: any): Promise<BOEVersion> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/approve/${versionId}`, approvalData);
     return response.data as BOEVersion;
   },
 
