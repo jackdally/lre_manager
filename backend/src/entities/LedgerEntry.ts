@@ -66,4 +66,14 @@ export class LedgerEntry {
   @ManyToOne(() => Vendor, { nullable: true })
   @JoinColumn({ name: 'vendor_id' })
   vendor?: Vendor;
+
+  // BOE Integration Fields
+  @Column('uuid', { nullable: true })
+  boeElementAllocationId?: string;
+
+  @Column('uuid', { nullable: true })
+  boeVersionId?: string;
+
+  @Column('boolean', { default: false })
+  createdFromBOE!: boolean;
 } 

@@ -17,6 +17,7 @@ import costCategoriesRouter from './routes/costCategories';
 import boeRouter from './routes/boe';
 
 import boeElementAllocationRouter from './routes/boeElementAllocation';
+import ledgerAuditTrailRouter from './routes/ledgerAuditTrail';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 
@@ -64,6 +65,7 @@ app.use('/api/cost-categories', costCategoriesRouter);
 app.use('/api', boeRouter);
 
 app.use('/api', boeElementAllocationRouter);
+app.use('/api/ledger-audit-trail', ledgerAuditTrailRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {

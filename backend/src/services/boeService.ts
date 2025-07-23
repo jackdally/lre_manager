@@ -11,6 +11,9 @@ import { WbsTemplate } from '../entities/WbsTemplate';
 import { WbsTemplateElement } from '../entities/WbsTemplateElement';
 import { WbsElement } from '../entities/WbsElement';
 import { BOEElementAllocation } from '../entities/BOEElementAllocation';
+import { LedgerAuditTrailService } from './ledgerAuditTrailService';
+import { AuditSource } from '../entities/LedgerAuditTrail';
+import { BOEElementAllocationService } from './boeElementAllocationService';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
@@ -516,12 +519,56 @@ export class BOEService {
   }
 
   /**
-   * Push entire BOE to ledger as baseline budget entries
+   * Create WBS element from BOE element if it doesn't exist
    */
-  static async pushBOEToLedger(boeVersionId: string): Promise<{ success: boolean; entriesCreated: number; message: string }> {
+  static async createWbsElementFromBoeElement(boeElement: BOEElement, program: any): Promise<WbsElement> {
+    // Check if WBS element already exists for this BOE element
+    const existingWbsElement = await wbsElementRepository.findOne({
+      where: {
+        code: boeElement.code,
+        program: { id: program.id }
+      }
+    });
+
+    if (existingWbsElement) {
+      return existingWbsElement;
+    }
+
+    // Handle parent-child relationship
+    let parentWbsElementId: string | undefined;
+    if (boeElement.parentElementId) {
+      // Find the parent BOE element
+      const parentBoeElement = await boeElementRepository.findOne({
+        where: { id: boeElement.parentElementId }
+      });
+      
+      if (parentBoeElement) {
+        // Recursively create parent WBS element if it doesn't exist
+        const parentWbsElement = await this.createWbsElementFromBoeElement(parentBoeElement, program);
+        parentWbsElementId = parentWbsElement.id;
+      }
+    }
+
+    // Create new WBS element from BOE element
+    const wbsElement = wbsElementRepository.create({
+      code: boeElement.code,
+      name: boeElement.name,
+      description: boeElement.description,
+      level: boeElement.level,
+      parentId: parentWbsElementId,
+      program: program
+    });
+
+    return await wbsElementRepository.save(wbsElement);
+  }
+
+  /**
+   * Push entire BOE to ledger as baseline budget entries (using allocations)
+   */
+  static async pushBOEToLedger(boeVersionId: string, userId?: string): Promise<{ success: boolean; entriesCreated: number; message: string }> {
     const boeVersion = await boeVersionRepository.findOne({
       where: { id: boeVersionId },
-      relations: ['program', 'elements', 'elements.costCategory', 'elements.vendor']
+      relations: ['program']
     });
 
     if (!boeVersion) {
@@ -532,28 +579,29 @@ export class BOEService {
       throw new Error('Cannot push approved BOE to ledger - create a new version first');
     }
 
-    // Get all BOE elements
-    const elements = boeVersion.elements || [];
-    let entriesCreated = 0;
+    // Get all element allocations for this BOE version
+    const allocations = await elementAllocationRepository.find({
+      where: { boeVersionId },
+      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor']
+    });
 
-    // Create ledger entries for each BOE element
-    for (const element of elements) {
-      if (element.estimatedCost > 0) {
-        const ledgerEntry = ledgerRepository.create({
-          vendor_name: element.vendor?.name || 'BOE Element',
-          expense_description: `${element.name}: ${element.description}`,
-          wbsElementId: element.id,
-          costCategoryId: element.costCategoryId,
-          baseline_date: boeVersion.program.startDate?.toISOString().slice(0, 10) || new Date().toISOString().slice(0, 10),
-          baseline_amount: element.estimatedCost,
-          planned_date: boeVersion.program.startDate?.toISOString().slice(0, 10) || new Date().toISOString().slice(0, 10),
-          planned_amount: element.estimatedCost,
-          program: boeVersion.program,
-          notes: `BOE Element: ${element.code} - ${element.name}`
-        });
+    if (allocations.length === 0) {
+      throw new Error('No element allocations found for this BOE version. Please create allocations before pushing to ledger.');
+    }
 
-        await ledgerRepository.save(ledgerEntry);
-        entriesCreated++;
+    let totalEntriesCreated = 0;
+    const sessionId = `boe-push-${Date.now()}`;
+
+    // Push each allocation to ledger
+    for (const allocation of allocations) {
+      if (!allocation.isLocked) {
+        await BOEElementAllocationService.pushToLedger(allocation.id, userId);
+        
+        // Count the entries created for this allocation
+        const monthlyBreakdown = allocation.monthlyBreakdown;
+        if (monthlyBreakdown) {
+          totalEntriesCreated += Object.keys(monthlyBreakdown).length;
+        }
       }
     }
 
@@ -564,8 +612,8 @@ export class BOEService {
 
     return {
       success: true,
-      entriesCreated,
-      message: `Successfully created ${entriesCreated} ledger entries from BOE`
+      entriesCreated: totalEntriesCreated,
+      message: `Successfully created ${totalEntriesCreated} ledger entries from BOE allocations`
     };
   }
 

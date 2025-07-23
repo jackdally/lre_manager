@@ -34,6 +34,10 @@ export interface LedgerEntry {
     code: string;
     name: string;
   };
+  // BOE Integration Fields
+  boeElementAllocationId?: string;
+  boeVersionId?: string;
+  createdFromBOE?: boolean;
   actualsUploadTransaction?: {
     id: string;
     vendorName: string;

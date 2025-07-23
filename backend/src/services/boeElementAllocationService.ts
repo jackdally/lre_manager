@@ -3,11 +3,15 @@ import { BOEElementAllocation } from '../entities/BOEElementAllocation';
 import { BOEElement } from '../entities/BOEElement';
 import { BOEVersion } from '../entities/BOEVersion';
 import { LedgerEntry } from '../entities/LedgerEntry';
+import { WbsElement } from '../entities/WbsElement';
+import { LedgerAuditTrailService } from './ledgerAuditTrailService';
+import { AuditSource } from '../entities/LedgerAuditTrail';
 
 const elementAllocationRepository = AppDataSource.getRepository(BOEElementAllocation);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const ledgerRepository = AppDataSource.getRepository(LedgerEntry);
+const wbsElementRepository = AppDataSource.getRepository(WbsElement);
 
 export class BOEElementAllocationService {
   /**
@@ -270,9 +274,53 @@ export class BOEElementAllocationService {
   }
 
   /**
+   * Create WBS element from BOE element if it doesn't exist
+   */
+  static async createWbsElementFromBoeElement(boeElement: BOEElement, program: any): Promise<WbsElement> {
+    // Check if WBS element already exists for this BOE element
+    const existingWbsElement = await wbsElementRepository.findOne({
+      where: {
+        code: boeElement.code,
+        program: { id: program.id }
+      }
+    });
+
+    if (existingWbsElement) {
+      return existingWbsElement;
+    }
+
+    // Handle parent-child relationship
+    let parentWbsElementId: string | undefined;
+    if (boeElement.parentElementId) {
+      // Find the parent BOE element
+      const parentBoeElement = await boeElementRepository.findOne({
+        where: { id: boeElement.parentElementId }
+      });
+      
+      if (parentBoeElement) {
+        // Recursively create parent WBS element if it doesn't exist
+        const parentWbsElement = await this.createWbsElementFromBoeElement(parentBoeElement, program);
+        parentWbsElementId = parentWbsElement.id;
+      }
+    }
+
+    // Create new WBS element from BOE element
+    const wbsElement = wbsElementRepository.create({
+      code: boeElement.code,
+      name: boeElement.name,
+      description: boeElement.description,
+      level: boeElement.level,
+      parentId: parentWbsElementId,
+      program: program
+    });
+
+    return await wbsElementRepository.save(wbsElement);
+  }
+
+  /**
    * Push element allocation to ledger as baseline entries
    */
-  static async pushToLedger(allocationId: string): Promise<void> {
+  static async pushToLedger(allocationId: string, userId?: string): Promise<void> {
     const allocation = await elementAllocationRepository.findOne({
       where: { id: allocationId },
       relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'boeVersion', 'boeVersion.program']
@@ -291,23 +339,54 @@ export class BOEElementAllocationService {
       throw new Error('No monthly breakdown found');
     }
 
+    // Create WBS element from BOE element if it doesn't exist
+    const wbsElement = await this.createWbsElementFromBoeElement(
+      allocation.boeElement, 
+      allocation.boeVersion.program
+    );
+
+    const createdLedgerEntries: LedgerEntry[] = [];
+    const sessionId = `boe-push-${Date.now()}`;
+
     // Create ledger entries for each month
     for (const [month, data] of Object.entries(monthlyBreakdown)) {
       const ledgerEntry = ledgerRepository.create({
         vendor_name: allocation.boeElement.vendor?.name || allocation.name,
         expense_description: `${allocation.boeElement.name}: ${allocation.description}`,
-        wbsElementId: allocation.boeElementId,
+        wbsElementId: wbsElement.id, // Use the WBS element ID instead of BOE element ID
         costCategoryId: allocation.boeElement.costCategoryId,
         baseline_date: data.date,
         baseline_amount: data.amount,
         planned_date: data.date,
         planned_amount: data.amount,
         program: allocation.boeVersion.program,
-        notes: `Element allocation: ${allocation.name} - ${month}`
+        notes: `Element allocation: ${allocation.name} - ${month}`,
+        // BOE Integration Fields
+        createdFromBOE: true,
+        boeElementAllocationId: allocation.id,
+        boeVersionId: allocation.boeVersionId
       });
 
-      await ledgerRepository.save(ledgerEntry);
+      const savedEntry = await ledgerRepository.save(ledgerEntry);
+      createdLedgerEntries.push(savedEntry);
+
+      // Create audit trail entry for each ledger entry
+      await LedgerAuditTrailService.auditLedgerEntryCreation(
+        savedEntry,
+        AuditSource.BOE_ALLOCATION,
+        userId,
+        sessionId
+      );
     }
+
+    // Create audit trail for BOE push operation
+    const ledgerEntryIds = createdLedgerEntries.map(entry => entry.id);
+    await LedgerAuditTrailService.auditBOEPushToLedger(
+      ledgerEntryIds,
+      allocation.boeVersionId,
+      userId,
+      sessionId
+    );
 
     // Lock the allocation
     allocation.isLocked = true;
@@ -330,7 +409,7 @@ export class BOEElementAllocationService {
     // Get ledger entries for this allocation
     const ledgerEntries = await ledgerRepository.find({
       where: {
-        wbsElementId: allocation.boeElementId,
+        boeElementAllocationId: allocation.id,
         program: { id: allocation.boeVersion.program.id }
       }
     });

@@ -671,7 +671,7 @@ router.post('/programs/:id/boe/:versionId/push-to-ledger', async (req, res) => {
       return res.status(400).json({ message: 'Invalid program ID or version ID' });
     }
 
-    const result = await BOEService.pushBOEToLedger(versionId);
+    const result = await BOEService.pushBOEToLedger(versionId, req.body.userId || req.headers['user-id'] as string);
     res.json(result);
   } catch (error) {
     console.error('Error pushing BOE to ledger:', error);

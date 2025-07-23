@@ -239,7 +239,7 @@ router.post('/element-allocations/:allocationId/push-to-ledger', async (req, res
       return res.status(400).json({ message: 'Invalid allocation ID' });
     }
 
-    await BOEElementAllocationService.pushToLedger(allocationId);
+    await BOEElementAllocationService.pushToLedger(allocationId, req.body.userId || req.headers['user-id'] as string);
     res.json({ message: 'Element allocation successfully pushed to ledger' });
   } catch (error) {
     console.error('Error pushing element allocation to ledger:', error);

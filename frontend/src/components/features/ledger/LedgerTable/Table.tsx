@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { Tooltip } from 'react-tooltip';
 import type { LedgerEntry } from '../../../../types/ledger';
 import { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
@@ -101,6 +101,9 @@ interface LedgerTableTableProps {
   confirmMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   rejectMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   undoReject: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
+  
+  // Audit Trail
+  onAuditTrailClick?: (entryId: string, entry: LedgerEntry) => void;
 }
 
 const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'> & { /* remove potentialMatchIds prop */ }> = (props) => {
@@ -679,6 +682,22 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                       })()}
                       <Tooltip id={`upload-tooltip-${entry.id}`}>View details of the upload that set these actuals</Tooltip>
                       <Tooltip id={`potential-tooltip-${entry.id}`}>Review and confirm a potential match from an upload</Tooltip>
+                      
+                      {/* Audit Trail Button */}
+                      <button
+                        className="ml-2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="View Audit Trail"
+                        data-tooltip-id={`audit-tooltip-${entry.id}`}
+                        onClick={() => {
+                          // This will be handled by the parent component
+                          if (props.onAuditTrailClick) {
+                            props.onAuditTrailClick(entry.id, entry);
+                          }
+                        }}
+                      >
+                        <ClockIcon className="h-4 w-4" />
+                      </button>
+                      <Tooltip id={`audit-tooltip-${entry.id}`}>View audit trail for this ledger entry</Tooltip>
                     </div>
                   </td>
                   {/* At the end of the row, if this is the new row, show Save/Cancel icons */}

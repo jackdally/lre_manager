@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { InformationCircleIcon, DocumentMagnifyingGlassIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { Tooltip } from 'react-tooltip';
 import { useSearchParams } from 'react-router-dom';
@@ -7,6 +7,7 @@ import LedgerBulkDeleteModal from './BulkDeleteModal';
 import LedgerErrorModal from './ErrorModal';
 import LedgerTableHeader from './Header';
 import LedgerTableTable from './Table';
+import LedgerAuditTrailSidebar from '../LedgerAuditTrailSidebar/LedgerAuditTrailSidebar';
 
 // Import custom hooks
 import { usePotentialMatchModal } from '../../../../hooks/usePotentialMatchModal';
@@ -181,6 +182,10 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const clearToast = useLedgerClearToast();
   const resetUI = useLedgerResetUI();
   const setHighlightId = useLedgerSetHighlightId();
+
+  // Audit Trail Sidebar State
+  const [auditTrailSidebarOpen, setAuditTrailSidebarOpen] = useState(false);
+  const [selectedAuditTrailEntry, setSelectedAuditTrailEntry] = useState<any>(null);
 
   // Get URL search parameters for highlighting
   const [searchParams] = useSearchParams();
@@ -398,6 +403,29 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
     }
   }, [onChange, potentialMatchModal, undoReject, setToast]);
 
+  // Audit Trail Handler
+  const handleAuditTrailClick = useCallback((entryId: string, entry: any) => {
+    setSelectedAuditTrailEntry(entry);
+    setAuditTrailSidebarOpen(true);
+  }, []);
+
+  // BOE Navigation Handler
+  const handleNavigateToBOE = useCallback((boeVersionId: string, allocationId?: string) => {
+    // Close the audit trail sidebar
+    setAuditTrailSidebarOpen(false);
+    
+    // Navigate to the BOE page with the specific allocation highlighted
+    // This would typically use React Router navigation
+    const programId = storeProgramId;
+    if (programId) {
+      const url = allocationId 
+        ? `/programs/${programId}/boe?versionId=${boeVersionId}&highlightAllocation=${allocationId}`
+        : `/programs/${programId}/boe?versionId=${boeVersionId}`;
+      
+      window.open(url, '_blank');
+    }
+  }, [storeProgramId]);
+
   // Handle show potential matches
   const handleShowPotentialMatches = useCallback(async (entryId: string) => {
     try {
@@ -611,6 +639,16 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         confirmMatch={handleConfirmMatch}
         rejectMatch={handleRejectMatch}
         undoReject={handleUndoReject}
+        onAuditTrailClick={handleAuditTrailClick}
+      />
+
+      {/* Audit Trail Sidebar */}
+      <LedgerAuditTrailSidebar
+        isOpen={auditTrailSidebarOpen}
+        onClose={() => setAuditTrailSidebarOpen(false)}
+        ledgerEntryId={selectedAuditTrailEntry?.id || null}
+        ledgerEntryData={selectedAuditTrailEntry}
+        onNavigateToBOE={handleNavigateToBOE}
       />
 
       {/* View Upload Modal */}
