@@ -12,6 +12,7 @@ import { BOEService } from '../services/boeService';
 import { BOETemplateService } from '../services/boeTemplateService';
 import { BOECommentService } from '../services/boeCommentService';
 import { WbsTemplate } from '../entities/WbsTemplate';
+import { ApprovalWorkflowService } from '../services/approvalWorkflowService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -374,19 +375,8 @@ router.post('/programs/:id/boe/approve', async (req, res) => {
       return res.status(404).json({ message: 'No current BOE version found' });
     }
 
-    const boeVersion = await boeVersionRepository.findOne({
-      where: { id: program.currentBOEVersionId }
-    });
-
-    if (!boeVersion) {
-      return res.status(404).json({ message: 'BOE version not found' });
-    }
-
-    // Update status to Under Review
-    boeVersion.status = 'Under Review';
-    boeVersion.updatedAt = new Date();
-    
-    const updatedBOE = await boeVersionRepository.save(boeVersion);
+    // Use ApprovalWorkflowService to submit for approval
+    const updatedBOE = await ApprovalWorkflowService.submitForApproval(program.currentBOEVersionId);
 
     res.json(updatedBOE);
   } catch (error) {
@@ -417,47 +407,112 @@ router.post('/programs/:id/boe/approve', async (req, res) => {
 router.post('/programs/:id/boe/approve/:versionId', async (req, res) => {
   try {
     const { id, versionId } = req.params;
-    const { approvedBy, comments } = req.body;
+    const { approvedBy, comments, approvalLevel, action } = req.body;
     
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid ID' });
     }
 
-    const boeVersion = await boeVersionRepository.findOne({
-      where: { id: versionId, program: { id } }
-    });
-
-    if (!boeVersion) {
-      return res.status(404).json({ message: 'BOE version not found' });
+    if (!action || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ message: 'Invalid action. Must be "approve" or "reject"' });
     }
 
-    // Update BOE version status
-    boeVersion.status = 'Approved';
-    boeVersion.approvedBy = approvedBy;
-    boeVersion.approvedAt = new Date();
-    boeVersion.updatedAt = new Date();
-    
-    const updatedBOE = await boeVersionRepository.save(boeVersion);
+    if (!approvalLevel || typeof approvalLevel !== 'number') {
+      return res.status(400).json({ message: 'Approval level is required' });
+    }
 
-    // Create approval record
-    const approval = boeApprovalRepository.create({
-      approvalLevel: 1,
-      approverRole: 'Program Manager',
-      approverName: approvedBy,
-      status: 'Approved',
-      approvedAt: new Date(),
+    // Use ApprovalWorkflowService to process approval action
+    const updatedBOE = await ApprovalWorkflowService.processApprovalAction(
+      versionId,
+      approvalLevel,
+      action,
+      approvedBy || 'Unknown Approver',
       comments,
-      isRequired: true,
-      sequenceOrder: 1,
-      boeVersion: updatedBOE
-    });
-
-    await boeApprovalRepository.save(approval);
+      action === 'reject' ? req.body.rejectionReason : undefined
+    );
 
     res.json(updatedBOE);
   } catch (error) {
-    console.error('Error approving BOE:', error);
-    res.status(500).json({ message: 'Error approving BOE', error });
+    console.error('Error processing BOE approval action:', error);
+    res.status(500).json({ message: 'Error processing BOE approval action', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{versionId}/approval-status:
+ *   get:
+ *     summary: Get approval status for BOE version
+ *     parameters:
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.get('/boe-versions/:versionId/approval-status', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    const approvalStatus = await ApprovalWorkflowService.getApprovalStatus(versionId);
+    res.json(approvalStatus);
+  } catch (error) {
+    console.error('Error getting approval status:', error);
+    res.status(500).json({ message: 'Error getting approval status', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-approval/workflow-config:
+ *   get:
+ *     summary: Get approval workflow configuration
+ */
+router.get('/boe-approval/workflow-config', async (req, res) => {
+  try {
+    const config = ApprovalWorkflowService.getWorkflowConfig();
+    res.json(config);
+  } catch (error) {
+    console.error('Error getting workflow config:', error);
+    res.status(500).json({ message: 'Error getting workflow config', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-approval/workflow-config:
+ *   put:
+ *     summary: Update approval workflow configuration
+ */
+router.put('/boe-approval/workflow-config', async (req, res) => {
+  try {
+    const config = req.body;
+    ApprovalWorkflowService.updateWorkflowConfig(config);
+    res.json({ message: 'Workflow configuration updated successfully' });
+  } catch (error) {
+    console.error('Error updating workflow config:', error);
+    res.status(500).json({ message: 'Error updating workflow config', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-approval/check-escalations:
+ *   post:
+ *     summary: Check and process approval escalations
+ */
+router.post('/boe-approval/check-escalations', async (req, res) => {
+  try {
+    await ApprovalWorkflowService.checkEscalations();
+    res.json({ message: 'Escalation check completed' });
+  } catch (error) {
+    console.error('Error checking escalations:', error);
+    res.status(500).json({ message: 'Error checking escalations', error });
   }
 });
 

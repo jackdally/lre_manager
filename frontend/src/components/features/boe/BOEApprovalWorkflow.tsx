@@ -32,6 +32,7 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
   
   // Local state
   const [approvals, setApprovals] = useState<any[]>([]);
+  const [approvalStatus, setApprovalStatus] = useState<any>(null);
   const [approvalsLoading, setApprovalsLoading] = useState(false);
   const [approvalsError, setApprovalsError] = useState<string | null>(null);
   const [actionModalOpen, setActionModalOpen] = useState(false);
@@ -39,27 +40,34 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
   const [submittingAction, setSubmittingAction] = useState(false);
   const [comments, setComments] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
+  const [selectedApprovalLevel, setSelectedApprovalLevel] = useState<number | null>(null);
 
   // Load approvals data
   useEffect(() => {
-    const loadApprovals = async () => {
+    const loadApprovalData = async () => {
       if (!currentBOE?.id) return;
 
       try {
         setApprovalsLoading(true);
         setApprovalsError(null);
         
-        const approvalsData = await boeApprovalsApi.getApprovals(currentBOE.id);
+        // Load both approvals and approval status
+        const [approvalsData, statusData] = await Promise.all([
+          boeApprovalsApi.getApprovals(currentBOE.id),
+          boeApprovalsApi.getApprovalStatus(currentBOE.id)
+        ]);
+        
         setApprovals(approvalsData);
+        setApprovalStatus(statusData);
       } catch (error) {
-        console.error('Error loading approvals:', error);
-        setApprovalsError(error instanceof Error ? error.message : 'Failed to load approvals');
+        console.error('Error loading approval data:', error);
+        setApprovalsError(error instanceof Error ? error.message : 'Failed to load approval data');
       } finally {
         setApprovalsLoading(false);
       }
     };
 
-    loadApprovals();
+    loadApprovalData();
   }, [currentBOE?.id]);
 
   // Handle approval actions
@@ -86,7 +94,7 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
   };
 
   const handleApprovalAction = async (action: 'approve' | 'reject') => {
-    if (!currentBOE?.id || !selectedAction) return;
+    if (!currentBOE?.id || !selectedAction || !selectedApprovalLevel) return;
 
     try {
       setSubmittingAction(true);
@@ -94,21 +102,29 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
       const approvalData = {
         approvedBy: 'Current User', // TODO: Get from auth context
         comments: selectedAction.comments,
+        approvalLevel: selectedApprovalLevel,
+        action: action,
         ...(action === 'reject' && { rejectionReason: selectedAction.rejectionReason })
       };
 
-      // Approve/reject BOE version
+      // Approve/reject BOE version using new API
       const updatedBOE = await boeVersionsApi.approveBOE(programId, currentBOE.id, approvalData);
       setCurrentBOE(updatedBOE);
       
-      // Reload approvals
-      const approvalsData = await boeApprovalsApi.getApprovals(currentBOE.id);
+      // Reload approval data
+      const [approvalsData, statusData] = await Promise.all([
+        boeApprovalsApi.getApprovals(currentBOE.id),
+        boeApprovalsApi.getApprovalStatus(currentBOE.id)
+      ]);
+      
       setApprovals(approvalsData);
+      setApprovalStatus(statusData);
       
       setActionModalOpen(false);
       setSelectedAction(null);
       setComments('');
       setRejectionReason('');
+      setSelectedApprovalLevel(null);
       
     } catch (error) {
       console.error('Error processing approval action:', error);
@@ -118,8 +134,9 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
     }
   };
 
-  const openActionModal = (action: 'approve' | 'reject' | 'request-changes') => {
+  const openActionModal = (action: 'approve' | 'reject' | 'request-changes', approvalLevel?: number) => {
     setSelectedAction({ type: action, comments: '' });
+    setSelectedApprovalLevel(approvalLevel || null);
     setActionModalOpen(true);
   };
 
@@ -220,6 +237,31 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
           </div>
         </div>
 
+        {/* Approval Workflow Status */}
+        {approvalStatus && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Approval Workflow</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <span className="text-sm font-medium text-gray-700">Current Level:</span>
+                <p className="text-sm text-gray-900">Level {approvalStatus.currentLevel || 'None'}</p>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">Next Approver:</span>
+                <p className="text-sm text-gray-900">{approvalStatus.nextApprover || 'None'}</p>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">Can Approve:</span>
+                <p className="text-sm text-gray-900">{approvalStatus.canApprove ? 'Yes' : 'No'}</p>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">Workflow Complete:</span>
+                <p className="text-sm text-gray-900">{approvalStatus.isComplete ? 'Yes' : 'No'}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Approval Actions */}
         <div className="flex flex-wrap gap-3">
           {canSubmitForApproval && (
@@ -242,34 +284,24 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
             </Button>
           )}
 
-          {canApprove && (
-            <Button
-              onClick={() => openActionModal('approve')}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              <CheckCircleIcon className="h-4 w-4 mr-2" />
-              Approve
-            </Button>
-          )}
+          {approvalStatus?.canApprove && approvalStatus.currentLevel && (
+            <>
+              <Button
+                onClick={() => openActionModal('approve', approvalStatus.currentLevel)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircleIcon className="h-4 w-4 mr-2" />
+                Approve Level {approvalStatus.currentLevel}
+              </Button>
 
-          {canReject && (
-            <Button
-              onClick={() => openActionModal('reject')}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              <XCircleIcon className="h-4 w-4 mr-2" />
-              Reject
-            </Button>
-          )}
-
-          {canRequestChanges && (
-            <Button
-              onClick={() => openActionModal('request-changes')}
-              className="bg-yellow-600 hover:bg-yellow-700 text-white"
-            >
-              <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
-              Request Changes
-            </Button>
+              <Button
+                onClick={() => openActionModal('reject', approvalStatus.currentLevel)}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                <XCircleIcon className="h-4 w-4 mr-2" />
+                Reject Level {approvalStatus.currentLevel}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -366,10 +398,11 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
           setSelectedAction(null);
           setComments('');
           setRejectionReason('');
+          setSelectedApprovalLevel(null);
         }}
         title={`${selectedAction?.type === 'approve' ? 'Approve' : 
                 selectedAction?.type === 'reject' ? 'Reject' : 
-                'Request Changes'} BOE`}
+                'Request Changes'} BOE - Level ${selectedApprovalLevel}`}
       >
         <div className="space-y-4">
           <div>

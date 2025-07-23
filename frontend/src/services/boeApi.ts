@@ -357,6 +357,12 @@ export const boeApprovalsApi = {
     return response.data as BOEApproval[];
   },
 
+  // Get approval status for BOE version
+  getApprovalStatus: async (boeVersionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${boeVersionId}/approval-status`);
+    return response.data;
+  },
+
   // Create approval
   createApproval: async (boeVersionId: string, approvalData: any): Promise<BOEApproval> => {
     const response = await boeApi.post(`/boe-versions/${boeVersionId}/approvals`, approvalData);
@@ -367,6 +373,24 @@ export const boeApprovalsApi = {
   updateApproval: async (approvalId: string, approvalData: any): Promise<BOEApproval> => {
     const response = await boeApi.put(`/boe-approvals/${approvalId}`, approvalData);
     return response.data as BOEApproval;
+  },
+
+  // Get workflow configuration
+  getWorkflowConfig: async (): Promise<any> => {
+    const response = await boeApi.get('/boe-approval/workflow-config');
+    return response.data;
+  },
+
+  // Update workflow configuration
+  updateWorkflowConfig: async (config: any): Promise<any> => {
+    const response = await boeApi.put('/boe-approval/workflow-config', config);
+    return response.data;
+  },
+
+  // Check escalations
+  checkEscalations: async (): Promise<any> => {
+    const response = await boeApi.post('/boe-approval/check-escalations');
+    return response.data;
   },
 };
 
