@@ -149,6 +149,9 @@ router.post('/programs/:id/boe', async (req, res) => {
 
     let savedBOE;
 
+    // Auto-generate version number if not provided
+    const versionNumber = req.body.versionNumber || await generateNextVersionNumber(id);
+
     // Check if this is a template-based creation with allocations
     if (req.body.templateId && req.body.allocations) {
       // Create BOE from template with allocations
@@ -156,7 +159,7 @@ router.post('/programs/:id/boe', async (req, res) => {
         id,
         req.body.templateId,
         {
-          versionNumber: req.body.versionNumber,
+          versionNumber: versionNumber,
           name: req.body.name,
           description: req.body.description
         },
@@ -168,7 +171,7 @@ router.post('/programs/:id/boe', async (req, res) => {
         id,
         req.body.templateId,
         {
-          versionNumber: req.body.versionNumber,
+          versionNumber: versionNumber,
           name: req.body.name,
           description: req.body.description
         }
@@ -178,7 +181,7 @@ router.post('/programs/:id/boe', async (req, res) => {
       savedBOE = await BOEService.createBOEWithElements(
         id,
         {
-          versionNumber: req.body.versionNumber,
+          versionNumber: versionNumber,
           name: req.body.name,
           description: req.body.description
         },
@@ -188,7 +191,7 @@ router.post('/programs/:id/boe', async (req, res) => {
     } else {
       // Create basic BOE version
       const boeVersion = new BOEVersion();
-      boeVersion.versionNumber = req.body.versionNumber;
+      boeVersion.versionNumber = versionNumber;
       boeVersion.name = req.body.name;
       boeVersion.description = req.body.description;
       boeVersion.status = 'Draft';
@@ -1300,6 +1303,153 @@ router.get('/boe-versions/:boeVersionId/management-reserve/utilization', async (
 
 /**
  * @swagger
+ * /api/programs/{id}/boe/create-version:
+ *   post:
+ *     summary: Create a new BOE version from current BOE
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               creationMethod:
+ *                 type: string
+ *                 enum: [version-from-current, from-template, manual]
+ *                 description: Method of BOE creation
+ *               changeSummary:
+ *                 type: string
+ *                 description: Summary of changes for new version
+ *               wizardData:
+ *                 type: object
+ *                 description: BOE wizard data
+ */
+router.post('/programs/:id/boe/create-version', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { creationMethod, changeSummary, wizardData } = req.body;
+    
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid program ID' });
+    }
+
+    // Validate creation method
+    if (!['version-from-current', 'from-template', 'manual'].includes(creationMethod)) {
+      return res.status(400).json({ message: 'Invalid creation method' });
+    }
+
+    // Get current BOE
+    const currentBOE = await boeVersionRepository.findOne({
+      where: { program: { id } },
+      relations: ['elements']
+    });
+
+    // Check if this is the current BOE
+    const isCurrentBOE = currentBOE && currentBOE.program?.currentBOEVersionId === currentBOE.id;
+
+    let newVersion;
+    let versionNumber;
+
+    if (creationMethod === 'version-from-current') {
+      // Validate change summary is provided
+      if (!changeSummary || changeSummary.trim().length === 0) {
+        return res.status(400).json({ message: 'Change summary is required for version creation' });
+      }
+
+      if (!currentBOE) {
+        return res.status(404).json({ message: 'No current BOE found to create version from' });
+      }
+
+      // Generate next version number
+      versionNumber = await generateNextVersionNumber(id);
+
+      // Create new version using existing service method
+      newVersion = await BOEService.createBOEWithElements(
+        id,
+        {
+          versionNumber,
+          name: `${currentBOE.name} (v${versionNumber.replace('v', '')})`,
+          description: `${currentBOE.description || ''}\n\nChange Summary: ${changeSummary}`,
+          changeSummary: changeSummary,
+          justification: changeSummary
+        },
+        currentBOE.elements || [],
+        [] // No allocations for now - they'll be copied by the service
+      );
+
+      // Update program's current BOE version
+      await programRepository.update(id, { currentBOEVersionId: newVersion.id });
+
+    } else if (creationMethod === 'from-template') {
+      // Handle template-based creation - use existing BOE creation logic
+      // For now, we'll use the same version-from-current logic since templates are handled in the wizard
+      versionNumber = await generateNextVersionNumber(id);
+      
+      // Create new version using existing service method with template data
+      newVersion = await BOEService.createBOEWithElements(
+        id,
+        {
+          versionNumber,
+          name: wizardData?.name || `New BOE from Template (${versionNumber})`,
+          description: wizardData?.description || `BOE created from template with changes: ${changeSummary}`,
+          changeSummary: changeSummary,
+          justification: changeSummary
+        },
+        wizardData?.elements || [],
+        wizardData?.allocations || []
+      );
+
+      // Update program's current BOE version
+      await programRepository.update(id, { currentBOEVersionId: newVersion.id });
+      
+    } else if (creationMethod === 'manual') {
+      // Handle manual creation - use existing BOE creation logic
+      versionNumber = await generateNextVersionNumber(id);
+      
+      // Create new version using existing service method with manual data
+      newVersion = await BOEService.createBOEWithElements(
+        id,
+        {
+          versionNumber,
+          name: wizardData?.name || `New Manual BOE (${versionNumber})`,
+          description: wizardData?.description || `Manually created BOE with changes: ${changeSummary}`,
+          changeSummary: changeSummary,
+          justification: changeSummary
+        },
+        wizardData?.elements || [],
+        wizardData?.allocations || []
+      );
+
+      // Update program's current BOE version
+      await programRepository.update(id, { currentBOEVersionId: newVersion.id });
+    }
+
+    // Fetch the complete new version with relations
+    const completeVersion = await boeVersionRepository.findOne({
+      where: { id: newVersion.id },
+      relations: ['elements', 'elements.allocations', 'approvals']
+    });
+
+    res.status(201).json({
+      message: 'BOE version created successfully',
+      boeVersion: completeVersion
+    });
+
+  } catch (error) {
+    console.error('Error creating BOE version:', error);
+    res.status(500).json({ message: 'Error creating BOE version', error });
+  }
+});
+
+/**
+ * @swagger
  * /api/programs/{id}/boe-versions:
  *   get:
  *     summary: Get all BOE versions for a program
@@ -1642,7 +1792,7 @@ router.put('/boe-versions/:id/comments', async (req, res) => {
   }
 });
 
-// Helper function to generate next version number
+// Helper function to generate next version number (sequential)
 async function generateNextVersionNumber(programId: string): Promise<string> {
   const existingVersions = await boeVersionRepository.find({
     where: { program: { id: programId } },
@@ -1650,22 +1800,15 @@ async function generateNextVersionNumber(programId: string): Promise<string> {
   });
 
   if (existingVersions.length === 0) {
-    return '1.0';
+    return 'v1';
   }
 
-  // Parse the latest version number
+  // Parse the latest version number (v1, v2, v3, etc.)
   const latestVersion = existingVersions[0].versionNumber;
-  const versionParts = latestVersion.split('.');
+  const versionNumber = latestVersion.replace('v', '');
+  const nextNumber = parseInt(versionNumber) + 1;
   
-  if (versionParts.length === 2) {
-    const major = parseInt(versionParts[0]);
-    const minor = parseInt(versionParts[1]);
-    return `${major}.${minor + 1}`;
-  }
-
-  // Fallback: increment major version
-  const major = parseInt(versionParts[0]) || 1;
-  return `${major + 1}.0`;
+  return `v${nextNumber}`;
 }
 
 // R&O Integration placeholder endpoints (for future use)

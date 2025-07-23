@@ -318,19 +318,6 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
 
             <button
-              onClick={() => setActiveTab('approval')}
-              className={`
-                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
-                ${activeTab === 'approval'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <span>✅</span>
-              Approval
-            </button>
-            <button
               onClick={() => setActiveTab('management-reserve')}
               className={`
                 py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
@@ -342,6 +329,19 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
             >
               <span>💰</span>
               Management Reserve
+            </button>
+            <button
+              onClick={() => setActiveTab('approval')}
+              className={`
+                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                ${activeTab === 'approval'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>✅</span>
+              Approval
             </button>
             <button
               onClick={() => setActiveTab('history')}

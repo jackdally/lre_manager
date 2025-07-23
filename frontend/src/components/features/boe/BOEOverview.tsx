@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
 import { boeVersionsApi } from '../../../services/boeApi';
+import { useManagementReserve } from '../../../hooks/useManagementReserve';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
 import BOEWizardModal from './BOEWizardModal';
@@ -23,6 +24,9 @@ interface BOEOverviewProps {
 
 const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
   const { currentBOE, boeLoading, boeError, setCurrentBOE, setBOELoading, setBOEError, openWizard } = useBOEStore();
+  
+  // Load Management Reserve data
+  const { managementReserve: mrData, mrLoading } = useManagementReserve(currentBOE?.id);
   
 
   
@@ -82,20 +86,15 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
     try {
       setDeletingBOE(true);
       
-      // Call the delete BOE API
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/programs/${programId}/boe/${currentBOE.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete existing draft BOE');
+      // Use the proper API service
+      const result = await boeVersionsApi.deleteBOE(programId, currentBOE.id);
+      
+      if (result.success) {
+        // Clear the current BOE from state
+        setCurrentBOE(null);
+      } else {
+        throw new Error(result.message || 'Failed to delete existing draft BOE');
       }
-
-      // Clear the current BOE from state
-      setCurrentBOE(null);
     } catch (error) {
       console.error('Error deleting existing draft BOE:', error);
       // Show error but still allow wizard to proceed
@@ -110,19 +109,8 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
     try {
       setPushingToLedger(true);
       
-      // Call the push to ledger API
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/programs/${programId}/boe/${currentBOE.id}/push-to-ledger`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to push BOE to ledger');
-      }
-
-      const result = await response.json();
+      // Use the proper API service
+      const result = await boeVersionsApi.pushToLedger(programId, currentBOE.id);
       setLedgerPushResult(result);
       
       // Update BOE status to "Baseline"
@@ -149,22 +137,16 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
     try {
       setDeletingBOE(true);
       
-      // Call the delete BOE API
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/programs/${programId}/boe/${currentBOE.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete BOE');
+      // Use the proper API service
+      const result = await boeVersionsApi.deleteBOE(programId, currentBOE.id);
+      
+      if (result.success) {
+        // Clear the current BOE from state
+        setCurrentBOE(null);
+        setDeleteModalOpen(false);
+      } else {
+        throw new Error(result.message || 'Failed to delete BOE');
       }
-
-      // Clear the current BOE from state
-      setCurrentBOE(null);
-      setDeleteModalOpen(false);
     } catch (error) {
       console.error('Error deleting BOE:', error);
       alert(error instanceof Error ? error.message : 'Failed to delete BOE');
@@ -261,8 +243,10 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
   const requiredElements = elements.filter(e => e.isRequired).length;
   const optionalElements = elements.filter(e => e.isOptional).length;
   const totalCost = safeNumber(currentBOE.totalEstimatedCost);
-  const managementReserve = safeNumber(currentBOE.managementReserveAmount);
-  const totalWithMR = totalCost + managementReserve;
+  // Use MR data from the hook, fallback to BOE data if not available
+  const managementReserveAmount = mrData?.adjustedAmount || safeNumber(currentBOE.managementReserveAmount);
+  const managementReservePercentage = mrData?.adjustedPercentage || safeNumber(currentBOE.managementReservePercentage);
+  const totalWithMR = totalCost + safeNumber(managementReserveAmount);
 
   return (
     <div className="p-6">
@@ -287,7 +271,7 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
               className="flex items-center space-x-1"
             >
               <span>+</span>
-              <span>Create New BOE</span>
+              <span>{currentBOE ? 'Create New Version' : 'Create New BOE'}</span>
             </Button>
             {currentBOE.status === 'Draft' && (
               <>
@@ -336,8 +320,8 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Management Reserve</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(managementReserve)}</p>
-              <p className="text-sm text-gray-500">{currentBOE.managementReservePercentage || 0}%</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(managementReserveAmount)}</p>
+              <p className="text-sm text-gray-500">{managementReservePercentage}%</p>
             </div>
           </div>
         </div>

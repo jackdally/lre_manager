@@ -25,17 +25,12 @@ export const useManagementReserve = (boeVersionId?: string) => {
 
     setMRLoading(true);
     setMRError(null);
+    
     try {
       const mr = await managementReserveApi.getManagementReserve(boeVersionId);
       setManagementReserve(mr);
-    } catch (error) {
-      // Silently handle 404 errors for now since backend endpoints don't exist yet
-      if (error instanceof Error && error.message.includes('404')) {
-        console.log('MR API endpoints not yet implemented - using placeholder data');
-        setManagementReserve(null);
-      } else {
-        setMRError(error instanceof Error ? error.message : 'Failed to load management reserve');
-      }
+    } catch (error: any) {
+      setMRError(error instanceof Error ? error.message : 'Failed to load management reserve');
     } finally {
       setMRLoading(false);
     }
@@ -116,17 +111,12 @@ export const useManagementReserve = (boeVersionId?: string) => {
 
     setMRUtilizationLoading(true);
     setMRUtilizationError(null);
+    
     try {
       const history = await managementReserveApi.getManagementReserveHistory(boeVersionId);
       setMRUtilizationHistory(history);
-    } catch (error) {
-      // Silently handle 404 errors for now since backend endpoints don't exist yet
-      if (error instanceof Error && error.message.includes('404')) {
-        console.log('MR utilization API endpoints not yet implemented - using empty history');
-        setMRUtilizationHistory([]);
-      } else {
-        setMRUtilizationError(error instanceof Error ? error.message : 'Failed to load MR utilization history');
-      }
+    } catch (error: any) {
+      setMRUtilizationError(error instanceof Error ? error.message : 'Failed to load MR utilization history');
     } finally {
       setMRUtilizationLoading(false);
     }
@@ -156,7 +146,11 @@ export const useManagementReserve = (boeVersionId?: string) => {
     try {
       const riskMatrix = await managementReserveApi.getRiskMatrix(boeVersionId);
       return riskMatrix;
-    } catch (error) {
+    } catch (error: any) {
+      // Handle 404 errors when R&O system is not yet implemented
+      if (error?.response?.status === 404) {
+        return null;
+      }
       console.log('R&O system not yet implemented - using placeholder');
       return null;
     }

@@ -213,7 +213,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         basicInfo: {
           name: `${sourceBOE.name} (Copy)`,
           description: `${sourceBOE.description} - Copy`,
-          versionNumber: `${parseFloat(sourceBOE.versionNumber) + 0.1}`.replace(/\.0$/, ''),
+          versionNumber: 'v1', // Will be auto-generated later
         },
         wbsStructure: sourceBOE.elements || [],
         costEstimates: sourceBOE.elements || [],
@@ -226,7 +226,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     basicInfo: {
       name: '',
       description: '',
-      versionNumber: '1.0',
+      versionNumber: 'v1',
     },
     wbsStructure: [],
     costEstimates: [],
@@ -238,6 +238,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
   const [allocationSetup, setAllocationSetup] = useState<AllocationSetupData[]>([]);
   const [allocationExpandedItems, setAllocationExpandedItems] = useState<Set<string>>(new Set());
   const [creationMethod, setCreationMethod] = useState<'template' | 'copy' | 'manual' | null>(null);
+  const [changeSummary, setChangeSummary] = useState('');
   
   // WBS Tree state
   const [expandedWBSItems, setExpandedWBSItems] = useState<Set<string>>(new Set());
@@ -260,19 +261,34 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
       // Copy WBS structure from current BOE
       setCurrentData(prev => ({
         ...prev,
-        wbsStructure: currentBOE.elements || []
+        wbsStructure: currentBOE.elements || [],
+        basicInfo: {
+          ...prev.basicInfo,
+          name: `${currentBOE.name} (Copy)`,
+          description: `${currentBOE.description || ''} - Copy`
+        }
       }));
     } else if (creationMethod === 'template' && currentData.template) {
       // Initialize with template structure (placeholder - would need template WBS data)
       setCurrentData(prev => ({
         ...prev,
-        wbsStructure: []
+        wbsStructure: [],
+        basicInfo: {
+          ...prev.basicInfo,
+          name: `New BOE from ${currentData.template?.name || 'Template'}`,
+          description: `BOE created from ${currentData.template?.name || 'template'}`
+        }
       }));
     } else if (creationMethod === 'manual') {
       // Start with empty structure
       setCurrentData(prev => ({
         ...prev,
-        wbsStructure: []
+        wbsStructure: [],
+        basicInfo: {
+          ...prev.basicInfo,
+          name: 'New Manual BOE',
+          description: 'Manually created BOE'
+        }
       }));
     }
   }, [creationMethod, currentBOE, currentData.template]);
@@ -660,7 +676,11 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     const boeData = {
       programId,
       templateId: currentData.template?.id,
+      creationMethod: creationMethod,
+      changeSummary: currentBOE ? changeSummary : currentData.basicInfo.description,
       ...currentData.basicInfo,
+      // Always let backend auto-generate version numbers
+      versionNumber: undefined,
       elements: currentData.wbsStructure,
       costEstimates: currentData.costEstimates,
       allocations: allocationSetup.filter(a => a.startDate && a.endDate && a.totalAmount > 0),
@@ -671,6 +691,10 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
   const isStepValid = (step: number): boolean => {
     switch (step) {
       case 0:
+        // For version creation (when currentBOE exists), require change summary for all methods
+        if (currentBOE && creationMethod) {
+          return changeSummary.trim().length > 0;
+        }
         return creationMethod !== null;
       case 1:
         return creationMethod === 'copy' || creationMethod === 'manual' || !!currentData.template;
@@ -1108,6 +1132,29 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 </div>
               </div>
             </div>
+            
+            {/* Change Summary Input for Version Creation */}
+            {currentBOE && creationMethod && (
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h6 className="text-lg font-medium text-gray-900 mb-3">Change Summary</h6>
+                <p className="text-sm text-gray-600 mb-3">
+                  Please describe what changes you're making in this new version. This will be recorded in the version history.
+                </p>
+                <textarea
+                  value={changeSummary}
+                  onChange={(e) => setChangeSummary(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Describe what changes you're making in this version..."
+                  required
+                />
+                {!changeSummary.trim() && (
+                  <p className="text-sm text-red-600 mt-1">
+                    Change summary is required for version creation.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         );
 
@@ -1145,13 +1192,12 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Version Number</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={currentData.basicInfo.versionNumber}
-                  onChange={(e) => handleBasicInfoChange('versionNumber', e.target.value)}
-                  placeholder="e.g., 1.0"
-                />
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                  {currentData.basicInfo.versionNumber || 'Will be auto-generated'}
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  Version number is automatically generated by the system.
+                </p>
               </div>
             </div>
             <div>

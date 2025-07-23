@@ -36,7 +36,14 @@ boeApi.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('BOE API Response Error:', error.response?.data || error.message);
+    // Don't log 404 errors for MR endpoints (these are expected when no MR exists)
+    const isMR404Error = error.response?.status === 404 && 
+      error.config?.url?.includes('/management-reserve');
+    
+    if (!isMR404Error) {
+      console.error('BOE API Response Error:', error.response?.data || error.message);
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -146,6 +153,12 @@ export const boeVersionsApi = {
     const response = await boeApi.put(`/boe-versions/${versionId}/comments`, commentData);
     return response.data as BOEVersion;
   },
+
+  // Create new BOE version from current BOE
+  createVersion: async (programId: string, versionData: any): Promise<any> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/create-version`, versionData);
+    return response.data;
+  },
 };
 
 // BOE Elements API
@@ -184,8 +197,16 @@ export const boeElementsApi = {
 export const managementReserveApi = {
   // Get management reserve for BOE version
   getManagementReserve: async (boeVersionId: string): Promise<ManagementReserve> => {
-    const response = await boeApi.get(`/boe-versions/${boeVersionId}/management-reserve`);
-    return response.data as ManagementReserve;
+    try {
+      const response = await boeApi.get(`/boe-versions/${boeVersionId}/management-reserve`);
+      return response.data as ManagementReserve;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        // Return null instead of throwing for 404s
+        return null as any;
+      }
+      throw error;
+    }
   },
 
   // Update management reserve
@@ -215,8 +236,16 @@ export const managementReserveApi = {
 
   // Get management reserve history
   getManagementReserveHistory: async (boeVersionId: string): Promise<any[]> => {
-    const response = await boeApi.get(`/boe-versions/${boeVersionId}/management-reserve/history`);
-    return response.data as any[];
+    try {
+      const response = await boeApi.get(`/boe-versions/${boeVersionId}/management-reserve/history`);
+      return response.data as any[];
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        // Return empty array instead of throwing for 404s
+        return [];
+      }
+      throw error;
+    }
   },
 
   // Get management reserve utilization

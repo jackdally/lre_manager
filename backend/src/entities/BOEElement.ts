@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColum
 import { BOEVersion } from './BOEVersion';
 import { CostCategory } from './CostCategory';
 import { Vendor } from './Vendor';
+import { BOEElementAllocation } from './BOEElementAllocation';
 
 @Entity()
 export class BOEElement {
@@ -77,6 +78,9 @@ export class BOEElement {
   @ManyToOne(() => Vendor, { nullable: true })
   @JoinColumn({ name: 'vendorId' })
   vendor?: Vendor;
+
+  @OneToMany(() => BOEElementAllocation, allocation => allocation.boeElement)
+  allocations!: BOEElementAllocation[];
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt!: Date;

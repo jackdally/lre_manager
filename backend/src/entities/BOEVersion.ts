@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColum
 import { Program } from './Program';
 import { BOEElement } from './BOEElement';
 import { BOEApproval } from './BOEApproval';
+import { ManagementReserve } from './ManagementReserve';
 
 @Entity()
 export class BOEVersion {
@@ -62,6 +63,9 @@ export class BOEVersion {
 
   @OneToMany(() => BOEApproval, approval => approval.boeVersion)
   approvals!: BOEApproval[];
+
+  @OneToMany(() => ManagementReserve, mr => mr.boeVersion)
+  managementReserve!: ManagementReserve[];
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt!: Date;

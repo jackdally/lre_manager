@@ -950,7 +950,7 @@ export class BOEService {
     try {
       const boeVersion = await boeVersionRepository.findOne({
         where: { id: boeVersionId },
-        relations: ['program', 'elements', 'approvals', 'managementReserve']
+        relations: ['program', 'elements', 'approvals']
       });
 
       if (!boeVersion) {
@@ -984,7 +984,7 @@ export class BOEService {
       // 6. Update program if this was the current BOE
       if (isCurrentBOE && boeVersion.program) {
         await programRepository.update(boeVersion.program.id, {
-          currentBOEVersionId: undefined
+          currentBOEVersionId: undefined as any
         });
       }
 
