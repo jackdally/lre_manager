@@ -5,7 +5,6 @@ import {
   BOEElement,
   BOEApproval,
   ManagementReserve,
-  BOESummary,
   BOEElementAllocation,
   BOEElementAllocationSummary,
 } from '../store/boeStore';

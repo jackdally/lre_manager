@@ -41,6 +41,8 @@ This directory contains all project tasks organized by category and status.
 - [General](active/general.md) - Infrastructure, refactoring, documentation
 - [User Preferences](active/user-preferences.md) - User preference management feature
 - [Multi-Currency](active/multi-currency.md) - Multi-currency support system
+- [BOE System](active/boe-system.md) - BOE (Basis of Estimate) system
+- [Risk & Opportunity System](active/risk-opportunity-system.md) - Risk & Opportunity management system
 
 ## Completed Tasks
 - [Vendor Management](completed/vendor-management.md) - Vendor management system
@@ -50,9 +52,9 @@ This directory contains all project tasks organized by category and status.
 - [Program Management](completed/program-management.md) - Program management system
 
 ## Task Statistics
-- **Active Tasks:** 4 categories
+- **Active Tasks:** 6 categories
 - **Completed Tasks:** 5 major features
-- **Total Tasks Tracked:** 200+ individual tasks
+- **Total Tasks Tracked:** 300+ individual tasks
 - **Completion Rate:** 100% for Q3 2025 features
 
 ---

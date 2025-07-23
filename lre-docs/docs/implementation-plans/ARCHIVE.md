@@ -12,7 +12,7 @@ docs/implementation-plans/
 ├── README.md                           # Active plans guide
 ├── user-preferences.md                 # Active implementation
 ├── multi-currency.md                   # Active implementation
-├── risks-opportunities.md              # Active implementation
+├── risk-opportunity-system.md          # Active implementation
 ├── executive-dashboard.md              # Active implementation
 ├── boe-system.md                       # Active implementation
 └── archive/                            # Completed implementations
@@ -31,7 +31,7 @@ docs/implementation-plans/
 │   ├── wbs-templates.md
 │   └── cost-categories.md
 └── planned/                            # Future implementations
-    ├── risks-opportunities.md
+    ├── risk-opportunity-system.md
     ├── executive-dashboard.md
     └── boe-system.md
 ```

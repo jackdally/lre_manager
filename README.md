@@ -65,7 +65,7 @@ For detailed documentation, see the [Docusaurus documentation site](lre-docs/):
 - [Feature Development Checklist](lre-docs/docs/FEATURE_DEVELOPMENT_CHECKLIST.md) - **Essential guide for feature development sessions**
 - [Feature Roadmap](lre-docs/docs/FEATURES.md) - Planned features and status
 - [Implementation Plans](lre-docs/docs/implementation-plans/) - Detailed technical plans
-- [Sprint Planning](lre-docs/docs/sprints/) - Sprint management and tracking
+- [Implementation Plans](lre-docs/docs/implementation-plans/) - Detailed technical plans
 - [Task Management](lre-docs/docs/tasks/) - Organized task tracking by category
 - [Legacy Task List](lre-docs/docs/archive/TODO-LEGACY.md) - Original task list (archived)
 

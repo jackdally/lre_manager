@@ -8,11 +8,9 @@ This directory contains detailed implementation plans for major features and sys
 implementation-plans/
 ├── README.md                           # This file
 ├── ARCHIVE.md                          # Archiving guidelines
-├── user-preferences.md                 # User Preference Management
-├── multi-currency.md                   # Multi-Currency Support System
-├── risks-opportunities.md              # Risks & Opportunities System
-├── executive-dashboard.md              # Executive Management Dashboard
-├── boe-system.md                       # BOE (Basis of Estimate) System
+├── user-preferences.md                 # User Preference Management ✅
+├── risk-opportunity-system.md          # Risk & Opportunity System ✅
+├── boe-system.md                       # BOE (Basis of Estimate) System ✅
 └── archive/                            # Completed implementations
     ├── README.md                       # Archive index
     └── 2025/
@@ -26,18 +24,18 @@ implementation-plans/
 
 ## Plan Status
 
-| Feature | Status | Priority | Estimated Effort | Next Steps |
-|---------|--------|----------|------------------|------------|
-| User Preferences | Planning Complete | Medium | 5 weeks | Begin Phase 1 |
-| Multi-Currency | Requirements Defined | Low | 8 weeks | Create detailed plan |
-| Risks & Opportunities | Feature Planning | High | 6 weeks | Define requirements |
-| Executive Dashboard | Feature Planning | Medium | 4 weeks | Define requirements |
-| BOE System | Feature Planning | High | 6 weeks | Define requirements |
-| Vendor Management | Completed | High | 4 weeks | ✅ Archived |
-| NetSuite Actuals Upload | Completed | High | 6 weeks | ✅ Archived |
-| Settings & Configuration | Completed | High | 5 weeks | ✅ Archived |
-| Ledger Management | Completed | High | 4 weeks | ✅ Archived |
-| Program Management | Completed | High | 3 weeks | ✅ Archived |
+| Feature | Tasks | Status | Priority | Estimated Effort | Next Steps |
+|---------|-------|--------|----------|------------------|------------|
+| [User Preferences](user-preferences.md) | [Tasks](../tasks/active/user-preferences.md) | Planning Complete | Medium | 5 weeks | Begin Phase 1 |
+| Multi-Currency | - | Requirements Defined | Low | 8 weeks | Create detailed plan |
+| [Risk & Opportunity System](risk-opportunity-system.md) | [Tasks](../tasks/active/risk-opportunity-system.md) | Planning Complete | High | 8-10 weeks | Begin Phase 1 |
+| Executive Dashboard | - | Feature Planning | Medium | 4 weeks | Define requirements |
+| [BOE System](boe-system.md) | [Tasks](../tasks/active/boe-system.md) | In Progress | High | 6 weeks | Phase 3B - Ledger Integration |
+| [Vendor Management](archive/2025/Q3/vendor-management.md) | [Tasks](../tasks/completed/vendor-management.md) | Completed | High | 4 weeks | ✅ Archived |
+| [NetSuite Actuals Upload](archive/2025/Q3/netsuite-actuals-upload.md) | [Tasks](../tasks/completed/netsuite-actuals-upload.md) | Completed | High | 6 weeks | ✅ Archived |
+| [Settings & Configuration](archive/2025/Q3/settings-configuration.md) | [Tasks](../tasks/completed/settings-configuration.md) | Completed | High | 5 weeks | ✅ Archived |
+| [Ledger Management](archive/2025/Q3/ledger-management.md) | [Tasks](../tasks/completed/ledger-management.md) | Completed | High | 4 weeks | ✅ Archived |
+| [Program Management](archive/2025/Q3/program-management.md) | [Tasks](../tasks/completed/program-management.md) | Completed | High | 3 weeks | ✅ Archived |
 
 ## How to Use Implementation Plans
 
@@ -180,7 +178,7 @@ Each implementation plan follows this structure:
 - [`docs/FEATURES.md`](../../FEATURES.md) - Feature requirements and status
 - [`docs/archive/TODO-LEGACY.md`](../../archive/TODO-LEGACY.md) - Legacy task tracking (archived)
 - [`PROJECT_MANAGEMENT.md`](../PROJECT_MANAGEMENT.md) - Project management overview
-- [`docs/sprints/`](../sprints/) - Sprint planning and tracking
+- [`docs/tasks/`](../tasks/) - Task management and tracking
 - [`ARCHIVE.md`](ARCHIVE.md) - Guidelines for archiving completed implementations
 
 ---

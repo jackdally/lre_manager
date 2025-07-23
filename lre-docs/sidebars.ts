@@ -56,6 +56,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'implementation-plans/user-preferences',
         'implementation-plans/boe-system',
+        'implementation-plans/risk-opportunity-system',
       ],
     },
     // Planned Features category removed - will be added when features are ready
@@ -75,11 +76,9 @@ const sidebars: SidebarsConfig = {
   // Tasks sidebar
   tasks: [
     {
-      type: 'category',
+      type: 'doc',
+      id: 'tasks/README',
       label: 'Task Management',
-      items: [
-        'tasks/README',
-      ],
     },
     {
       type: 'category',
@@ -90,6 +89,7 @@ const sidebars: SidebarsConfig = {
         'tasks/active/user-preferences',
         'tasks/active/multi-currency',
         'tasks/active/boe-system',
+        'tasks/active/risk-opportunity-system',
       ],
     },
     {
@@ -108,23 +108,20 @@ const sidebars: SidebarsConfig = {
   // Implementation sidebar
   implementation: [
     {
-      type: 'category',
+      type: 'doc',
+      id: 'implementation-plans/README',
       label: 'Implementation Plans',
-      items: [
-        'implementation-plans/README',
-        'implementation-plans/user-preferences',
-        'implementation-plans/boe-system',
-      ],
     },
     {
       type: 'category',
-      label: 'Sprint Planning',
+      label: 'Active Plans',
       items: [
-        'sprints/sprint-template',
-        'sprints/sprint-1-user-preferences',
-        'sprints/sprint-2-boe-phase1',
+        'implementation-plans/user-preferences',
+        'implementation-plans/boe-system',
+        'implementation-plans/risk-opportunity-system',
       ],
     },
+    // Planning section removed - will be added when implementation plans are created
     {
       type: 'category',
       label: 'Archived Plans',

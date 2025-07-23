@@ -29,7 +29,7 @@ This document provides a high-level roadmap of planned, in-progress, and complet
 
 **Implementation Plan**: [docs/implementation-plans/boe-system.md](implementation-plans/boe-system.md)  
 **Task Tracking**: [docs/tasks/active/boe-system.md](tasks/active/boe-system.md)  
-**Sprint Planning**: [docs/sprints/sprint-2-boe-phase1.md](sprints/sprint-2-boe-phase1.md)  
+**Implementation Plan**: [docs/implementation-plans/boe-system.md](implementation-plans/boe-system.md)  
 **Estimated Completion**: Q1 2026
 
 ### User Preference Management (Medium Priority)
@@ -75,6 +75,8 @@ This document provides a high-level roadmap of planned, in-progress, and complet
   - [ ] Risk heat maps and visualizations
   - [ ] Risk trend analysis over time
   - [ ] Risk correlation analysis between programs
+
+**Implementation Plan**: [docs/implementation-plans/risk-opportunity-system.md](implementation-plans/risk-opportunity-system.md)
 
 #### Executive Management Dashboard
 - [ ] **Program Portfolio Overview**
@@ -298,7 +300,7 @@ This document provides a high-level roadmap of planned, in-progress, and complet
 - [Feature Development Checklist](FEATURE_DEVELOPMENT_CHECKLIST.md) - Essential guide for feature development
 - [Implementation Plans](implementation-plans/) - Detailed technical plans
 - [Task Management](tasks/) - Organized task tracking by category
-- [Sprint Planning](sprints/) - Sprint management and tracking
+- [Implementation Plans](implementation-plans/) - Detailed technical plans
 
 ---
 *Last updated: [Current Date]* 

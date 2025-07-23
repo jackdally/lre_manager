@@ -504,6 +504,7 @@
   - [x] **NEW**: Enhance managementReserveApi in boeApi.ts with all endpoints
   - [x] **NEW**: Add MR utilization tracking and history functionality
   - [x] **NEW**: Implement MR calculation with breakdown information
+  - [x] **NEW**: Backend API endpoints fully implemented and tested
 
 - [x] **BOE-087**: Add MR state management and store integration ✅ **COMPLETED**
   - [x] Update BOE store with MR state management
@@ -524,6 +525,14 @@
   - [x] **NEW**: Test MR validation and error handling
   - [x] **NEW**: Test MR utilization tracking
   - [x] **NEW**: Perform user acceptance testing for MR workflow
+  - [x] **NEW**: UX improvements - success feedback and auto-switch to view mode
+  - [x] **NEW**: UX improvements - conditional Calculate/Recalculate button logic
+  - [x] **NEW**: UX improvements - recalculate button in display mode
+  - [x] **NEW**: UX improvements - streamlined recalculate flow (blue recalculate tab, no duplicate buttons)
+  - [x] **NEW**: UX improvements - blue recalculate tab indicates active recalculation mode
+  - [x] **NEW**: UX improvements - clarified MR terminology and fixed utilization calculations
+  - [x] **NEW**: Backend fix - baseline MR fields now properly saved during MR calculation
+  - [x] **NEW**: Frontend fix - Total with MR calculation now properly converts string values to numbers
 
 ### BOE Versioning System
 - [ ] **BOE-085**: Create BOEVersionHistory component

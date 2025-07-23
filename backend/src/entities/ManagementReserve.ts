@@ -6,16 +6,16 @@ export class ManagementReserve {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column('decimal', { precision: 15, scale: 2 })
+  @Column('decimal', { precision: 15, scale: 2, default: 0 })
   baselineAmount!: number;
 
-  @Column('decimal', { precision: 5, scale: 2 })
+  @Column('decimal', { precision: 5, scale: 2, default: 0 })
   baselinePercentage!: number;
 
-  @Column('decimal', { precision: 15, scale: 2 })
+  @Column('decimal', { precision: 15, scale: 2, default: 0 })
   adjustedAmount!: number;
 
-  @Column('decimal', { precision: 5, scale: 2 })
+  @Column('decimal', { precision: 5, scale: 2, default: 0 })
   adjustedPercentage!: number;
 
   @Column('decimal', { precision: 15, scale: 2, default: 0 })

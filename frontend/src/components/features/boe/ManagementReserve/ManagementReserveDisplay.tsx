@@ -13,18 +13,25 @@ interface ManagementReserveDisplayProps {
   managementReserve: ManagementReserve;
   totalCost: number;
   showUtilization?: boolean;
+  onRecalculate?: () => void;
+  isEditable?: boolean;
 }
 
 const ManagementReserveDisplay: React.FC<ManagementReserveDisplayProps> = ({
   managementReserve,
   totalCost,
-  showUtilization = false
+  showUtilization = false,
+  onRecalculate,
+  isEditable = true
 }) => {
-  const utilizationPercentage = managementReserve.baselineAmount > 0 
-    ? ((managementReserve.baselineAmount - (managementReserve.adjustedAmount || managementReserve.baselineAmount)) / managementReserve.baselineAmount) * 100 
+  // Calculate utilization based on utilized amount vs adjusted amount
+  const utilizedAmount = Number(managementReserve.utilizedAmount) || 0;
+  const adjustedAmount = Number(managementReserve.adjustedAmount) || Number(managementReserve.baselineAmount) || 0;
+  const remainingAmount = adjustedAmount - utilizedAmount;
+  
+  const utilizationPercentage = adjustedAmount > 0 
+    ? (utilizedAmount / adjustedAmount) * 100 
     : 0;
-
-  const remainingAmount = managementReserve.adjustedAmount || managementReserve.baselineAmount;
 
   return (
     <div className="space-y-6">
@@ -42,23 +49,23 @@ const ManagementReserveDisplay: React.FC<ManagementReserveDisplayProps> = ({
             <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-2xl font-bold text-blue-600">
-            {formatCurrency(managementReserve.baselineAmount)}
+            {formatCurrency(Number(managementReserve.baselineAmount) || 0)}
           </p>
           <p className="text-sm text-gray-600">
-            {managementReserve.baselinePercentage}% of total cost
+            Original calculated amount ({Number(managementReserve.baselinePercentage) || 0}% of total cost)
           </p>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-500">Remaining MR</p>
+            <p className="text-sm text-gray-500">Available MR</p>
             <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-2xl font-bold text-green-600">
             {formatCurrency(remainingAmount)}
           </p>
           <p className="text-sm text-gray-600">
-            {managementReserve.adjustedPercentage || managementReserve.baselinePercentage}% of total cost
+            Remaining after utilization ({utilizationPercentage.toFixed(1)}% utilized)
           </p>
         </div>
 
@@ -68,10 +75,10 @@ const ManagementReserveDisplay: React.FC<ManagementReserveDisplayProps> = ({
             <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-2xl font-bold text-purple-600">
-            {formatCurrency(totalCost + managementReserve.baselineAmount)}
+            {formatCurrency(totalCost + adjustedAmount)}
           </p>
           <p className="text-sm text-gray-600">
-            Including baseline MR
+            Project cost + current MR amount
           </p>
         </div>
       </div>
@@ -92,7 +99,7 @@ const ManagementReserveDisplay: React.FC<ManagementReserveDisplayProps> = ({
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500">
-            <span>Used: {formatCurrency(managementReserve.baselineAmount - remainingAmount)}</span>
+            <span>Used: {formatCurrency(utilizedAmount)}</span>
             <span>Remaining: {formatCurrency(remainingAmount)}</span>
           </div>
         </div>

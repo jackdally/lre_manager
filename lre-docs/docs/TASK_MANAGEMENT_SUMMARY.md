@@ -74,7 +74,7 @@ We've created a task management helper script at `scripts/task-management.sh`:
 ./scripts/task-management.sh list-completed
 
 # Create a new feature task file
-./scripts/task-management.sh create-feature risks-opportunities
+./scripts/task-management.sh create-feature risk-opportunity-system
 
 # Archive a completed feature
 ./scripts/task-management.sh archive user-preferences

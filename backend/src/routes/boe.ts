@@ -865,4 +865,480 @@ router.delete('/programs/:id/boe/:versionId', async (req, res) => {
   }
 });
 
+// ============================================================================
+// MANAGEMENT RESERVE API ENDPOINTS
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve:
+ *   get:
+ *     summary: Get management reserve for BOE version
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.get('/boe-versions/:boeVersionId/management-reserve', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const mr = await managementReserveRepository.findOne({
+      where: { boeVersion: { id: boeVersionId } },
+      relations: ['boeVersion']
+    });
+
+    if (!mr) {
+      return res.status(404).json({ message: 'Management reserve not found for this BOE version' });
+    }
+
+    res.json(mr);
+  } catch (error) {
+    console.error('Error fetching management reserve:', error);
+    res.status(500).json({ message: 'Error fetching management reserve', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve:
+ *   put:
+ *     summary: Update management reserve for BOE version
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.put('/boe-versions/:boeVersionId/management-reserve', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    const mrData = req.body;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    // Find existing MR record
+    let mr = await managementReserveRepository.findOne({
+      where: { boeVersion: { id: boeVersionId } },
+      relations: ['boeVersion']
+    });
+
+    if (!mr) {
+      // Create new MR record if it doesn't exist
+      const boeVersion = await boeVersionRepository.findOne({
+        where: { id: boeVersionId }
+      });
+
+      if (!boeVersion) {
+        return res.status(404).json({ message: 'BOE version not found' });
+      }
+
+      mr = new ManagementReserve();
+      mr.boeVersion = boeVersion;
+      mr.baselineAmount = 0;
+      mr.baselinePercentage = 0;
+      mr.calculationMethod = 'Standard';
+    }
+
+    // Update MR fields
+    if (mrData.baselineAmount !== undefined) {
+      mr.baselineAmount = Number(mrData.baselineAmount);
+    }
+    if (mrData.baselinePercentage !== undefined) {
+      mr.baselinePercentage = Number(mrData.baselinePercentage);
+    }
+    if (mrData.adjustedAmount !== undefined) {
+      mr.adjustedAmount = Number(mrData.adjustedAmount);
+    }
+    if (mrData.adjustedPercentage !== undefined) {
+      mr.adjustedPercentage = Number(mrData.adjustedPercentage);
+    }
+    if (mrData.calculationMethod !== undefined) {
+      mr.calculationMethod = mrData.calculationMethod;
+    }
+    if (mrData.justification !== undefined) {
+      mr.justification = mrData.justification;
+    }
+    if (mrData.riskFactors !== undefined) {
+      mr.riskFactors = mrData.riskFactors;
+    }
+    if (mrData.notes !== undefined) {
+      mr.notes = mrData.notes;
+    }
+
+    // Recalculate remaining amount
+    mr.remainingAmount = Math.max(0, Number(mr.adjustedAmount) - Number(mr.utilizedAmount));
+    mr.utilizationPercentage = Number(mr.adjustedAmount) > 0 ? (Number(mr.utilizedAmount) / Number(mr.adjustedAmount)) * 100 : 0;
+    mr.updatedAt = new Date();
+
+    const updatedMR = await managementReserveRepository.save(mr);
+    res.json(updatedMR);
+  } catch (error) {
+    console.error('Error updating management reserve:', error);
+    res.status(500).json({ message: 'Error updating management reserve', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve/calculate:
+ *   post:
+ *     summary: Calculate management reserve for BOE version
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/boe-versions/:boeVersionId/management-reserve/calculate', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    const { method, customPercentage } = req.body;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId }
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    // Calculate MR using BOEService
+    const totalCost = boeVersion.totalEstimatedCost || 0;
+    const mrCalculation = BOEService.calculateManagementReserve(totalCost, method, customPercentage);
+
+    // Find or create MR record
+    let mr = await managementReserveRepository.findOne({
+      where: { boeVersion: { id: boeVersionId } }
+    });
+
+    if (!mr) {
+      mr = new ManagementReserve();
+      mr.boeVersion = boeVersion;
+      mr.baselineAmount = mrCalculation.amount;
+      mr.baselinePercentage = mrCalculation.percentage;
+      mr.calculationMethod = method || 'Standard';
+    } else {
+      mr.baselineAmount = mrCalculation.amount;
+      mr.baselinePercentage = mrCalculation.percentage;
+      mr.calculationMethod = method || 'Standard';
+    }
+
+    // Set adjusted values to baseline initially
+    mr.adjustedAmount = mrCalculation.amount;
+    mr.adjustedPercentage = mrCalculation.percentage;
+    mr.remainingAmount = Math.max(0, Number(mrCalculation.amount) - Number(mr.utilizedAmount));
+    mr.utilizationPercentage = Number(mrCalculation.amount) > 0 ? (Number(mr.utilizedAmount) / Number(mrCalculation.amount)) * 100 : 0;
+    mr.updatedAt = new Date();
+
+    const updatedMR = await managementReserveRepository.save(mr);
+    res.json(updatedMR);
+  } catch (error) {
+    console.error('Error calculating management reserve:', error);
+    res.status(500).json({ message: 'Error calculating management reserve', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve/calculate-breakdown:
+ *   post:
+ *     summary: Calculate management reserve with breakdown information
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/boe-versions/:boeVersionId/management-reserve/calculate-breakdown', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    const { method, customPercentage, projectComplexity, riskFactors } = req.body;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId }
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    const totalCost = boeVersion.totalEstimatedCost || 0;
+    
+    // Calculate base percentage based on method
+    let basePercentage = 10; // Default
+    let complexityAdjustment = 0;
+    let riskAdjustment = 0;
+    
+    switch (method) {
+      case 'Standard':
+        basePercentage = totalCost > 1000000 ? 10 : totalCost > 500000 ? 12 : 15;
+        break;
+      case 'Risk-Based':
+        basePercentage = totalCost > 1000000 ? 8 : totalCost > 500000 ? 10 : 12;
+        
+        // Add complexity adjustment
+        if (projectComplexity === 'High') {
+          complexityAdjustment = 2;
+        } else if (projectComplexity === 'Medium') {
+          complexityAdjustment = 1;
+        }
+        
+        // Add risk factor adjustments
+        if (riskFactors && Array.isArray(riskFactors)) {
+          riskAdjustment = riskFactors.length * 0.5; // 0.5% per risk factor
+        }
+        break;
+      case 'Custom':
+        basePercentage = customPercentage || 10;
+        break;
+    }
+
+    const finalPercentage = Math.min(25, Math.max(5, basePercentage + complexityAdjustment + riskAdjustment));
+    const amount = totalCost > 0 ? (totalCost * finalPercentage) / 100 : 0;
+
+    const result = {
+      amount: Math.round(amount * 100) / 100,
+      percentage: Math.round(finalPercentage * 100) / 100,
+      breakdown: {
+        basePercentage: Math.round(basePercentage * 100) / 100,
+        complexityAdjustment: Math.round(complexityAdjustment * 100) / 100,
+        riskAdjustment: Math.round(riskAdjustment * 100) / 100,
+        finalPercentage: Math.round(finalPercentage * 100) / 100,
+        roAdjustment: 0 // Placeholder for future R&O integration
+      }
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error calculating management reserve breakdown:', error);
+    res.status(500).json({ message: 'Error calculating management reserve breakdown', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve/utilize:
+ *   post:
+ *     summary: Utilize management reserve
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/boe-versions/:boeVersionId/management-reserve/utilize', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    const { amount, reason, description } = req.body;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: 'Invalid utilization amount' });
+    }
+
+    const mr = await managementReserveRepository.findOne({
+      where: { boeVersion: { id: boeVersionId } }
+    });
+
+    if (!mr) {
+      return res.status(404).json({ message: 'Management reserve not found for this BOE version' });
+    }
+
+    // Check if utilization amount exceeds remaining amount
+    if (amount > mr.remainingAmount) {
+      return res.status(400).json({ 
+        message: 'Utilization amount exceeds remaining management reserve',
+        remainingAmount: mr.remainingAmount,
+        requestedAmount: amount
+      });
+    }
+
+    // Update utilization
+    mr.utilizedAmount = Number(mr.utilizedAmount) + Number(amount);
+    mr.remainingAmount = Math.max(0, Number(mr.adjustedAmount) - Number(mr.utilizedAmount));
+    mr.utilizationPercentage = Number(mr.adjustedAmount) > 0 ? (Number(mr.utilizedAmount) / Number(mr.adjustedAmount)) * 100 : 0;
+    mr.updatedAt = new Date();
+
+    // Add utilization note
+    const utilizationNote = `Utilized $${amount.toFixed(2)} on ${new Date().toISOString().split('T')[0]}. Reason: ${reason}${description ? `. Description: ${description}` : ''}`;
+    mr.notes = mr.notes ? `${mr.notes}\n${utilizationNote}` : utilizationNote;
+
+    const updatedMR = await managementReserveRepository.save(mr);
+    res.json(updatedMR);
+  } catch (error) {
+    console.error('Error utilizing management reserve:', error);
+    res.status(500).json({ message: 'Error utilizing management reserve', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve/history:
+ *   get:
+ *     summary: Get management reserve utilization history
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.get('/boe-versions/:boeVersionId/management-reserve/history', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const mr = await managementReserveRepository.findOne({
+      where: { boeVersion: { id: boeVersionId } }
+    });
+
+    if (!mr) {
+      return res.status(404).json({ message: 'Management reserve not found for this BOE version' });
+    }
+
+    // For now, return a simple history based on notes
+    // In the future, this could be a separate table with detailed utilization records
+    const history = [];
+    
+    if (mr.notes) {
+      const noteLines = mr.notes.split('\n').filter(line => line.trim().startsWith('Utilized'));
+      history.push(...noteLines.map((line, index) => ({
+        id: `utilization-${index}`,
+        amount: parseFloat(line.match(/\$([\d.]+)/)?.[1] || '0'),
+        reason: line.match(/Reason: (.+?)(?:\. Description:|$)/)?.[1] || '',
+        description: line.match(/Description: (.+)$/)?.[1] || '',
+        date: line.match(/(\d{4}-\d{2}-\d{2})/)?.[1] || new Date().toISOString().split('T')[0],
+        type: 'utilization'
+      })));
+    }
+
+    res.json(history);
+  } catch (error) {
+    console.error('Error fetching management reserve history:', error);
+    res.status(500).json({ message: 'Error fetching management reserve history', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve/utilization:
+ *   get:
+ *     summary: Get management reserve utilization summary
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.get('/boe-versions/:boeVersionId/management-reserve/utilization', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const mr = await managementReserveRepository.findOne({
+      where: { boeVersion: { id: boeVersionId } }
+    });
+
+    if (!mr) {
+      return res.status(404).json({ message: 'Management reserve not found for this BOE version' });
+    }
+
+    const utilization = {
+      baselineAmount: mr.baselineAmount,
+      adjustedAmount: mr.adjustedAmount,
+      utilizedAmount: mr.utilizedAmount,
+      remainingAmount: mr.remainingAmount,
+      utilizationPercentage: mr.utilizationPercentage,
+      calculationMethod: mr.calculationMethod,
+      lastUpdated: mr.updatedAt
+    };
+
+    res.json(utilization);
+  } catch (error) {
+    console.error('Error fetching management reserve utilization:', error);
+    res.status(500).json({ message: 'Error fetching management reserve utilization', error });
+  }
+});
+
+// R&O Integration placeholder endpoints (for future use)
+router.get('/boe-versions/:boeVersionId/management-reserve/risk-matrix', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    // Placeholder response for future R&O integration
+    res.json({
+      message: 'R&O system not yet implemented',
+      placeholder: true,
+      riskMatrix: []
+    });
+  } catch (error) {
+    console.error('Error fetching risk matrix:', error);
+    res.status(500).json({ message: 'Error fetching risk matrix', error });
+  }
+});
+
+router.post('/boe-versions/:boeVersionId/management-reserve/calculate-ro-driven', async (req, res) => {
+  try {
+    const { boeVersionId } = req.params;
+    const riskMatrixData = req.body;
+    
+    if (!isValidUUID(boeVersionId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    // Placeholder response for future R&O integration
+    res.json({
+      message: 'R&O-driven MR calculation not yet implemented',
+      placeholder: true,
+      amount: 0,
+      percentage: 0
+    });
+  } catch (error) {
+    console.error('Error calculating R&O-driven MR:', error);
+    res.status(500).json({ message: 'Error calculating R&O-driven MR', error });
+  }
+});
+
 export default router; 

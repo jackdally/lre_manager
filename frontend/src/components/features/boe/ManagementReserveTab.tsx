@@ -6,7 +6,7 @@ import {
   ManagementReserveDisplay, 
   ManagementReserveUtilization 
 } from './ManagementReserve';
-import { PencilIcon, EyeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, EyeIcon, ChartBarIcon, CalculatorIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
 interface ManagementReserveTabProps {
   programId: string;
@@ -17,7 +17,7 @@ type MRViewMode = 'calculator' | 'display' | 'utilization';
 const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }) => {
   const { currentBOE } = useBOEStore();
   const [viewMode, setViewMode] = useState<MRViewMode>('display');
-  const [isEditing, setIsEditing] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   const {
     managementReserve,
@@ -41,7 +41,12 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
   const handleMRChange = async (mr: any) => {
     try {
       await updateManagementReserve(mr);
-      setIsEditing(false);
+      // Auto-switch back to display mode after successful save
+      setViewMode('display');
+      // Show success message
+      setShowSuccessMessage(true);
+      // Hide success message after 3 seconds
+      setTimeout(() => setShowSuccessMessage(false), 3000);
     } catch (error) {
       console.error('Error updating MR:', error);
     }
@@ -57,7 +62,7 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
     }
   };
 
-  const totalCost = currentBOE?.totalEstimatedCost || 0;
+  const totalCost = Number(currentBOE?.totalEstimatedCost) || 0;
 
   if (!currentBOE) {
     return (
@@ -122,17 +127,31 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
               <EyeIcon className="h-4 w-4 inline mr-1" />
               View
             </button>
-            <button
-              onClick={() => setViewMode('calculator')}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                viewMode === 'calculator'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <PencilIcon className="h-4 w-4 inline mr-1" />
-              Calculate
-            </button>
+            {!managementReserve ? (
+              <button
+                onClick={() => setViewMode('calculator')}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  viewMode === 'calculator'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <PencilIcon className="h-4 w-4 inline mr-1" />
+                Calculate
+              </button>
+            ) : (
+              <button
+                onClick={() => setViewMode('calculator')}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  viewMode === 'calculator'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-blue-600 hover:text-blue-700'
+                }`}
+              >
+                <CalculatorIcon className="h-4 w-4 inline mr-1" />
+                Recalculate
+              </button>
+            )}
             <button
               onClick={() => setViewMode('utilization')}
               className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
@@ -148,6 +167,19 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
         </div>
       </div>
 
+      {/* Success Message */}
+      {showSuccessMessage && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex">
+            <CheckCircleIcon className="h-5 w-5 text-green-400 mr-2" />
+            <div>
+              <h3 className="text-sm font-medium text-green-800">Success!</h3>
+              <p className="text-sm text-green-700">Management Reserve has been saved successfully.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Content based on view mode */}
       <div className="space-y-6">
         {viewMode === 'display' && (
@@ -157,6 +189,7 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
                 managementReserve={managementReserve}
                 totalCost={totalCost}
                 showUtilization={true}
+                isEditable={currentBOE.status === 'Draft'}
               />
             ) : (
               <div className="text-center py-12">

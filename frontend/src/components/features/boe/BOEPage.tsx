@@ -43,7 +43,6 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   const [showTemplateManagement, setShowTemplateManagement] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<BOETemplate | null>(null);
   const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
-  const [localCurrentBOE, setLocalCurrentBOE] = useState<any>(null);
 
 
 
@@ -63,7 +62,6 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         // The API returns { program, currentBOE, hasBOE, lastBOEUpdate }
         // not the BOESummary structure we expected
         setCurrentBOE(boeData.currentBOE || null);
-        setLocalCurrentBOE(boeData.currentBOE || null);
 
         
         setBOELoading(false);

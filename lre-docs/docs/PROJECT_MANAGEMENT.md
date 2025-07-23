@@ -160,10 +160,10 @@ This document provides a structured approach to managing the LRE Manager project
 - **File**: `docs/implementation-plans/multi-currency.md`
 - **Next Steps**: Create detailed implementation plan
 
-### Risks & Opportunities System
-- **Status**: Feature Planning
-- **File**: `docs/implementation-plans/risks-opportunities.md`
-- **Next Steps**: Define requirements and architecture
+### Risk & Opportunity System
+- **Status**: Planning Complete
+- **File**: `docs/implementation-plans/risk-opportunity-system.md`
+- **Next Steps**: Begin Phase 1 - Foundation & Database Schema
 
 ### Executive Management Dashboard
 - **Status**: Feature Planning

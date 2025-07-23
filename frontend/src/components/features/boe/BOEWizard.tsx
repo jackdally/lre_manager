@@ -4,8 +4,6 @@ import BOETemplateSelector from './BOETemplateSelector';
 import { BOETemplate, BOEElementAllocation, BOEElement } from '../../../store/boeStore';
 import { formatCurrency } from '../../../utils/currencyUtils';
 import { 
-  CalendarIcon, 
-  CurrencyDollarIcon, 
   ClockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -201,7 +199,7 @@ const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
 };
 
 const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, sourceBOE, currentBOE }) => {
-  const { wizardStep, wizardData, setWizardStep, setWizardData } = useBOEStore();
+  const { wizardStep, setWizardStep } = useBOEStore();
   
 
   
