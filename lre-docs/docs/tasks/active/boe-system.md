@@ -377,12 +377,59 @@
   - [x] Implement BOE allocation suggestions and validation (amount-based)
   - [x] Add BOE-specific warnings and guidance in matching interface
   - [x] Add amount validation against BOE allocation remaining amounts
+  - [ ] **BOE-080A**: Frontend Integration Testing (Future Task)
+    - [ ] Create test CSV file with actuals that match BOE-created ledger entries
+    - [ ] Test TransactionMatchModal BOE context display
+    - [ ] Verify BOE-specific scoring improves match confidence
+    - [ ] Test amount validation warnings and guidance
+    - [ ] Document any issues found during manual testing
 
-- [ ] **BOE-081**: Implement ledger entry splitting and re-forecasting
-  - [ ] Create ledger entry splitting functionality
-  - [ ] Add re-forecasting wizard for planned amounts
-  - [ ] Implement baseline amount constraint warnings
-  - [ ] Add re-forecasting session tracking
+- [x] **BOE-081**: Implement ledger entry splitting and re-forecasting ✅ **COMPLETED**
+  - [x] Create ledger entry splitting functionality
+  - [x] Add re-forecasting wizard for planned amounts
+  - [x] Implement baseline amount constraint warnings
+  - [x] Add re-forecasting session tracking
+  - [x] **NEW**: TransactionMatchModal-first approach with automatic mismatch detection
+  - [x] **NEW**: Automatic split suggestions based on actual vs planned amounts
+  - [x] **NEW**: Automatic re-forecast suggestions for amount and date mismatches
+  - [x] **NEW**: Visual indicators and warning banners for mismatches
+  - [x] **NEW**: Seamless integration with existing invoice matching workflow
+  - [x] **NEW**: BOE allocation tracking and audit trail integration
+
+### Matching Allocations to Actuals (Phase 3B - Week 6) 🔄 **IN PROGRESS**
+- [ ] **BOE-081A**: Improve TransactionMatchModal UX (High Priority)
+  - [ ] Fix the modal so that it's more user friendly
+  - [ ] Improve visual layout and information hierarchy
+  - [ ] Add clear action buttons and guidance
+  - [ ] Enhance error messages and validation feedback
+  - [ ] Add progress indicators for complex operations
+
+- [ ] **BOE-081B**: Add Allocation Matching to Ledger Table (High Priority)
+  - [ ] Add this allocation matching & reforecasting to the matching modal on the Ledger Table as well
+  - [ ] Integrate BOE context into existing ledger table matching workflow
+  - [ ] Add BOE allocation suggestions in ledger table modal
+  - [ ] Ensure consistent UX between actuals and ledger table matching
+
+- [ ] **BOE-081C**: Enhance Re-forecasting UX (High Priority)
+  - [ ] Fix the functionality of the reforecasting so that the UX is much easier to use
+  - [ ] Make it clear how the user can reforecast planned costs and dates
+  - [ ] Add step-by-step wizard for re-forecasting operations
+  - [ ] Provide clear visual feedback for re-forecasting changes
+  - [ ] Add preview mode before applying re-forecasting changes
+
+- [ ] **BOE-081D**: Fix Re-forecasting Validation (Medium Priority)
+  - [ ] Fix the validation so that re-forecasted work is allowed to exceed baseline costs
+  - [ ] Update validation rules to allow planned amounts to exceed baseline
+  - [ ] Add warnings instead of hard validation errors for baseline exceedance
+  - [ ] Provide clear justification for baseline exceedance
+  - [ ] Add approval workflow for significant baseline exceedance
+
+- [ ] **BOE-081E**: Add Cost Re-leveling Automation (Medium Priority)
+  - [ ] Add automation so that a user can properly move costs from one period (month) to another
+  - [ ] Implement "re-level" button to redistribute remaining costs across periods
+  - [ ] Add smart re-leveling algorithms (linear, front-loaded, back-loaded)
+  - [ ] Provide visual preview of re-leveling changes
+  - [ ] Add bulk re-leveling operations for multiple allocations
 
 - [ ] **BOE-082**: Create AllocationForecastView component (Baseline vs. Actuals)
   - [ ] Display baseline vs actual allocations by month

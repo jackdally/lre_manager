@@ -1,0 +1,6 @@
+Vendor Name,Description,Amount,Transaction Date,Program Code,Category,Subcategory,Invoice Number,Reference Number
+Frontend Development Allocation,Frontend Development: Frontend development allocation - 6 months linear,12000,2025-01-15,BOE.0810,DEV,Frontend,INV-001,REF-001
+Frontend Development Allocation,Frontend Development: Frontend development allocation - 6 months linear,14000,2025-02-15,BOE.0810,DEV,Frontend,INV-002,REF-002
+Backend Development Allocation,Backend Development: Backend development allocation - 8 months front-loaded,22000,2025-01-20,BOE.0810,DEV,Backend,INV-003,REF-003
+Backend Development Allocation,Backend Development: Backend development allocation - 8 months front-loaded,26000,2025-02-20,BOE.0810,DEV,Backend,INV-004,REF-004
+Frontend Development Allocation,Frontend Development: Frontend development allocation - 6 months linear,15000,2025-03-15,BOE.0810,DEV,Frontend,INV-005,REF-005 

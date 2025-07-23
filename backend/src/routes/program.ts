@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AppDataSource } from '../config/database';
 import { Program } from '../entities/Program';
 import { copyWbsTemplateToProgram } from '../services/wbsTemplateService';
+import { ProgramDeletionService } from '../services/programDeletionService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -184,7 +185,7 @@ router.put('/:id', async (req, res) => {
  * @swagger
  * /api/programs/{id}:
  *   delete:
- *     summary: Delete a program
+ *     summary: Delete a program and all related data
  *     parameters:
  *       - in: path
  *         name: id
@@ -196,15 +197,28 @@ router.delete('/:id', async (req, res) => {
   if (!isValidUUID(req.params.id)) {
     return res.status(400).json({ message: 'Invalid program ID format' });
   }
+  
   try {
-    const program = await programRepository.findOneBy({ id: req.params.id });
-    if (!program) {
-      return res.status(404).json({ message: 'Program not found' });
+    const programDeletionService = new ProgramDeletionService();
+    const result = await programDeletionService.deleteProgram(req.params.id);
+    
+    if (result.success) {
+      res.status(200).json({ 
+        message: result.message,
+        details: result.details
+      });
+    } else {
+      res.status(500).json({ 
+        message: result.message,
+        error: result.details
+      });
     }
-    await programRepository.remove(program);
-    res.status(204).send();
   } catch (error) {
-    res.status(500).json({ message: 'Error deleting program', error });
+    console.error('Error deleting program:', error);
+    res.status(500).json({ 
+      message: 'Error deleting program', 
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 

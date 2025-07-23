@@ -184,8 +184,9 @@
 - ✅ **Correct Monthly Breakdown**: Ledger entries created from allocations (not elements) ✅ **COMPLETED**
 - ✅ **BOE Relationship Tracking**: Proper integration fields in ledger entries ✅ **COMPLETED**
 - [x] **Enhanced BOE Context in Invoice Processing**: Enhance existing invoice matching with BOE allocation context and validation ✅ **COMPLETED**
-- [ ] **Ledger Entry Splitting**: Split ledger entries when invoices don't match planned quantities
-- [ ] **Re-forecasting Tools**: Adjust planned amounts and dates based on actual invoice timing
+  - [ ] **Frontend Integration Testing**: Create test scenarios and verify BOE context display in TransactionMatchModal
+- [x] **Ledger Entry Splitting**: Split ledger entries when invoices don't match planned quantities ✅ **COMPLETED**
+- [x] **Re-forecasting Tools**: Adjust planned amounts and dates based on actual invoice timing ✅ **COMPLETED**
 - [ ] **Flexible Quantity Mapping**: Support for hardware quantities and contractor hours
 - [ ] **Baseline vs. Planned Tracking**: Maintain baseline amounts from BOE while allowing planned amount adjustments
 - [ ] **AllocationForecastView**: Baseline vs. Actuals comparison dashboard for Program Managers

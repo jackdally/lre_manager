@@ -471,6 +471,8 @@ router.post('/boe-elements', async (req, res) => {
     element.description = elementData.description;
     element.level = elementData.level;
     element.estimatedCost = elementData.estimatedCost || 0;
+    element.costCategoryId = elementData.costCategoryId || null;
+    element.vendorId = elementData.vendorId || null;
     element.isRequired = elementData.isRequired !== undefined ? elementData.isRequired : true;
     element.isOptional = elementData.isOptional !== undefined ? elementData.isOptional : false;
     element.boeVersion = boeVersion;

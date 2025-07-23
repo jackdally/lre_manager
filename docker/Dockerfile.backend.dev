@@ -2,6 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install jq for JSON processing in scripts
+RUN apk add --no-cache jq
+
 # Install development dependencies
 COPY backend/package*.json ./
 RUN npm install

@@ -1,80 +1,55 @@
 # Scripts Directory
 
-This directory contains various utility scripts for development, deployment, and maintenance tasks.
+This directory contains utility scripts for the LRE Manager project.
 
-## Directory Structure
+## Prerequisites
 
-```
-scripts/
-├── development/               # Development environment scripts
-├── production/                # Production deployment scripts
-├── database/                  # Database management scripts
-├── testing/                   # Testing and validation scripts
-├── maintenance/               # Maintenance and cleanup scripts
-├── utils/                     # Utility scripts
-├── samples/                   # Sample files and templates
-├── archive/                   # Obsolete scripts (for reference)
-│   ├── migrations/            # One-time migration scripts
-│   └── README.md              # Archive documentation
-└── README.md                  # This file
-```
-
-## Active Scripts
-
-### Development
-- `development/setup.sh` - Set up development environment
-
-### Production
-- `production/production-setup.sh` - Production environment setup
-
-### Database
-- `database/db-backup.sh` - Database backup
-- `database/db-reset.sh` - Database reset
-- `database/seed_programs_and_expenses.ts` - Seed data
-- `database/reset_wbs_templates.sql` - Reset WBS templates to default
-
-### Testing
-- `testing/test.sh` - Run tests
-- `testing/check-all.sh` - Comprehensive testing
-
-### Maintenance
-- `maintenance/clean.sh` - Clean up temporary files
-- `maintenance/clean-uploads.sh` - Clean uploaded files
-- `maintenance/reset_wbs_templates.sh` - Reset WBS templates to default
-
-### Utils
-- `utils/check-requirements.sh` - Check system requirements
-- `utils/manage-containers.sh` - Docker container management
-- `utils/manage-volumes.sh` - Docker volume management
-- `utils/manage-env.sh` - Environment management
-- `utils/generate_transactions.sh` - Generate test transactions
-
-## Archived Scripts
-
-See `archive/README.md` for information about obsolete scripts that have been moved to the archive directory.
-
-## Usage
-
-Most scripts can be run directly from the project root:
+Most scripts require `jq` (JSON processor) for proper JSON parsing. This is automatically installed in Docker containers, but for local development you may need to install it:
 
 ```bash
-# Development setup
-./scripts/development/setup.sh
-
-# Database backup
-./scripts/database/db-backup.sh
-
-# Reset WBS templates
-./scripts/maintenance/reset_wbs_templates.sh
-
-# Run tests
-./scripts/testing/test.sh
+# Install jq locally
+./scripts/install-jq.sh
 ```
 
-## Contributing
+## Available Scripts
 
-When adding new scripts:
-1. Place them in the appropriate category directory
-2. Add documentation to this README
-3. Include usage examples
-4. Test thoroughly before committing
+### `complete-boe-081-test.sh`
+Creates a complete BOE-081 test scenario with allocations, ledger entries, and actuals for testing the split and re-forecast functionality.
+
+**Features:**
+- Creates test program, vendor, cost categories, WBS elements
+- Creates BOE templates, BOEs, BOE elements, and allocations
+- Pushes BOE to ledger and prepares actuals for manual testing
+- Includes comprehensive cleanup of previous test data
+- **Safety checks** to prevent accidental deletion of production programs
+
+**Usage:**
+```bash
+./scripts/complete-boe-081-test.sh
+```
+
+### `install-jq.sh`
+Installs jq (JSON processor) on various operating systems for local development.
+
+**Usage:**
+```bash
+./scripts/install-jq.sh
+```
+
+## Safety Features
+
+The scripts include several safety features to prevent accidental data loss:
+
+1. **Program-specific deletion**: Scripts only delete programs with specific codes (e.g., `BOE081C`)
+2. **Test program detection**: Safety checks prevent deletion of non-test programs
+3. **Comprehensive logging**: All operations are logged with clear status messages
+4. **Transaction safety**: Database operations use transactions where possible
+
+## JSON Processing
+
+Scripts use `jq` for reliable JSON parsing instead of basic grep/sed operations. This prevents issues with:
+- Malformed JSON responses
+- Incorrect field extraction
+- Character encoding problems
+
+If `jq` is not available, scripts fall back to `sed` with improved pattern matching.

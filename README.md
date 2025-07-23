@@ -77,6 +77,7 @@ For detailed documentation, see the [Docusaurus documentation site](lre-docs/):
 - npm v8 or later
 - Docker and Docker Compose
 - PostgreSQL 14 or later (if running without Docker)
+- jq (JSON processor) - automatically installed in Docker containers, or run `./scripts/install-jq.sh` for local development
 
 ### Development Workflow
 

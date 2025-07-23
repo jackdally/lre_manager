@@ -58,13 +58,7 @@ const sidebars: SidebarsConfig = {
         'implementation-plans/boe-system',
       ],
     },
-    {
-      type: 'category',
-      label: 'Planned Features',
-      items: [
-        // Add future planned features here when they're ready
-      ],
-    },
+    // Planned Features category removed - will be added when features are ready
     {
       type: 'category',
       label: 'Completed Features',
