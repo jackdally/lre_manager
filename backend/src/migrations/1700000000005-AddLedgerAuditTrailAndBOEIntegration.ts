@@ -4,47 +4,64 @@ export class AddLedgerAuditTrailAndBOEIntegration1700000000005 implements Migrat
   name = 'AddLedgerAuditTrailAndBOEIntegration1700000000005';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Add BOE integration fields to LedgerEntry table
-    await queryRunner.query(`
-      ALTER TABLE "ledger_entry" 
-      ADD COLUMN "boeElementAllocationId" uuid,
-      ADD COLUMN "boeVersionId" uuid,
-      ADD COLUMN "createdFromBOE" boolean NOT NULL DEFAULT false
-    `);
+    // Add BOE integration fields to LedgerEntry table (only if they don't exist)
+    const hasBoeElementAllocationId = await queryRunner.hasColumn('ledger_entry', 'boeElementAllocationId');
+    const hasBoeVersionId = await queryRunner.hasColumn('ledger_entry', 'boeVersionId');
+    const hasCreatedFromBOE = await queryRunner.hasColumn('ledger_entry', 'createdFromBOE');
 
-    // Create LedgerAuditTrail table
-    await queryRunner.query(`
-      CREATE TYPE "public"."audit_action_enum" AS ENUM(
-        'created', 'updated', 'deleted', 'pushed_from_boe', 
-        'split', 'merged', 're_forecasted', 'matched_to_invoice', 'unmatched_from_invoice'
-      )
-    `);
+    if (!hasBoeElementAllocationId) {
+      await queryRunner.query(`ALTER TABLE "ledger_entry" ADD COLUMN "boeElementAllocationId" uuid`);
+    }
+    if (!hasBoeVersionId) {
+      await queryRunner.query(`ALTER TABLE "ledger_entry" ADD COLUMN "boeVersionId" uuid`);
+    }
+    if (!hasCreatedFromBOE) {
+      await queryRunner.query(`ALTER TABLE "ledger_entry" ADD COLUMN "createdFromBOE" boolean NOT NULL DEFAULT false`);
+    }
 
-    await queryRunner.query(`
-      CREATE TYPE "public"."audit_source_enum" AS ENUM(
-        'manual', 'boe_allocation', 'boe_push', 'invoice_match', 're_forecasted', 'system'
-      )
-    `);
+    // Create LedgerAuditTrail table (only if it doesn't exist)
+    const hasAuditActionEnum = await queryRunner.hasTable('audit_action_enum');
+    const hasAuditSourceEnum = await queryRunner.hasTable('audit_source_enum');
+    const hasLedgerAuditTrail = await queryRunner.hasTable('ledger_audit_trail');
 
-    await queryRunner.query(`
-      CREATE TABLE "ledger_audit_trail" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-        "ledgerEntryId" uuid NOT NULL,
-        "action" "public"."audit_action_enum" NOT NULL,
-        "source" "public"."audit_source_enum" NOT NULL DEFAULT 'manual',
-        "userId" uuid,
-        "description" text,
-        "previousValues" jsonb,
-        "newValues" jsonb,
-        "metadata" jsonb,
-        "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
-        "boeElementAllocationId" uuid,
-        "boeVersionId" uuid,
-        "relatedLedgerEntryId" uuid,
-        "sessionId" text,
-        CONSTRAINT "PK_ledger_audit_trail" PRIMARY KEY ("id")
-      )
-    `);
+    if (!hasAuditActionEnum) {
+      await queryRunner.query(`
+        CREATE TYPE "public"."audit_action_enum" AS ENUM(
+          'created', 'updated', 'deleted', 'pushed_from_boe', 
+          'split', 'merged', 're_forecasted', 'matched_to_invoice', 'unmatched_from_invoice'
+        )
+      `);
+    }
+
+    if (!hasAuditSourceEnum) {
+      await queryRunner.query(`
+        CREATE TYPE "public"."audit_source_enum" AS ENUM(
+          'manual', 'boe_allocation', 'boe_push', 'invoice_match', 're_forecasted', 'system'
+        )
+      `);
+    }
+
+    if (!hasLedgerAuditTrail) {
+      await queryRunner.query(`
+        CREATE TABLE "ledger_audit_trail" (
+          "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+          "ledgerEntryId" uuid NOT NULL,
+          "action" "public"."audit_action_enum" NOT NULL,
+          "source" "public"."audit_source_enum" NOT NULL DEFAULT 'manual',
+          "userId" uuid,
+          "description" text,
+          "previousValues" jsonb,
+          "newValues" jsonb,
+          "metadata" jsonb,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
+          "boeElementAllocationId" uuid,
+          "boeVersionId" uuid,
+          "relatedLedgerEntryId" uuid,
+          "sessionId" text,
+          CONSTRAINT "PK_ledger_audit_trail" PRIMARY KEY ("id")
+        )
+      `);
+    }
 
     // Add foreign key constraints
     await queryRunner.query(`

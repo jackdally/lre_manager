@@ -249,7 +249,7 @@ interface BOEState {
   isCreatingBOE: boolean;
   isUpdatingBOE: boolean;
   isDeletingBOE: boolean;
-  activeTab: 'overview' | 'details' | 'approval' | 'management-reserve' | 'history';
+  activeTab: 'overview' | 'details' | 'management-reserve';
   wizardStep: number;
   wizardData: any;
   
@@ -290,7 +290,7 @@ interface BOEState {
   setCreatingBOE: (creating: boolean) => void;
   setUpdatingBOE: (updating: boolean) => void;
   setDeletingBOE: (deleting: boolean) => void;
-  setActiveTab: (tab: 'overview' | 'details' | 'approval' | 'management-reserve' | 'history') => void;
+  setActiveTab: (tab: 'overview' | 'details' | 'management-reserve') => void;
   setWizardStep: (step: number) => void;
   setWizardData: (data: any) => void;
   

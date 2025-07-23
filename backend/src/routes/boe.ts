@@ -7,8 +7,10 @@ import { BOETemplate } from '../entities/BOETemplate';
 import { BOETemplateElement } from '../entities/BOETemplateElement';
 import { BOEApproval } from '../entities/BOEApproval';
 import { ManagementReserve } from '../entities/ManagementReserve';
+import { BOEComment } from '../entities/BOEComment';
 import { BOEService } from '../services/boeService';
 import { BOETemplateService } from '../services/boeTemplateService';
+import { BOECommentService } from '../services/boeCommentService';
 import { WbsTemplate } from '../entities/WbsTemplate';
 
 const router = Router();
@@ -19,6 +21,7 @@ const boeTemplateRepository = AppDataSource.getRepository(BOETemplate);
 const boeTemplateElementRepository = AppDataSource.getRepository(BOETemplateElement);
 const boeApprovalRepository = AppDataSource.getRepository(BOEApproval);
 const managementReserveRepository = AppDataSource.getRepository(ManagementReserve);
+const boeCommentRepository = AppDataSource.getRepository(BOEComment);
 const wbsTemplateRepository = AppDataSource.getRepository(WbsTemplate);
 
 // Add UUID validation helper
@@ -1542,6 +1545,7 @@ router.get('/boe-versions/:id/history', async (req, res) => {
         status: v.status,
         createdAt: v.createdAt,
         createdBy: v.createdBy,
+        changeSummary: v.changeSummary,
         isCurrent: v.id === id,
         position: index + 1,
         totalVersions: allVersions.length
@@ -1851,6 +1855,201 @@ router.post('/boe-versions/:boeVersionId/management-reserve/calculate-ro-driven'
   } catch (error) {
     console.error('Error calculating R&O-driven MR:', error);
     res.status(500).json({ message: 'Error calculating R&O-driven MR', error });
+  }
+});
+
+// ============================================================================
+// BOE Comments API Endpoints
+// ============================================================================
+
+/**
+ * GET /api/boe-versions/:versionId/comments
+ * Get all comments for a BOE version
+ */
+router.get('/boe-versions/:versionId/comments', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ error: 'Invalid version ID' });
+    }
+
+    const comments = await BOECommentService.getCommentsByVersion(versionId);
+    res.json(comments);
+  } catch (error) {
+    console.error('Error fetching BOE comments:', error);
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+/**
+ * POST /api/boe-versions/:versionId/comments
+ * Create a new comment for a BOE version
+ */
+router.post('/boe-versions/:versionId/comments', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    const { commentType, comment, authorName, authorRole, authorEmail, isInternal } = req.body;
+
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ error: 'Invalid version ID' });
+    }
+
+    const newComment = await BOECommentService.createComment({
+      boeVersionId: versionId,
+      commentType,
+      comment,
+      authorName,
+      authorRole,
+      authorEmail,
+      isInternal
+    });
+
+    res.status(201).json(newComment);
+  } catch (error) {
+    console.error('Error creating BOE comment:', error);
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to create comment' });
+    }
+  }
+});
+
+/**
+ * GET /api/boe-versions/:versionId/comments/:commentId
+ * Get a specific comment by ID
+ */
+router.get('/boe-versions/:versionId/comments/:commentId', async (req, res) => {
+  try {
+    const { commentId } = req.params;
+
+    if (!isValidUUID(commentId)) {
+      return res.status(400).json({ error: 'Invalid comment ID' });
+    }
+
+    const comment = await BOECommentService.getCommentById(commentId);
+    res.json(comment);
+  } catch (error) {
+    console.error('Error fetching BOE comment:', error);
+    if (error instanceof Error && error.message === 'Comment not found') {
+      res.status(404).json({ error: 'Comment not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch comment' });
+    }
+  }
+});
+
+/**
+ * PUT /api/boe-versions/:versionId/comments/:commentId
+ * Update a comment
+ */
+router.put('/boe-versions/:versionId/comments/:commentId', async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { comment, isResolved, resolvedBy, resolutionNotes } = req.body;
+
+    if (!isValidUUID(commentId)) {
+      return res.status(400).json({ error: 'Invalid comment ID' });
+    }
+
+    const updatedComment = await BOECommentService.updateComment(commentId, {
+      comment,
+      isResolved,
+      resolvedBy,
+      resolutionNotes
+    });
+
+    res.json(updatedComment);
+  } catch (error) {
+    console.error('Error updating BOE comment:', error);
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to update comment' });
+    }
+  }
+});
+
+/**
+ * DELETE /api/boe-versions/:versionId/comments/:commentId
+ * Delete a comment
+ */
+router.delete('/boe-versions/:versionId/comments/:commentId', async (req, res) => {
+  try {
+    const { commentId } = req.params;
+
+    if (!isValidUUID(commentId)) {
+      return res.status(400).json({ error: 'Invalid comment ID' });
+    }
+
+    await BOECommentService.deleteComment(commentId);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting BOE comment:', error);
+    if (error instanceof Error && error.message === 'Comment not found') {
+      res.status(404).json({ error: 'Comment not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete comment' });
+    }
+  }
+});
+
+/**
+ * GET /api/boe-versions/:versionId/comments/stats
+ * Get comment statistics for a BOE version
+ */
+router.get('/boe-versions/:versionId/comments/stats', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ error: 'Invalid version ID' });
+    }
+
+    const stats = await BOECommentService.getCommentStats(versionId);
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching BOE comment stats:', error);
+    res.status(500).json({ error: 'Failed to fetch comment statistics' });
+  }
+});
+
+/**
+ * POST /api/boe-versions/:versionId/comments/resolve
+ * Resolve multiple comments at once
+ */
+router.post('/boe-versions/:versionId/comments/resolve', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    const { commentIds, resolvedBy, resolutionNotes } = req.body;
+
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ error: 'Invalid version ID' });
+    }
+
+    if (!Array.isArray(commentIds) || commentIds.length === 0) {
+      return res.status(400).json({ error: 'Comment IDs array is required' });
+    }
+
+    if (!resolvedBy) {
+      return res.status(400).json({ error: 'Resolved by is required' });
+    }
+
+    const resolvedComments = await BOECommentService.resolveComments(
+      commentIds,
+      resolvedBy,
+      resolutionNotes
+    );
+
+    res.json(resolvedComments);
+  } catch (error) {
+    console.error('Error resolving BOE comments:', error);
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to resolve comments' });
+    }
   }
 });
 

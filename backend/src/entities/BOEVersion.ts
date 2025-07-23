@@ -3,6 +3,7 @@ import { Program } from './Program';
 import { BOEElement } from './BOEElement';
 import { BOEApproval } from './BOEApproval';
 import { ManagementReserve } from './ManagementReserve';
+import { BOEComment } from './BOEComment';
 
 @Entity()
 export class BOEVersion {
@@ -66,6 +67,9 @@ export class BOEVersion {
 
   @OneToMany(() => ManagementReserve, mr => mr.boeVersion)
   managementReserve!: ManagementReserve[];
+
+  @OneToMany(() => BOEComment, comment => comment.boeVersion)
+  comments!: BOEComment[];
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt!: Date;

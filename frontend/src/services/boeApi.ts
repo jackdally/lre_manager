@@ -414,6 +414,66 @@ export const wbsTemplateIntegrationApi = {
   },
 };
 
+// BOE Comments API
+export const boeCommentsApi = {
+  // Get all comments for a BOE version
+  getCommentsByVersion: async (versionId: string): Promise<any[]> => {
+    const response = await boeApi.get(`/boe-versions/${versionId}/comments`);
+    return response.data as any[];
+  },
+
+  // Create a new comment
+  createComment: async (versionId: string, commentData: {
+    commentType: 'Review' | 'Approval' | 'Rejection' | 'General' | 'Revision' | 'Clarification';
+    comment: string;
+    authorName: string;
+    authorRole: string;
+    authorEmail?: string;
+    isInternal?: boolean;
+  }): Promise<any> => {
+    const response = await boeApi.post(`/boe-versions/${versionId}/comments`, commentData);
+    return response.data;
+  },
+
+  // Get a specific comment
+  getCommentById: async (versionId: string, commentId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${versionId}/comments/${commentId}`);
+    return response.data;
+  },
+
+  // Update a comment
+  updateComment: async (versionId: string, commentId: string, updateData: {
+    comment?: string;
+    isResolved?: boolean;
+    resolvedBy?: string;
+    resolutionNotes?: string;
+  }): Promise<any> => {
+    const response = await boeApi.put(`/boe-versions/${versionId}/comments/${commentId}`, updateData);
+    return response.data;
+  },
+
+  // Delete a comment
+  deleteComment: async (versionId: string, commentId: string): Promise<void> => {
+    await boeApi.delete(`/boe-versions/${versionId}/comments/${commentId}`);
+  },
+
+  // Get comment statistics
+  getCommentStats: async (versionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${versionId}/comments/stats`);
+    return response.data;
+  },
+
+  // Resolve multiple comments
+  resolveComments: async (versionId: string, commentIds: string[], resolvedBy: string, resolutionNotes?: string): Promise<any[]> => {
+    const response = await boeApi.post(`/boe-versions/${versionId}/comments/resolve`, {
+      commentIds,
+      resolvedBy,
+      resolutionNotes
+    });
+    return response.data as any[];
+  }
+};
+
 // Export all APIs
 export const boeApiService = {
   templates: boeTemplatesApi,
@@ -424,6 +484,7 @@ export const boeApiService = {
   approvals: boeApprovalsApi,
   calculations: boeCalculationsApi,
   wbsTemplateIntegration: wbsTemplateIntegrationApi,
+  comments: boeCommentsApi,
 };
 
 export default boeApiService; 

@@ -30,6 +30,7 @@
   - [x] Create `ManagementReserve` entity for MR calculations
   - [x] Add BOE-related fields to existing `Program` entity
   - [x] Create `BOEElementAllocation` entity for element-level cost allocation
+  - [x] Create `BOEComment` entity for multiple comments per version
 
 - [x] **API Endpoints**
   - [x] `GET /api/programs/:id/boe` - Get current BOE for program
@@ -46,6 +47,12 @@
   - [x] `DELETE /api/element-allocations/:id` - Delete element allocation
   - [x] `POST /api/element-allocations/:id/push-to-ledger` - Push allocation to ledger
   - [x] `POST /api/element-allocations/:id/update-actuals` - Update actuals from ledger
+- [x] `GET /api/boe-versions/:versionId/comments` - Get all comments for BOE version
+- [x] `POST /api/boe-versions/:versionId/comments` - Create new comment for BOE version
+- [x] `PUT /api/boe-versions/:versionId/comments/:commentId` - Update comment
+- [x] `DELETE /api/boe-versions/:versionId/comments/:commentId` - Delete comment
+- [x] `GET /api/boe-versions/:versionId/comments/stats` - Get comment statistics
+- [x] `POST /api/boe-versions/:versionId/comments/resolve` - Resolve multiple comments
 
 - [x] **Business Logic**
   - [x] BOE calculation engine with WBS integration
@@ -82,6 +89,7 @@
   - [ ] ManagementReserveCalculator component
 - [x] BOEApprovalWorkflow component ✅ **COMPLETED**
 - [x] BOEVersionHistory component ✅ **COMPLETED**
+- [x] BOEComments system with multi-comment support ✅ **COMPLETED**
 
 - [x] **State Management**
   - [x] BOE store with Zustand
@@ -324,6 +332,7 @@
 
 ## Phase 1, 2, & 3A Progress Summary ✅
 **Last Updated**: January 27, 2025
+**BOEComments Implementation**: January 27, 2025 - Multi-comment support with full history tracking
 
 ### What Was Accomplished
 - ✅ **Database Schema**: All 6 entities created with proper relationships (including BOEElementAllocation)
@@ -483,6 +492,7 @@
 - **NEW**: Manual BOE creation with elements and allocations
 - **NEW**: Proper draft mode creation and state management
 - **NEW**: Enhanced error handling and user feedback during creation
+- **NEW**: BOEComments system with multi-comment support and full history tracking
 
 ### Next Steps
 - **Phase 3A**: Complete enhancements (Layout & UX, Edit/Delete fixes, Status aggregation)

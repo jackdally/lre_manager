@@ -7,7 +7,12 @@
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "migration:run": "ts-node ./node_modules/typeorm/cli.js migration:run -d src/config/database.ts",
+    "migration:revert": "ts-node ./node_modules/typeorm/cli.js migration:revert -d src/config/database.ts",
+    "migration:show": "ts-node ./node_modules/typeorm/cli.js migration:show -d src/config/database.ts",
+    "migration:generate": "ts-node ./node_modules/typeorm/cli.js migration:generate -d src/config/database.ts",
+    "schema:sync": "ts-node ./node_modules/typeorm/cli.js schema:sync -d src/config/database.ts"
   },
   "dependencies": {
     "@types/axios": "^0.9.36",

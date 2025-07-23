@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
 import { boeVersionsApi } from '../../../services/boeApi';
+import { boeCommentsApi } from '../../../services/boeApi';
 import { formatCurrency, formatDate } from '../../../utils/currencyUtils';
 import { 
   ClockIcon, 
@@ -23,6 +24,7 @@ import Modal from '../../common/Modal';
 
 interface BOEHistoryProps {
   programId: string;
+  sidebarWidth?: number;
 }
 
 interface BOEVersionHistory {
@@ -48,7 +50,7 @@ interface BOEVersionComparison {
   };
 }
 
-const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
+const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }) => {
   const { currentBOE } = useBOEStore();
   
   const [versionHistory, setVersionHistory] = useState<BOEVersionHistory | null>(null);
@@ -67,6 +69,9 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
   const [rollbackReason, setRollbackReason] = useState('');
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [commentsByVersion, setCommentsByVersion] = useState<Record<string, any[]>>({});
+  const [newComment, setNewComment] = useState('');
+  const [addingComment, setAddingComment] = useState(false);
 
   // Load version history
   useEffect(() => {
@@ -89,6 +94,25 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
       setError('Failed to load version history');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch comments for all versions on load
+  useEffect(() => {
+    if (versionHistory?.timeline) {
+      versionHistory.timeline.forEach((version: any) => {
+        fetchComments(version.id);
+      });
+    }
+    // eslint-disable-next-line
+  }, [versionHistory]);
+
+  const fetchComments = async (versionId: string) => {
+    try {
+      const comments = await boeCommentsApi.getCommentsByVersion(versionId);
+      setCommentsByVersion(prev => ({ ...prev, [versionId]: comments }));
+    } catch (e) {
+      // Optionally handle error
     }
   };
 
@@ -139,6 +163,8 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
 
   const handleUpdateComments = async () => {
     if (!selectedVersion) return;
+    
+    if (!comments.trim()) return;
     
     try {
       setSubmitting(true);
@@ -199,10 +225,10 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
 
   if (loading && !versionHistory) {
     return (
-      <div className="p-6">
-        <div className="text-center py-12">
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading version history...</p>
+          <p className="mt-2 text-sm text-gray-600">Loading version history...</p>
         </div>
       </div>
     );
@@ -210,11 +236,11 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <ExclamationTriangleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading History</h3>
-          <p className="text-gray-600 mb-4">{error}</p>
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="text-center">
+          <ExclamationTriangleIcon className="h-8 w-8 text-red-500 mx-auto mb-2" />
+          <h3 className="text-sm font-medium text-gray-900 mb-1">Error Loading History</h3>
+          <p className="text-xs text-gray-600 mb-3">{error}</p>
           <Button onClick={loadVersionHistory} variant="primary" size="sm">
             Try Again
           </Button>
@@ -225,12 +251,12 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
 
   if (!versionHistory || versionHistory.allVersions.length === 0) {
     return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Version History</h3>
-          <p className="text-gray-600">
-            No previous versions found for this BOE. Version history will appear here once you create additional versions.
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="text-center">
+          <DocumentTextIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+          <h3 className="text-sm font-medium text-gray-900 mb-1">No Version History</h3>
+          <p className="text-xs text-gray-600">
+            No previous versions found for this BOE.
           </p>
         </div>
       </div>
@@ -238,191 +264,199 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
   }
 
   return (
-    <div className="p-6">
+    <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">BOE Version History</h3>
-          <p className="text-sm text-gray-600">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+        <div className="flex-1 min-w-0">
+          <h4 className="text-lg font-medium text-gray-900 truncate">Version History</h4>
+          <p className="text-sm text-gray-600 mt-1 truncate">
             Track changes and compare versions of your BOE
           </p>
         </div>
-        <div className="flex space-x-2">
-          <Button
-            onClick={() => setShowCommentsModal(true)}
-            variant="secondary"
-            size="sm"
-            className="flex items-center space-x-1"
-          >
-            <ChatBubbleLeftIcon className="h-4 w-4" />
-            <span>Add Comments</span>
-          </Button>
+        <div className="flex items-center space-x-2 ml-2">
+          {/* Resize Indicator */}
+          <div className="text-xs text-gray-400 px-2 py-1 bg-gray-100 rounded">
+            {sidebarWidth}px
+          </div>
         </div>
       </div>
 
-      {/* Version Timeline */}
-      <div className="bg-white rounded-lg border border-gray-200 mb-6">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h4 className="text-md font-medium text-gray-900">Version Timeline</h4>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            {versionHistory.timeline.map((version, index) => (
-              <div
-                key={version.id}
-                className={`flex items-center space-x-4 p-4 rounded-lg border ${
-                  version.isCurrent ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                {/* Version Number */}
-                <div className="flex-shrink-0">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    version.isCurrent ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-700'
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 space-y-4">
+          {/* Version Timeline */}
+          <div className="relative">
+            {/* Timeline Line */}
+            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+            
+            <div className="space-y-4">
+              {versionHistory.timeline.map((version, index) => (
+                <div key={version.id} className="relative">
+                  {/* Timeline Connector */}
+                  {index < versionHistory.timeline.length - 1 && (
+                    <div className="absolute left-4 top-8 w-0.5 h-6 bg-gray-200"></div>
+                  )}
+                  
+                  <div className={`relative flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
+                    version.isCurrent 
+                      ? 'bg-blue-50 border-blue-200 shadow-sm' 
+                      : 'bg-white border-gray-200 hover:bg-gray-50'
                   }`}>
-                    {version.position}
+                    {/* Version Number Badge */}
+                    <div className="flex-shrink-0">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shadow-sm ${
+                        version.isCurrent 
+                          ? 'bg-blue-600 text-white ring-2 ring-blue-200' 
+                          : 'bg-gray-100 text-gray-700 border-2 border-gray-200'
+                      }`}>
+                        {version.position}
+                      </div>
+                    </div>
+
+                    {/* Version Content */}
+                    <div className="flex-1 min-w-0 space-y-2">
+                      {/* Version Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h5 className="text-sm font-semibold text-gray-900 truncate">
+                            {version.name}
+                          </h5>
+                          <span className="text-xs text-gray-500 flex-shrink-0">
+                            v{version.versionNumber}
+                          </span>
+                          {version.isCurrent && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 flex-shrink-0">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Status Badge */}
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(version.status)} flex-shrink-0`}>
+                          {getStatusIcon(version.status)}
+                          {version.status}
+                        </span>
+                      </div>
+
+                      {/* Version Details */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <ClockIcon className="h-3 w-3" />
+                            {formatDate(version.createdAt)}
+                          </span>
+                          <span className="truncate">by {version.createdBy || 'Unknown'}</span>
+                        </div>
+                        
+
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setSelectedVersion(version);
+                            setShowCommentsModal(true);
+                            setNewComment('');
+                          }}
+                          className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 transition-colors"
+                        >
+                          <ChatBubbleLeftIcon className="h-3 w-3" />
+                          Comments
+                          {commentsByVersion[version.id]?.length > 0 && (
+                            <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                              {commentsByVersion[version.id]?.length}
+                            </span>
+                          )}
+                        </button>
+                        
+                        {index > 0 && (
+                          <button
+                            onClick={() => handleCompareVersions(version.id, versionHistory.timeline[index - 1].id)}
+                            className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 transition-colors"
+                          >
+                            <EyeIcon className="h-3 w-3" />
+                            Compare
+                          </button>
+                        )}
+                        
+                        {version.status !== 'Draft' && !version.isCurrent && (
+                          <button
+                            onClick={() => {
+                              setSelectedVersion(version);
+                              setShowRollbackModal(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 transition-colors"
+                          >
+                            <ArrowPathIcon className="h-3 w-3" />
+                            Rollback
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
 
-                {/* Version Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <h5 className="text-sm font-medium text-gray-900">
-                      {version.name} (v{version.versionNumber})
-                    </h5>
-                    {version.isCurrent && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                        Current
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
-                    <span>{formatDate(version.createdAt)}</span>
-                    <span>by {version.createdBy || 'Unknown'}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(version.status)}`}>
-                      {getStatusIcon(version.status)}
-                      <span className="ml-1">{version.status}</span>
-                    </span>
-                  </div>
+          {/* Version Summary Cards */}
+          <div className="grid grid-cols-1 gap-3">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+              <h5 className="text-sm font-medium text-gray-900 mb-2">Version Summary</h5>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Versions:</span>
+                  <span className="font-medium">{versionHistory.allVersions.length}</span>
                 </div>
-
-                {/* Actions */}
-                <div className="flex-shrink-0 flex space-x-2">
-                  <Button
-                    onClick={() => {
-                      setSelectedVersion(version);
-                      setShowCommentsModal(true);
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="flex items-center space-x-1"
-                  >
-                    <ChatBubbleLeftIcon className="h-3 w-3" />
-                    <span>Comments</span>
-                  </Button>
-                  
-                  {index > 0 && (
-                    <Button
-                      onClick={() => handleCompareVersions(version.id, versionHistory.timeline[index - 1].id)}
-                      variant="ghost"
-                      size="sm"
-                      className="flex items-center space-x-1"
-                    >
-                      <EyeIcon className="h-3 w-3" />
-                      <span>Compare</span>
-                    </Button>
-                  )}
-                  
-                  {version.status !== 'Draft' && !version.isCurrent && (
-                    <Button
-                      onClick={() => {
-                        setSelectedVersion(version);
-                        setShowRollbackModal(true);
-                      }}
-                      variant="ghost"
-                      size="sm"
-                      className="flex items-center space-x-1 text-orange-600 hover:text-orange-700"
-                    >
-                      <ArrowPathIcon className="h-3 w-3" />
-                      <span>Rollback</span>
-                    </Button>
-                  )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Current Version:</span>
+                  <span className="font-medium">{versionHistory.currentVersion.versionNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Latest Cost:</span>
+                  <span className="font-medium">{formatCurrency(versionHistory.currentVersion.totalEstimatedCost)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Versions with Comments:</span>
+                  <span className="font-medium">
+                    {versionHistory.allVersions.filter(v => commentsByVersion[v.id]?.length > 0).length}
+                  </span>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      {/* Version Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h4 className="text-md font-medium text-gray-900 mb-4">Version Summary</h4>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Total Versions:</span>
-              <span className="text-sm font-medium">{versionHistory.allVersions.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Current Version:</span>
-              <span className="text-sm font-medium">{versionHistory.currentVersion.versionNumber}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Latest Cost:</span>
-              <span className="text-sm font-medium">{formatCurrency(versionHistory.currentVersion.totalEstimatedCost)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h4 className="text-md font-medium text-gray-900 mb-4">Change Tracking</h4>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Last Modified:</span>
-              <span className="text-sm font-medium">{formatDate(versionHistory.currentVersion.updatedAt)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Created:</span>
-              <span className="text-sm font-medium">{formatDate(versionHistory.currentVersion.createdAt)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Status:</span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(versionHistory.currentVersion.status)}`}>
-                {getStatusIcon(versionHistory.currentVersion.status)}
-                <span className="ml-1">{versionHistory.currentVersion.status}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h4 className="text-md font-medium text-gray-900 mb-4">Quick Actions</h4>
-          <div className="space-y-2">
-            <Button
-              onClick={() => {
-                setSelectedVersion(versionHistory.currentVersion);
-                setShowCommentsModal(true);
-              }}
-              variant="secondary"
-              size="sm"
-              className="w-full justify-center"
-            >
-              <ChatBubbleLeftIcon className="h-4 w-4 mr-2" />
-              Add Comments
-            </Button>
-            {versionHistory.timeline.length > 1 && (
-              <Button
-                onClick={() => handleCompareVersions(
-                  versionHistory.currentVersion.id,
-                  versionHistory.timeline[versionHistory.timeline.length - 2].id
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+              <h5 className="text-sm font-medium text-gray-900 mb-2">Quick Actions</h5>
+              <div className="space-y-2">
+                <Button
+                  onClick={() => {
+                    setSelectedVersion(versionHistory.currentVersion);
+                    setShowCommentsModal(true);
+                  }}
+                  variant="secondary"
+                  size="sm"
+                  className="w-full justify-center text-xs"
+                >
+                  <ChatBubbleLeftIcon className="h-3 w-3 mr-1" />
+                  Add Comments
+                </Button>
+                {versionHistory.timeline.length > 1 && (
+                  <Button
+                    onClick={() => handleCompareVersions(
+                      versionHistory.currentVersion.id,
+                      versionHistory.timeline[versionHistory.timeline.length - 2].id
+                    )}
+                    variant="secondary"
+                    size="sm"
+                    className="w-full justify-center text-xs"
+                  >
+                    <EyeIcon className="h-3 w-3 mr-1" />
+                    Compare with Previous
+                  </Button>
                 )}
-                variant="secondary"
-                size="sm"
-                className="w-full justify-center"
-              >
-                <EyeIcon className="h-4 w-4 mr-2" />
-                Compare with Previous
-              </Button>
-            )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -574,36 +608,60 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId }) => {
               </ul>
             </div>
           )}
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Comments
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Comments</label>
+            <div className="space-y-3 max-h-60 overflow-y-auto mb-2">
+              {(commentsByVersion[selectedVersion?.id] || []).map((c, idx) => (
+                <div key={c.id || idx} className="p-2 bg-gray-50 border border-gray-200 rounded-md">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-xs text-blue-700">{c.authorName}</span>
+                    <span className="text-xs text-gray-500">({c.authorRole})</span>
+                    <span className="text-xs text-gray-400 ml-2">{formatDate(c.createdAt)}</span>
+                    <span className="ml-2 text-xs text-gray-500">[{c.commentType}]</span>
+                  </div>
+                  <div className="text-sm text-gray-800">{c.comment}</div>
+                </div>
+              ))}
+              {commentsByVersion[selectedVersion?.id]?.length === 0 && (
+                <div className="text-xs text-gray-400">No comments yet.</div>
+              )}
+            </div>
             <textarea
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
+              value={newComment}
+              onChange={e => setNewComment(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={4}
-              placeholder="Add comments about this version..."
+              rows={3}
+              placeholder="Add a new comment..."
             />
-          </div>
-          
-          <div className="flex justify-end space-x-2">
-            <Button
-              onClick={() => setShowCommentsModal(false)}
-              variant="secondary"
-              size="sm"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateComments}
-              variant="primary"
-              size="sm"
-              disabled={submitting}
-            >
-              {submitting ? 'Saving...' : 'Save Comments'}
-            </Button>
+            <div className="flex justify-end space-x-2 mt-2">
+              <Button
+                onClick={() => setShowCommentsModal(false)}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedVersion || !newComment.trim()) return;
+                  setAddingComment(true);
+                  await boeCommentsApi.createComment(selectedVersion.id, {
+                    commentType: 'General', // or let user pick
+                    comment: newComment.trim(),
+                    authorName: 'Current User', // TODO: get from auth
+                    authorRole: 'User', // TODO: get from auth
+                  });
+                  setNewComment('');
+                  setAddingComment(false);
+                  fetchComments(selectedVersion.id);
+                }}
+                variant="primary"
+                size="sm"
+                disabled={addingComment || !newComment.trim()}
+              >
+                {addingComment ? 'Adding...' : 'Add Comment'}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

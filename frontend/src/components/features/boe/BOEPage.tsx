@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useBOEStore } from '../../../store/boeStore';
 import Layout from '../../layout';
@@ -7,6 +7,7 @@ import BOEDetails from './BOEDetails';
 import BOEApproval from './BOEApproval';
 import BOEHistory from './BOEHistory';
 import ManagementReserveTab from './ManagementReserveTab';
+import BOEStatusBanner from './BOEStatusBanner';
 import BOETemplateSelector from './BOETemplateSelector';
 import BOEWizardModal from './BOEWizardModal';
 import { BOETemplate } from '../../../store/boeStore';
@@ -43,6 +44,28 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   const [showTemplateManagement, setShowTemplateManagement] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<BOETemplate | null>(null);
   const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showApprovalSidebar, setShowApprovalSidebar] = useState(false);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+  const [approvalSidebarWidth, setApprovalSidebarWidth] = useState(() => {
+    // Calculate responsive default width based on screen size
+    const screenWidth = window.innerWidth;
+    if (screenWidth >= 1920) return 500; // Large screens
+    if (screenWidth >= 1440) return 450; // Medium-large screens
+    if (screenWidth >= 1024) return 400; // Medium screens
+    return 350; // Small screens
+  });
+  const [historySidebarWidth, setHistorySidebarWidth] = useState(() => {
+    // Calculate responsive default width based on screen size
+    const screenWidth = window.innerWidth;
+    if (screenWidth >= 1920) return 500; // Large screens
+    if (screenWidth >= 1440) return 450; // Medium-large screens
+    if (screenWidth >= 1024) return 400; // Medium screens
+    return 350; // Small screens
+  });
+  const approvalSidebarRef = useRef<HTMLDivElement>(null);
+  const historySidebarRef = useRef<HTMLDivElement>(null);
 
 
 
@@ -179,6 +202,32 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                   {showTemplateManagement ? 'Hide Templates' : 'Manage Templates'}
                 </span>
               </button>
+              
+              {/* Secondary Action Buttons */}
+              {currentBOE && (
+                <>
+                  <button
+                    onClick={() => setShowApprovalSidebar(true)}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors flex items-center gap-2"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Approval Status
+                  </button>
+                  
+                  <button
+                    onClick={() => setShowHistorySidebar(true)}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors flex items-center gap-2"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    History
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -249,8 +298,37 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
           </div>
         )}
 
+        {/* BOE Status Banner */}
+        {currentBOE && (
+          <BOEStatusBanner
+            programId={programId!}
+            onViewApprovalStatus={() => setShowApprovalModal(true)}
+            onViewHistory={() => setShowHistoryModal(true)}
+          />
+        )}
+
         {/* Centralized BOE Wizard Modal */}
         <BOEWizardModal />
+
+        {/* Approval Status Modal */}
+        <Modal
+          isOpen={showApprovalModal}
+          onClose={() => setShowApprovalModal(false)}
+          title="BOE Approval Status"
+          size="lg"
+        >
+          <BOEApproval programId={programId!} />
+        </Modal>
+
+        {/* History Modal */}
+        <Modal
+          isOpen={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+          title="BOE Version History"
+          size="lg"
+        >
+          <BOEHistory programId={programId!} />
+        </Modal>
 
         {/* Draft Overwrite Confirmation Modal */}
         <Modal
@@ -286,13 +364,16 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
           </div>
         </Modal>
 
+        {/* Visual Separator */}
+        <div className="bg-gray-100 h-px mx-6 my-6"></div>
+        
         {/* Tab Navigation */}
         <div className="border-b border-gray-200 mb-8">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex space-x-8 px-6">
             <button
               onClick={() => setActiveTab('overview')}
               className={`
-                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                py-3 px-2 border-b-2 font-semibold text-base flex items-center gap-2
                 ${activeTab === 'overview'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -305,7 +386,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
             <button
               onClick={() => setActiveTab('details')}
               className={`
-                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                py-3 px-2 border-b-2 font-semibold text-base flex items-center gap-2
                 ${activeTab === 'details'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -315,12 +396,10 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
               <span>📋</span>
               Details
             </button>
-
-
             <button
               onClick={() => setActiveTab('management-reserve')}
               className={`
-                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                py-3 px-2 border-b-2 font-semibold text-base flex items-center gap-2
                 ${activeTab === 'management-reserve'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -330,32 +409,6 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
               <span>💰</span>
               Management Reserve
             </button>
-            <button
-              onClick={() => setActiveTab('approval')}
-              className={`
-                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
-                ${activeTab === 'approval'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <span>✅</span>
-              Approval
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`
-                py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
-                ${activeTab === 'history'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <span>📚</span>
-              History
-            </button>
           </nav>
         </div>
 
@@ -363,10 +416,159 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         <div className="bg-white rounded-lg shadow">
           {activeTab === 'overview' && <BOEOverview programId={programId} />}
           {activeTab === 'details' && <BOEDetails programId={programId} />}
-          {activeTab === 'approval' && <BOEApproval programId={programId} />}
           {activeTab === 'management-reserve' && <ManagementReserveTab programId={programId} />}
-          {activeTab === 'history' && <BOEHistory programId={programId} />}
         </div>
+
+        {/* Resizable Approval Sidebar */}
+        <div 
+          className={`fixed inset-y-0 right-0 z-50 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${showApprovalSidebar ? 'translate-x-0' : 'translate-x-full'}`}
+          style={{ width: `${approvalSidebarWidth}px` }}
+          ref={approvalSidebarRef}
+        >
+          {/* Drag Handle for Resizing */}
+          <div 
+            className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = approvalSidebarWidth;
+              
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = startX - moveEvent.clientX;
+                const screenWidth = window.innerWidth;
+                const minWidth = screenWidth >= 1024 ? 350 : 300;
+                const maxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
+                const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
+                setApprovalSidebarWidth(newWidth);
+              };
+              
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+              };
+              
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
+            title="Drag to resize sidebar"
+          >
+            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-400 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-200" />
+          </div>
+
+          <div className="h-full flex flex-col">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex-1 min-w-0">
+                <h4 className="text-lg font-medium text-gray-900 truncate">Approval Status</h4>
+                <p className="text-sm text-gray-600 mt-1 truncate">
+                  Review and manage BOE approval workflow
+                </p>
+              </div>
+              <div className="flex items-center space-x-2 ml-2">
+                {/* Resize Indicator */}
+                <div className="text-xs text-gray-400 px-2 py-1 bg-gray-100 rounded">
+                  {approvalSidebarWidth}px
+                </div>
+                <button
+                  onClick={() => setShowApprovalSidebar(false)}
+                  className="text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600 p-1"
+                  title="Close sidebar"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Sidebar Content */}
+            <div className="flex-1 overflow-hidden">
+              <div className="h-full overflow-y-auto">
+                <BOEApproval programId={programId!} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Resizable History Sidebar */}
+        <div 
+          className={`fixed inset-y-0 right-0 z-50 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${showHistorySidebar ? 'translate-x-0' : 'translate-x-full'}`}
+          style={{ width: `${historySidebarWidth}px` }}
+          ref={historySidebarRef}
+        >
+          {/* Drag Handle for Resizing */}
+          <div 
+            className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = historySidebarWidth;
+              
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = startX - moveEvent.clientX;
+                const screenWidth = window.innerWidth;
+                const minWidth = screenWidth >= 1024 ? 350 : 300;
+                const maxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
+                const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
+                setHistorySidebarWidth(newWidth);
+              };
+              
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+              };
+              
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
+            title="Drag to resize sidebar"
+          >
+            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-400 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-200" />
+          </div>
+
+          <div className="h-full flex flex-col">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex-1 min-w-0">
+                <h4 className="text-lg font-medium text-gray-900 truncate">Version History</h4>
+                <p className="text-sm text-gray-600 mt-1 truncate">
+                  View and compare BOE versions
+                </p>
+              </div>
+              <div className="flex items-center space-x-2 ml-2">
+                {/* Resize Indicator */}
+                <div className="text-xs text-gray-400 px-2 py-1 bg-gray-100 rounded">
+                  {historySidebarWidth}px
+                </div>
+                <button
+                  onClick={() => setShowHistorySidebar(false)}
+                  className="text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600 p-1"
+                  title="Close sidebar"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Sidebar Content */}
+            <div className="flex-1 overflow-hidden">
+              <BOEHistory programId={programId!} sidebarWidth={historySidebarWidth} />
+            </div>
+          </div>
+        </div>
+
+        {/* Backdrop for sidebars */}
+        {(showApprovalSidebar || showHistorySidebar) && (
+          <div 
+            className="fixed inset-0 z-40 bg-black bg-opacity-25 transition-opacity duration-300"
+            onClick={() => {
+              setShowApprovalSidebar(false);
+              setShowHistorySidebar(false);
+            }}
+          />
+        )}
       </div>
     </Layout>
   );

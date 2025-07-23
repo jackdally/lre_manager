@@ -555,12 +555,65 @@
     - [ ] Version merge capabilities
     - [ ] Version approval workflow integration
 
+### BOE Comments System ✅ **COMPLETED**
+- [x] **BOE-091A**: Create BOEComments entity ✅ **COMPLETED**
+  - [x] Design database schema for multiple comments per version
+  - [x] Implement comment types (Review, Approval, Rejection, General, Revision, Clarification)
+  - [x] Add author tracking and role management
+  - [x] Create database migration
+
+- [x] **BOE-091B**: Implement BOEComments service ✅ **COMPLETED**
+  - [x] Create CRUD operations for comments
+  - [x] Add comment statistics and reporting
+  - [x] Implement comment resolution workflow
+  - [x] Add bulk comment operations
+
+- [x] **BOE-091C**: Create BOEComments API endpoints ✅ **COMPLETED**
+  - [x] GET /api/boe-versions/:versionId/comments - Get all comments for version
+  - [x] POST /api/boe-versions/:versionId/comments - Create new comment
+  - [x] PUT /api/boe-versions/:versionId/comments/:commentId - Update comment
+  - [x] DELETE /api/boe-versions/:versionId/comments/:commentId - Delete comment
+  - [x] GET /api/boe-versions/:versionId/comments/stats - Get comment statistics
+  - [x] POST /api/boe-versions/:versionId/comments/resolve - Resolve multiple comments
+
+- [x] **BOE-091D**: Update frontend for multi-comment support ✅ **COMPLETED**
+  - [x] Update BOEHistory component to fetch and display all comments
+  - [x] Implement comment list display with author, role, type, and timestamp
+  - [x] Add new comment creation functionality
+  - [x] Update comment badges and counters in timeline
+  - [x] Remove single-comment logic and assumptions
+
 ### Approval Workflow
 - [x] **BOE-091**: Create BOEApprovalWorkflow component ✅ **COMPLETED**
   - [x] Implement approval status display
   - [x] Add approval action buttons
   - [x] Create approval history view
   - [x] Add approval comments and feedback
+
+### BOE-091A: Enhanced BOE UX - Status-First Design (NEW TASK)
+- [ ] **Phase 1: Create BOE Status Banner Component**
+  - [ ] Create `BOEStatusBanner` component with status display and visual indicators
+  - [ ] Add contextual action buttons (Submit for Approval, View Approval Status, etc.)
+  - [ ] Implement workflow progress bar showing approval stages
+  - [ ] Add responsive design for mobile compatibility
+
+- [ ] **Phase 2: Reorganize Tab Navigation**
+  - [ ] Simplify primary tabs to Overview, Details, Management Reserve only
+  - [ ] Remove Approval and History from main tab navigation
+  - [ ] Add secondary action area with Approval Status and History buttons/links
+  - [ ] Implement contextual actions based on BOE status
+
+- [ ] **Phase 3: Update Component Integration**
+  - [ ] Update `BOEApproval` component to work as modal or separate page
+  - [ ] Update `BOEHistory` component to work as modal or separate page
+  - [ ] Integrate status banner into `BOEPage` layout
+  - [ ] Update tab content rendering logic
+
+- [ ] **Phase 4: Enhanced UX Features**
+  - [ ] Add workflow progress visualization with clear stage indicators
+  - [ ] Implement contextual help and guidance based on BOE status
+  - [ ] Add status-based navigation suggestions
+  - [ ] Create smooth transitions between status changes
 
 - [ ] **BOE-092**: Implement approval system
   - [ ] Create approval state management
