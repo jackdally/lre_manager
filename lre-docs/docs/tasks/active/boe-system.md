@@ -535,32 +535,32 @@
   - [x] **NEW**: Frontend fix - Total with MR calculation now properly converts string values to numbers
 
 ### BOE Versioning System
-- [ ] **BOE-085**: Create BOEVersionHistory component
+- [ ] **BOE-089**: Create BOEVersionHistory component
   - [ ] Implement version comparison view
   - [ ] Add change highlighting
   - [ ] Create version rollback functionality
   - [ ] Add version comments and notes
 
-- [ ] **BOE-086**: Implement version control
+- [ ] **BOE-090**: Implement version control
   - [ ] Create version creation workflow
   - [ ] Add change tracking and diffing
   - [ ] Implement version branching
   - [ ] Add version merge capabilities
 
 ### Approval Workflow
-- [ ] **BOE-087**: Create BOEApprovalWorkflow component
+- [ ] **BOE-091**: Create BOEApprovalWorkflow component
   - [ ] Implement approval status display
   - [ ] Add approval action buttons
   - [ ] Create approval history view
   - [ ] Add approval comments and feedback
 
-- [ ] **BOE-088**: Implement approval system
+- [ ] **BOE-092**: Implement approval system
   - [ ] Create approval state management
   - [ ] Add approver assignment
   - [ ] Implement approval notifications
   - [ ] Add approval escalation rules
 
-- [ ] **BOE-089**: Implement pre-approval validation system
+- [ ] **BOE-093**: Implement pre-approval validation system
   - [ ] Create BOE validation service with comprehensive checks
   - [ ] Validate all BOE elements have allocations before approval
   - [ ] Validate all BOE elements have vendors assigned before approval
@@ -573,13 +573,13 @@
   - [ ] Add validation to "Push to Ledger" workflow to prevent incomplete data
 
 ### Analysis & Reporting
-- [ ] **BOE-090**: Create BOE comparison tools
+- [ ] **BOE-094**: Create BOE comparison tools
   - [ ] Implement BOE vs actuals comparison
   - [ ] Add variance analysis
   - [ ] Create trend analysis
   - [ ] Add forecasting capabilities
 
-- [ ] **BOE-091**: Add export capabilities
+- [ ] **BOE-095**: Add export capabilities
   - [ ] Implement PDF export
   - [ ] Add Excel export with formatting
   - [ ] Create CSV export for data analysis
@@ -588,66 +588,157 @@
 ## Phase 4: Integration & Testing (Week 8-9)
 
 ### System Integration
-- [ ] **BOE-092**: Integrate with ledger system
+- [ ] **BOE-096**: Integrate with ledger system
   - [ ] Connect BOE to ledger entries
   - [ ] Implement actuals comparison
   - [ ] Add variance reporting
   - [ ] Create data synchronization
 
-- [ ] **BOE-093**: Integrate with program management
+- [ ] **BOE-097**: Integrate with program management
   - [ ] Connect BOE to program lifecycle
   - [ ] Add program status updates
   - [ ] Implement program-level reporting
   - [ ] Create program dashboard integration
 
 ### Performance & Optimization
-- [ ] **BOE-094**: Implement performance optimizations
+- [ ] **BOE-098**: Implement performance optimizations
   - [ ] Add virtual scrolling for large BOEs
   - [ ] Implement calculation caching
   - [ ] Optimize database queries
   - [ ] Add lazy loading for components
 
-- [ ] **BOE-095**: Add error handling
+- [ ] **BOE-099**: Add error handling
   - [ ] Implement comprehensive error boundaries
   - [ ] Add retry mechanisms
   - [ ] Create user-friendly error messages
   - [ ] Add error reporting and logging
 
+### Code Structure Cleanup & Refactoring
+- [ ] **BOE-100**: Frontend Component Refactoring
+  - [ ] Break down large BOE components into smaller, focused components
+  - [ ] Extract reusable hooks from BOE-specific logic
+  - [ ] Refactor BOE store to separate concerns (state, actions, selectors)
+  - [ ] Consolidate duplicate code across BOE components
+  - [ ] Improve component prop interfaces and TypeScript types
+  - [ ] Extract utility functions from components to dedicated utils
+  - [ ] Standardize component naming conventions and file structure
+
+- [ ] **BOE-101**: Backend Service Layer Cleanup
+  - [ ] Refactor large BOE service methods into smaller, focused functions
+  - [ ] Extract business logic from controllers to dedicated service methods
+  - [ ] Consolidate duplicate validation logic across BOE endpoints
+  - [ ] Improve error handling consistency across all BOE services
+  - [ ] Extract common database operations to base service classes
+  - [ ] Standardize API response formats and error messages
+  - [ ] Add comprehensive input validation and sanitization
+
+- [ ] **BOE-102**: API Route Organization
+  - [ ] Reorganize BOE routes by functionality (CRUD, calculations, approvals)
+  - [ ] Implement consistent route naming conventions
+  - [ ] Add proper route-level middleware for authentication and validation
+  - [ ] Consolidate similar endpoints and remove redundant routes
+  - [ ] Add comprehensive route documentation and examples
+  - [ ] Implement proper HTTP status codes and error responses
+
+- [ ] **BOE-103**: State Management Optimization
+  - [ ] Refactor BOE store to use proper Zustand patterns
+  - [ ] Separate concerns between different BOE features (elements, allocations, MR)
+  - [ ] Implement proper state persistence and hydration
+  - [ ] Add state validation and type safety improvements
+  - [ ] Optimize state updates to prevent unnecessary re-renders
+  - [ ] Add state debugging and development tools
+
+- [ ] **BOE-104**: Utility and Helper Function Cleanup
+  - [ ] Consolidate duplicate utility functions across BOE components
+  - [ ] Create dedicated utility modules for BOE-specific calculations
+  - [ ] Extract date/time handling utilities to shared modules
+  - [ ] Standardize formatting and validation utilities
+  - [ ] Add comprehensive unit tests for all utility functions
+  - [ ] Remove unused utility functions and dead code
+
+- [ ] **BOE-105**: Database Query Optimization
+  - [ ] Optimize complex BOE queries with proper indexing
+  - [ ] Implement query result caching for frequently accessed data
+  - [ ] Add database query logging and performance monitoring
+  - [ ] Optimize N+1 query problems in BOE-related endpoints
+  - [ ] Implement proper database transaction handling
+  - [ ] Add database connection pooling and optimization
+
+- [ ] **BOE-106**: TypeScript and Type Safety Improvements
+  - [ ] Add comprehensive TypeScript interfaces for all BOE data structures
+  - [ ] Implement strict type checking for BOE-related code
+  - [ ] Add runtime type validation for API responses
+  - [ ] Create shared type definitions for BOE entities
+  - [ ] Remove any types and replace with proper interfaces
+  - [ ] Add TypeScript documentation and examples
+
+- [ ] **BOE-107**: Testing Infrastructure Cleanup
+  - [ ] Organize test files to match source code structure
+  - [ ] Implement consistent testing patterns across BOE components
+  - [ ] Add comprehensive test utilities and mocks
+  - [ ] Standardize test naming conventions and organization
+  - [ ] Add integration test setup for BOE workflows
+  - [ ] Implement proper test data management and cleanup
+
+- [ ] **BOE-108**: Documentation and Code Comments
+  - [ ] Add comprehensive JSDoc comments to all BOE functions
+  - [ ] Document complex business logic and algorithms
+  - [ ] Add inline comments for non-obvious code sections
+  - [ ] Create architecture documentation for BOE system
+  - [ ] Document API contracts and data flow
+  - [ ] Add troubleshooting guides for common issues
+
+- [ ] **BOE-109**: Performance Monitoring and Metrics
+  - [ ] Add performance monitoring for BOE page load times
+  - [ ] Implement memory usage tracking for large BOE operations
+  - [ ] Add database query performance metrics
+  - [ ] Monitor component re-render frequency and optimization
+  - [ ] Add user interaction performance tracking
+  - [ ] Implement performance regression testing
+
+- [ ] **BOE-110**: Security and Validation Improvements
+  - [ ] Add comprehensive input validation for all BOE forms
+  - [ ] Implement proper CSRF protection for BOE endpoints
+  - [ ] Add rate limiting for BOE API calls
+  - [ ] Implement proper authorization checks for BOE operations
+  - [ ] Add audit logging for sensitive BOE operations
+  - [ ] Validate data integrity across BOE-related operations
+
 ### Testing & Quality Assurance
-- [ ] **BOE-096**: Create unit tests
+- [ ] **BOE-111**: Create unit tests
   - [ ] Test BOE calculation engine
   - [ ] Test API endpoints
   - [ ] Test UI components
   - [ ] Test state management
 
-- [ ] **BOE-097**: Create integration tests
+- [ ] **BOE-112**: Create integration tests
   - [ ] Test BOE workflow integration
   - [ ] Test ledger system integration
   - [ ] Test approval workflow
   - [ ] Test data consistency
 
-- [ ] **BOE-098**: Perform user acceptance testing
+- [ ] **BOE-113**: Perform user acceptance testing
   - [ ] Test BOE creation workflow
   - [ ] Test approval process
   - [ ] Test export functionality
   - [ ] Test performance with large datasets
 
 ## Testing Tasks
-- [ ] **BOE-099**: Write unit tests for BOE entities
-- [ ] **BOE-100**: Test BOE calculation algorithms
-- [ ] **BOE-101**: Test API endpoints with various scenarios
-- [ ] **BOE-102**: Test frontend components and interactions
-- [ ] **BOE-103**: Test approval workflow end-to-end
-- [ ] **BOE-104**: Test integration with existing systems
-- [ ] **BOE-105**: Performance testing with large BOEs
-- [ ] **BOE-106**: Security testing for approval workflows
+- [ ] **BOE-114**: Write unit tests for BOE entities
+- [ ] **BOE-115**: Test BOE calculation algorithms
+- [ ] **BOE-116**: Test API endpoints with various scenarios
+- [ ] **BOE-117**: Test frontend components and interactions
+- [ ] **BOE-118**: Test approval workflow end-to-end
+- [ ] **BOE-119**: Test integration with existing systems
+- [ ] **BOE-120**: Performance testing with large BOEs
+- [ ] **BOE-121**: Security testing for approval workflows
 
 ## Documentation Tasks
-- [ ] **BOE-107**: Create user documentation
-- [ ] **BOE-108**: Create API documentation
-- [ ] **BOE-109**: Create technical documentation
-- [ ] **BOE-110**: Create training materials
-- [ ] **BOE-111**: Update feature roadmap
+- [ ] **BOE-122**: Create user documentation
+- [ ] **BOE-123**: Create API documentation
+- [ ] **BOE-124**: Create technical documentation
+- [ ] **BOE-125**: Create training materials
+- [ ] **BOE-126**: Update feature roadmap
 
 ## Phase 1, 2, & 3A Progress Summary ✅
 **Last Updated**: January 27, 2025
@@ -754,9 +845,9 @@
 ## Notes
 - **Priority**: High
 - **Dependencies**: Existing ledger management, WBS templates, vendor management
-- **Estimated completion**: Q1 2026 (3 weeks remaining)
+- **Estimated completion**: Q1 2026 (4-5 weeks remaining including cleanup)
 - **Related implementation plan**: `docs/implementation-plans/boe-system.md`
-- **Story Points**: 80-100 points total (Phase 1: 25 points, Phase 2: 30 points, Phase 3A: 20 points completed, 10 points remaining)
+- **Story Points**: 120-140 points total (Phase 1: 25 points, Phase 2: 30 points, Phase 3A: 20 points completed, Phase 4: 40-50 points including cleanup)
 - **Team**: 2-3 developers recommended
 
 ## Risk Mitigation
