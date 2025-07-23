@@ -706,18 +706,18 @@ export class ImportService {
     let maxScore = 0;
     let debugScores: { [key: string]: number } = {};
 
-    // Vendor name matching (50% weight) - highest priority since it's most reliable
-    maxScore += 50;
+    // Vendor name matching (45% weight) - reduced to make room for BOE scoring
+    maxScore += 45;
     const vendorSimilarity = this.calculateStringSimilarity(
       transaction.vendorName.toLowerCase(),
       entry.vendor_name.toLowerCase()
     );
-    const vendorScore = 50 * vendorSimilarity;
+    const vendorScore = 45 * vendorSimilarity;
     score += vendorScore;
     debugScores.vendor = vendorScore;
 
-    // Date matching (30% weight) - compare by month using period field or transaction date
-    maxScore += 30;
+    // Date matching (25% weight) - reduced to make room for BOE scoring
+    maxScore += 25;
     let dateMatched = false;
     let dateScore = 0;
     
@@ -731,7 +731,7 @@ export class ImportService {
         const plannedYear = new Date(entry.planned_date).getFullYear();
         
         if (periodMonth === plannedMonth && periodYear === plannedYear) {
-          dateScore = 30;
+          dateScore = 25;
           dateMatched = true;
         }
       }
@@ -745,7 +745,7 @@ export class ImportService {
       const plannedYear = new Date(entry.planned_date).getFullYear();
       
       if (transMonth === plannedMonth && transYear === plannedYear) {
-        dateScore = 30;
+        dateScore = 25;
         dateMatched = true;
       }
     }
@@ -776,6 +776,28 @@ export class ImportService {
     score += descScore;
     debugScores.description = descScore;
 
+    // BOE-specific scoring (10% weight) - NEW
+    maxScore += 10;
+    let boeScore = 0;
+    if (entry.createdFromBOE && entry.boeElementAllocationId) {
+      // BOE allocation period matching bonus
+      if (this.isWithinBOEAllocationPeriod(transaction.transactionDate, entry)) {
+        boeScore += 5; // 5% bonus for period match
+      }
+      
+      // BOE vendor consistency bonus
+      if (this.matchesBOEVendor(transaction, entry)) {
+        boeScore += 3; // 3% bonus for vendor match
+      }
+      
+      // BOE amount validation bonus
+      if (this.isValidBOEAmount(transaction, entry)) {
+        boeScore += 2; // 2% bonus for amount validation
+      }
+    }
+    score += boeScore;
+    debugScores.boe = boeScore;
+
     const finalConfidence = maxScore > 0 ? score / maxScore : 0;
     
     return finalConfidence;
@@ -792,6 +814,55 @@ export class ImportService {
     const union = new Set([...set1, ...set2]);
     
     return union.size > 0 ? intersection.size / union.size : 0;
+  }
+
+  /**
+   * Check if transaction date is within BOE allocation period
+   */
+  private isWithinBOEAllocationPeriod(transactionDate: string, entry: LedgerEntry): boolean {
+    if (!entry.boeElementAllocationId) return false;
+    
+    // For now, we'll use a simple month-based check
+    // In a full implementation, we'd fetch the BOE allocation details
+    const transDate = new Date(transactionDate);
+    const plannedDate = entry.planned_date ? new Date(entry.planned_date) : null;
+    
+    if (!plannedDate) return false;
+    
+    // Check if transaction is within 1 month of planned date
+    const monthDiff = Math.abs(
+      (transDate.getFullYear() * 12 + transDate.getMonth()) - 
+      (plannedDate.getFullYear() * 12 + plannedDate.getMonth())
+    );
+    
+    return monthDiff <= 1;
+  }
+
+  /**
+   * Check if transaction vendor matches BOE element vendor
+   */
+  private matchesBOEVendor(transaction: ImportTransaction, entry: LedgerEntry): boolean {
+    // For now, we'll use the existing vendor matching logic
+    // In a full implementation, we'd fetch the BOE element vendor
+    const vendorSimilarity = this.calculateStringSimilarity(
+      transaction.vendorName.toLowerCase(),
+      entry.vendor_name.toLowerCase()
+    );
+    
+    return vendorSimilarity >= 0.8; // 80% similarity threshold
+  }
+
+  /**
+   * Check if transaction amount is valid for BOE allocation
+   */
+  private isValidBOEAmount(transaction: ImportTransaction, entry: LedgerEntry): boolean {
+    if (!entry.planned_amount) return false;
+    
+    // Check if transaction amount is within 20% of planned amount
+    const amountDiff = Math.abs(transaction.amount - entry.planned_amount);
+    const amountPercent = amountDiff / entry.planned_amount;
+    
+    return amountPercent <= 0.2; // 20% tolerance for BOE amounts
   }
 
   private determineMatchType(
@@ -1221,6 +1292,89 @@ export class ImportService {
   // Public helper for routes: get all rejected matches for a transaction
   public async getRejectedMatchesForTransaction(transactionId: string) {
     return this.rejectedMatchRepo.find({ where: { transaction: { id: transactionId } }, relations: ['ledgerEntry'] });
+  }
+
+  /**
+   * Get BOE context for a ledger entry
+   */
+  public async getBOEContextForLedgerEntry(ledgerEntryId: string): Promise<any> {
+    const entry = await this.ledgerRepo.findOne({
+      where: { id: ledgerEntryId },
+      relations: ['wbsElement', 'costCategory', 'vendor']
+    });
+
+    if (!entry || !entry.createdFromBOE || !entry.boeElementAllocationId) {
+      return null;
+    }
+
+    // Import BOE services and repositories
+    const { BOEElementAllocationService } = await import('./boeElementAllocationService');
+    const { AppDataSource } = await import('../config/database');
+    const boeVersionRepository = AppDataSource.getRepository('BOEVersion');
+
+    try {
+      // Get BOE allocation details
+      const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
+      if (!allocation) return null;
+
+      // Get BOE version details
+      const boeVersion = await boeVersionRepository.findOne({
+        where: { id: entry.boeVersionId }
+      });
+      if (!boeVersion) return null;
+
+      // Calculate remaining amount for the specific month
+      const transactionDate = entry.planned_date;
+      const month = transactionDate ? transactionDate.slice(0, 7) : null; // YYYY-MM format
+      
+      let remainingAmount = 0;
+      let monthlyAllocated = 0;
+      
+      if (month && allocation.monthlyBreakdown && allocation.monthlyBreakdown[month]) {
+        const monthData = allocation.monthlyBreakdown[month];
+        monthlyAllocated = monthData.amount || 0;
+        const actualAmount = monthData.actualAmount || 0;
+        remainingAmount = monthlyAllocated - actualAmount;
+      }
+
+      return {
+        allocation: {
+          id: allocation.id,
+          name: allocation.name,
+          description: allocation.description,
+          allocationType: allocation.allocationType,
+          totalAmount: allocation.totalAmount,
+          monthlyAmount: allocation.monthlyAmount,
+          startDate: allocation.startDate,
+          endDate: allocation.endDate,
+          numberOfMonths: allocation.numberOfMonths,
+          isActive: allocation.isActive,
+          isLocked: allocation.isLocked
+        },
+        boeElement: {
+          id: allocation.boeElement.id,
+          name: allocation.boeElement.name,
+          description: allocation.boeElement.description,
+          code: allocation.boeElement.code,
+          vendor: allocation.boeElement.vendor
+        },
+        boeVersion: {
+          id: boeVersion.id,
+          name: boeVersion.name,
+          versionNumber: boeVersion.versionNumber,
+          status: boeVersion.status
+        },
+        monthlyContext: {
+          month,
+          monthlyAllocated,
+          remainingAmount,
+          actualAmount: monthlyAllocated - remainingAmount
+        }
+      };
+    } catch (error) {
+      console.error('Error getting BOE context:', error);
+      return null;
+    }
   }
 
   // Helper method to clean up potential matches for final state transactions

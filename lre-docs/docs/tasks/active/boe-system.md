@@ -371,11 +371,12 @@
   - [x] Add audit trail UI with sidebar component
   - [x] Add BOE allocation navigation from audit trail
 
-- [ ] **BOE-080**: Create InvoiceLedgerMatcher component
-  - [ ] Build invoice-to-ledger-entry matching interface
-  - [ ] Add smart matching with allocation suggestions
-  - [ ] Implement quantity mapping for hardware
-  - [ ] Add contractor hours allocation
+- [x] **BOE-080**: Enhance BOE Context in Existing Invoice Matching ✅ **COMPLETED**
+  - [x] Add BOE allocation context to existing TransactionMatchModal
+  - [x] Enhance matching algorithm with BOE-specific scoring for createdFromBOE entries
+  - [x] Implement BOE allocation suggestions and validation (amount-based)
+  - [x] Add BOE-specific warnings and guidance in matching interface
+  - [x] Add amount validation against BOE allocation remaining amounts
 
 - [ ] **BOE-081**: Implement ledger entry splitting and re-forecasting
   - [ ] Create ledger entry splitting functionality

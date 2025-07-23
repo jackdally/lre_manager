@@ -9,6 +9,7 @@ import {
   useActualsUndoReject, 
   useActualsCloseMatchModal 
 } from '../../../../store/actualsStore';
+import BOEContextPanel from '../BOEContextPanel';
 
 interface LedgerEntry {
   id: string;
@@ -148,6 +149,16 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
           {ledgerEntry ? (
             <div className={`rounded-lg p-6 border ${modalCurrentTab === 'rejected' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
               <h3 className={`text-lg font-bold mb-2 ${modalCurrentTab === 'rejected' ? 'text-red-700' : 'text-blue-700'}`}>{modalCurrentTab === 'rejected' ? 'Rejected Ledger Entry' : 'Ledger Entry'}</h3>
+              
+              {/* BOE Context Panel - only show for BOE-created entries */}
+              {ledgerEntry.createdFromBOE && (
+                <BOEContextPanel
+                  ledgerEntryId={ledgerEntry.id}
+                  transactionAmount={modalTransaction.amount}
+                  isVisible={true}
+                />
+              )}
+              
               <div className="mb-2 text-base"><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{ledgerEntry.vendor_name}</span></div>
               <div className="mb-2 text-base"><b className="text-gray-600">Description:</b> <span className="text-gray-900">{ledgerEntry.expense_description}</span></div>
               <div className="mb-2 text-base"><b className="text-gray-600">Planned Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(ledgerEntry.planned_amount)}</span></div>

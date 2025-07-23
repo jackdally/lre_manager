@@ -741,4 +741,21 @@ router.post('/:programId/force-smart-matching', async (req, res) => {
   }
 });
 
+// Get BOE context for a ledger entry
+router.get('/ledger-entry/:ledgerEntryId/boe-context', async (req, res) => {
+  try {
+    const { ledgerEntryId } = req.params;
+    const boeContext = await importService.getBOEContextForLedgerEntry(ledgerEntryId);
+    
+    if (!boeContext) {
+      return res.status(404).json({ error: 'BOE context not found for this ledger entry' });
+    }
+    
+    res.json(boeContext);
+  } catch (error: any) {
+    console.error('Error getting BOE context:', error);
+    res.status(500).json({ error: error.message || 'Failed to get BOE context' });
+  }
+});
+
 export const importRouter = router; 
