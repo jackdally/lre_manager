@@ -173,6 +173,18 @@ router.post('/programs/:id/boe', async (req, res) => {
           description: req.body.description
         }
       );
+    } else if (req.body.elements && req.body.elements.length > 0) {
+      // Create BOE with manual elements and allocations
+      savedBOE = await BOEService.createBOEWithElements(
+        id,
+        {
+          versionNumber: req.body.versionNumber,
+          name: req.body.name,
+          description: req.body.description
+        },
+        req.body.elements,
+        req.body.allocations || []
+      );
     } else {
       // Create basic BOE version
       const boeVersion = new BOEVersion();

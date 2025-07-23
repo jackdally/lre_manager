@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
+import { boeVersionsApi } from '../../../services/boeApi';
 import BOEWizard from './BOEWizard';
 
 const BOEWizardModal: React.FC = () => {
-  const { showWizard, wizardProgramId, currentBOE, closeWizard } = useBOEStore();
+  const { showWizard, wizardProgramId, currentBOE, closeWizard, setCurrentBOE } = useBOEStore();
+  const [isCreating, setIsCreating] = useState(false);
 
   if (!showWizard || !wizardProgramId) {
     return null;
@@ -15,6 +17,14 @@ const BOEWizardModal: React.FC = () => {
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Create New BOE</h2>
           <p className="text-gray-600 mt-1">Follow the steps below to create a new Basis of Estimate</p>
+          {isCreating && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                <span className="text-blue-800 text-sm">Creating BOE...</span>
+              </div>
+            </div>
+          )}
         </div>
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
           <BOEWizard
@@ -22,11 +32,59 @@ const BOEWizardModal: React.FC = () => {
             programId={wizardProgramId}
             currentBOE={currentBOE}
             sourceBOE={currentBOE}
-            onComplete={(boeData) => {
-              console.log('BOE created:', boeData);
-              closeWizard();
-              // Refresh the page to show the new BOE
-              window.location.reload();
+            onComplete={async (boeData) => {
+              try {
+                setIsCreating(true);
+                console.log('Creating BOE with data:', boeData);
+                
+                // Prepare the BOE creation data
+                const boeCreationData: any = {
+                  name: boeData.name,
+                  description: boeData.description,
+                  versionNumber: boeData.versionNumber,
+                  status: 'Draft' // Ensure it's created in draft mode
+                };
+                
+                // Add template ID if it exists
+                if (boeData.templateId) {
+                  boeCreationData.templateId = boeData.templateId;
+                }
+                
+                // Add elements if they exist
+                if (boeData.elements && boeData.elements.length > 0) {
+                  boeCreationData.elements = boeData.elements;
+                }
+                
+                // Add allocations if they exist and are valid
+                if (boeData.allocations && boeData.allocations.length > 0) {
+                  const validAllocations = boeData.allocations.filter((a: any) => 
+                    a.startDate && a.endDate && a.totalAmount > 0
+                  );
+                  if (validAllocations.length > 0) {
+                    boeCreationData.allocations = validAllocations;
+                  }
+                }
+                
+                // Create the new BOE version
+                const newBOE = await boeVersionsApi.createBOE(wizardProgramId, boeCreationData);
+                
+                console.log('BOE created successfully:', newBOE);
+                
+                // Update the current BOE in the store
+                setCurrentBOE(newBOE);
+                
+                // Close the wizard
+                closeWizard();
+                
+                // Show success message (optional)
+                alert('BOE created successfully!');
+                
+              } catch (error) {
+                console.error('Error creating BOE:', error);
+                alert('Error creating BOE. Please try again.');
+              } finally {
+                setIsCreating(false);
+              }
             }}
             onCancel={() => {
               closeWizard();

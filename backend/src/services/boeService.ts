@@ -519,6 +519,108 @@ export class BOEService {
   }
 
   /**
+   * Create BOE with manual elements and allocations
+   */
+  static async createBOEWithElements(
+    programId: string,
+    versionData: any,
+    elements: any[],
+    allocations: any[]
+  ): Promise<any> {
+    const program = await programRepository.findOne({ where: { id: programId } });
+    if (!program) {
+      throw new Error('Program not found');
+    }
+
+    // Create BOE version
+    const boeVersion = boeVersionRepository.create({
+      ...versionData,
+      program,
+      status: 'Draft',
+      totalEstimatedCost: 0,
+      managementReserveAmount: 0,
+      managementReservePercentage: 0
+    });
+
+    const savedBOE = await boeVersionRepository.save(boeVersion);
+    const boeVersionEntity = Array.isArray(savedBOE) ? savedBOE[0] : savedBOE;
+
+    // Create BOE elements
+    const createdElements: BOEElement[] = [];
+    
+    for (const elementData of elements) {
+      const boeElement = new BOEElement();
+      boeElement.code = elementData.code;
+      boeElement.name = elementData.name;
+      boeElement.description = elementData.description;
+      boeElement.level = elementData.level || 1;
+      boeElement.parentElementId = elementData.parentElementId || null;
+      boeElement.costCategoryId = elementData.costCategoryId || null;
+      boeElement.vendorId = elementData.vendorId || null;
+      boeElement.estimatedCost = elementData.estimatedCost || 0;
+      boeElement.isRequired = elementData.isRequired !== undefined ? elementData.isRequired : true;
+      boeElement.isOptional = elementData.isOptional !== undefined ? elementData.isOptional : false;
+      boeElement.notes = elementData.notes || '';
+      boeElement.boeVersion = boeVersionEntity;
+
+      const savedElement = await boeElementRepository.save(boeElement);
+      createdElements.push(savedElement);
+    }
+
+    // Create allocations for elements
+    if (allocations && allocations.length > 0) {
+      for (const allocationData of allocations) {
+        // Find the corresponding BOE element
+        const boeElement = createdElements.find(element => element.id === allocationData.elementId);
+        
+        if (boeElement) {
+          // Calculate monthly breakdown
+          const startDate = new Date(allocationData.startDate);
+          const endDate = new Date(allocationData.endDate);
+          const numberOfMonths = this.calculateNumberOfMonths(startDate, endDate);
+          const monthlyAmount = allocationData.totalAmount / numberOfMonths;
+
+          const monthlyBreakdown = this.generateMonthlyBreakdown(
+            allocationData.totalAmount,
+            null, // no quantity for now
+            startDate,
+            endDate,
+            allocationData.allocationType
+          );
+
+          const elementAllocation = elementAllocationRepository.create({
+            name: allocationData.name || `${boeElement.name} Allocation`,
+            description: allocationData.description || `Monthly allocation for ${boeElement.name}`,
+            totalAmount: allocationData.totalAmount,
+            allocationType: allocationData.allocationType,
+            startDate: allocationData.startDate,
+            endDate: allocationData.endDate,
+            numberOfMonths,
+            monthlyAmount,
+            isActive: true,
+            isLocked: false,
+            notes: allocationData.notes || '',
+            assumptions: '',
+            risks: '',
+            boeElement,
+            boeVersion: boeVersionEntity,
+            monthlyBreakdown
+          });
+
+          await elementAllocationRepository.save(elementAllocation);
+        }
+      }
+    }
+
+    // Calculate totals
+    const totalCost = await this.calculateTotalEstimatedCost(boeVersionEntity.id);
+    boeVersionEntity.totalEstimatedCost = totalCost;
+    await boeVersionRepository.save(boeVersionEntity);
+
+    return boeVersionEntity;
+  }
+
+  /**
    * Create WBS element from BOE element if it doesn't exist
    */
   static async createWbsElementFromBoeElement(boeElement: BOEElement, program: any): Promise<WbsElement> {

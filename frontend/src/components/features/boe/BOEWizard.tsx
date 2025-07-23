@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
 import BOETemplateSelector from './BOETemplateSelector';
-import { BOETemplate, BOEElementAllocation } from '../../../store/boeStore';
+import { BOETemplate, BOEElementAllocation, BOEElement } from '../../../store/boeStore';
 import { formatCurrency } from '../../../utils/currencyUtils';
 import { 
   CalendarIcon, 
   CurrencyDollarIcon, 
   ClockIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  PlusIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
+import BOEElementModal from './BOEElementModal';
+import { useSettingsStore } from '../../../store/settingsStore';
+import Modal from '../../common/Modal';
 
 interface BOEWizardProps {
   programId: string;
@@ -43,6 +51,155 @@ interface AllocationSetupData {
   notes: string;
 }
 
+
+
+// WBS Tree Item Component for Wizard
+interface WBSWizardTreeItemProps {
+  element: BOEElement;
+  level: number;
+  expandedItems: Set<string>;
+  onToggleExpand: (id: string) => void;
+  onEdit: (element: BOEElement) => void;
+  onDelete: (element: BOEElement) => void;
+  onAddChild: (parentId: string) => void;
+  costCategories: any[];
+  vendors: any[];
+}
+
+const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
+  element,
+  level,
+  expandedItems,
+  onToggleExpand,
+  onEdit,
+  onDelete,
+  onAddChild,
+  costCategories,
+  vendors
+}) => {
+  const isExpanded = expandedItems.has(element.id);
+  const hasChildren = element.childElements && element.childElements.length > 0;
+
+  const handleToggle = () => {
+    if (hasChildren) {
+      onToggleExpand(element.id);
+    }
+  };
+
+  // Get cost category and vendor names
+  const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
+  const vendor = vendors.find(v => v.id === element.vendorId);
+
+  return (
+    <div className="boe-tree-item">
+      <div 
+        className="flex items-center py-2 px-3 hover:bg-blue-50 cursor-pointer border-l-4 transition-all duration-200 group border-transparent hover:border-blue-300 hover:shadow-sm"
+        style={{ paddingLeft: `${level * 24 + 8}px` }}
+      >
+        {/* Expand/Collapse button */}
+        {hasChildren ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggle();
+            }}
+            className="p-1 hover:bg-gray-200 rounded mr-2"
+          >
+            {isExpanded ? (
+              <ChevronDownIcon className="h-4 w-4" />
+            ) : (
+              <ChevronRightIcon className="h-4 w-4" />
+            )}
+          </button>
+        ) : (
+          <div className="w-6 mr-2" />
+        )}
+
+        {/* Element Code */}
+        <span className="text-sm font-mono text-gray-600 mr-3 min-w-[60px]">
+          {element.code}
+        </span>
+
+        {/* Element Name */}
+        <div className="flex-1">
+          <span className="text-sm font-medium text-gray-900 group-hover:text-blue-700 transition-colors">
+            {element.name}
+          </span>
+        </div>
+
+        {/* Estimated Cost */}
+        <span className="text-sm text-gray-600 mr-3 min-w-[80px] text-right">
+          {formatCurrency(element.estimatedCost)}
+        </span>
+
+        {/* Cost Category */}
+        <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
+          {costCategory?.name || 'Unassigned'}
+        </span>
+
+        {/* Vendor */}
+        <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
+          {vendor?.name || 'Unassigned'}
+        </span>
+
+        {/* Actions */}
+        <div className="flex items-center space-x-1 ml-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(element);
+            }}
+            className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
+            title="Edit element"
+          >
+            <PencilIcon className="h-3 w-3" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddChild(element.id);
+            }}
+            className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
+            title="Add child element"
+          >
+            <PlusIcon className="h-3 w-3" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(element);
+            }}
+            className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-red-600"
+            title="Delete element"
+          >
+            <TrashIcon className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Render children if expanded */}
+      {isExpanded && hasChildren && (
+        <div className="ml-6">
+          {element.childElements!.map((child) => (
+            <WBSWizardTreeItem
+              key={child.id}
+              element={child}
+              level={level + 1}
+              expandedItems={expandedItems}
+              onToggleExpand={onToggleExpand}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAddChild={onAddChild}
+              costCategories={costCategories}
+              vendors={vendors}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, sourceBOE, currentBOE }) => {
   const { wizardStep, wizardData, setWizardStep, setWizardData } = useBOEStore();
   
@@ -68,27 +225,66 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     }
     
     return {
-      basicInfo: {
-        name: '',
-        description: '',
-        versionNumber: '1.0',
-      },
-      wbsStructure: [],
-      costEstimates: [],
-      allocations: [],
-      review: false,
+    basicInfo: {
+      name: '',
+      description: '',
+      versionNumber: '1.0',
+    },
+    wbsStructure: [],
+    costEstimates: [],
+    allocations: [],
+    review: false,
     };
   });
 
   const [allocationSetup, setAllocationSetup] = useState<AllocationSetupData[]>([]);
+  const [allocationExpandedItems, setAllocationExpandedItems] = useState<Set<string>>(new Set());
   const [creationMethod, setCreationMethod] = useState<'template' | 'copy' | 'manual' | null>(null);
+  
+  // WBS Tree state
+  const [expandedWBSItems, setExpandedWBSItems] = useState<Set<string>>(new Set());
+  const [showWBSElementModal, setShowWBSElementModal] = useState(false);
+  const [editingWBSElement, setEditingWBSElement] = useState<BOEElement | null>(null);
+  const [editingWBSElementParentId, setEditingWBSElementParentId] = useState<string | null>(null);
+  
+  // Settings store for cost categories and vendors
+  const { costCategories, vendors, fetchCostCategories, fetchVendors } = useSettingsStore();
+
+  // Load cost categories and vendors on mount
+  useEffect(() => {
+    fetchCostCategories();
+    fetchVendors();
+  }, [fetchCostCategories, fetchVendors]);
+
+  // Initialize WBS structure based on creation method
+  useEffect(() => {
+    if (creationMethod === 'copy' && currentBOE) {
+      // Copy WBS structure from current BOE
+      setCurrentData(prev => ({
+        ...prev,
+        wbsStructure: currentBOE.elements || []
+      }));
+    } else if (creationMethod === 'template' && currentData.template) {
+      // Initialize with template structure (placeholder - would need template WBS data)
+      setCurrentData(prev => ({
+        ...prev,
+        wbsStructure: []
+      }));
+    } else if (creationMethod === 'manual') {
+      // Start with empty structure
+      setCurrentData(prev => ({
+        ...prev,
+        wbsStructure: []
+      }));
+    }
+  }, [creationMethod, currentBOE, currentData.template]);
 
   const steps = [
     { id: 0, title: 'Creation Method', description: 'Choose how to create your BOE' },
     { id: 1, title: 'Template Selection', description: 'Choose a BOE template' },
     { id: 2, title: 'Basic Information', description: 'Enter BOE details' },
     { id: 3, title: 'WBS Structure', description: 'Define work breakdown structure' },
-    { id: 4, title: 'Cost Estimation', description: 'Enter cost estimates' },
+    { id: 4, title: 'Cost Verification', description: 'Review and verify costs' },
     { id: 5, title: 'Allocation Planning', description: 'Plan monthly allocations' },
     { id: 6, title: 'Review & Create', description: 'Review and create BOE' },
   ];
@@ -104,14 +300,321 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     }));
   };
 
-  const handleAllocationChange = (elementId: string, field: keyof AllocationSetupData, value: any) => {
-    setAllocationSetup(prev => 
-      prev.map(item => 
-        item.elementId === elementId 
-          ? { ...item, [field]: value }
-          : item
-      )
-    );
+  const handleAllocationChange = (elementId: string, field: keyof AllocationSetupData, value: any, allocationIndex: number) => {
+    setAllocationSetup(prev => {
+      const elementAllocations = prev.filter(a => a.elementId === elementId);
+      const otherAllocations = prev.filter(a => a.elementId !== elementId);
+      
+      if (allocationIndex < elementAllocations.length) {
+        const updatedAllocation = { ...elementAllocations[allocationIndex], [field]: value };
+        const updatedElementAllocations = [...elementAllocations];
+        updatedElementAllocations[allocationIndex] = updatedAllocation;
+        return [...otherAllocations, ...updatedElementAllocations];
+      }
+      
+      return prev;
+    });
+  };
+
+  // WBS Tree functions
+  const handleAddWBSRoot = () => {
+    setEditingWBSElement(null);
+    setEditingWBSElementParentId(null);
+    setShowWBSElementModal(true);
+  };
+
+  const handleToggleWBSExpand = (id: string) => {
+    setExpandedWBSItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleEditWBSElement = (element: BOEElement) => {
+    setEditingWBSElement(element);
+    setEditingWBSElementParentId(element.parentElementId || null);
+    setShowWBSElementModal(true);
+  };
+
+  const handleDeleteWBSElement = (element: BOEElement) => {
+    const removeElementAndChildren = (elements: BOEElement[], elementId: string): BOEElement[] => {
+      return elements.filter(el => {
+        if (el.id === elementId) return false;
+        if (el.childElements) {
+          el.childElements = removeElementAndChildren(el.childElements, elementId);
+        }
+        return true;
+      });
+    };
+    
+    setCurrentData(prev => ({
+      ...prev,
+      wbsStructure: removeElementAndChildren(prev.wbsStructure, element.id)
+    }));
+  };
+
+  const handleAddWBSChild = (parentId: string) => {
+    setEditingWBSElement(null);
+    setEditingWBSElementParentId(parentId);
+    setShowWBSElementModal(true);
+  };
+
+  // Cost verification helper functions
+  const calculateTotalCost = (): number => {
+    const calculateElementCost = (elements: BOEElement[]): number => {
+      return elements.reduce((total, element) => {
+        const elementCost = element.estimatedCost || 0;
+        const childCost = element.childElements ? calculateElementCost(element.childElements) : 0;
+        return total + elementCost + childCost;
+      }, 0);
+    };
+    
+    return calculateElementCost(currentData.wbsStructure);
+  };
+
+  const getCostBreakdownByCategory = (): Array<{ name: string; total: number }> => {
+    const categoryTotals: Record<string, number> = {};
+    
+    const processElements = (elements: BOEElement[]) => {
+      elements.forEach(element => {
+        const categoryName = costCategories.find(cat => cat.id === element.costCategoryId)?.name || 'Unassigned';
+        categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + (element.estimatedCost || 0);
+        
+        if (element.childElements) {
+          processElements(element.childElements);
+        }
+      });
+    };
+    
+    processElements(currentData.wbsStructure);
+    
+    return Object.entries(categoryTotals).map(([name, total]) => ({ name, total }));
+  };
+
+  const getElementsWithCosts = (): number => {
+    const countElementsWithCosts = (elements: BOEElement[]): number => {
+      return elements.reduce((count, element) => {
+        const hasCost = (element.estimatedCost || 0) > 0;
+        const childCount = element.childElements ? countElementsWithCosts(element.childElements) : 0;
+        return count + (hasCost ? 1 : 0) + childCount;
+      }, 0);
+    };
+    
+    return countElementsWithCosts(currentData.wbsStructure);
+  };
+
+  const getElementsMissingCosts = (): number => {
+    const countElementsMissingCosts = (elements: BOEElement[]): number => {
+      return elements.reduce((count, element) => {
+        const missingCost = (element.estimatedCost || 0) === 0;
+        const childCount = element.childElements ? countElementsMissingCosts(element.childElements) : 0;
+        return count + (missingCost ? 1 : 0) + childCount;
+      }, 0);
+    };
+    
+    return countElementsMissingCosts(currentData.wbsStructure);
+  };
+
+  // Allocation planning helper functions
+  const getAllocatedElementsCount = (): number => {
+    return allocationSetup.filter(a => a.startDate && a.endDate && a.totalAmount > 0).length;
+  };
+
+  const getTotalElementsCount = (): number => {
+    const countElements = (elements: BOEElement[]): number => {
+      return elements.reduce((count, element) => {
+        return count + 1 + (element.childElements ? countElements(element.childElements) : 0);
+      }, 0);
+    };
+    return countElements(currentData.wbsStructure);
+  };
+
+  const getTotalAllocatedAmount = (): number => {
+    return allocationSetup.reduce((total, allocation) => {
+      return total + (allocation.totalAmount || 0);
+    }, 0);
+  };
+
+  const handleAutoAllocateAll = () => {
+    const autoAllocateElement = (element: BOEElement, startDate: string = '') => {
+      const elementAllocations = allocationSetup.filter(a => a.elementId === element.id);
+      if (element.estimatedCost > 0) {
+        // Create new allocation if none exists
+        if (elementAllocations.length === 0) {
+          handleAddAllocation(element.id);
+        }
+        
+        // Update the first allocation (or newly created one)
+        const allocationIndex = 0;
+        const endDate = new Date(startDate || new Date());
+        endDate.setMonth(endDate.getMonth() + 3); // Default 3-month duration
+        
+        handleAllocationChange(element.id, 'startDate', startDate || new Date().toISOString().split('T')[0], allocationIndex);
+        handleAllocationChange(element.id, 'endDate', endDate.toISOString().split('T')[0], allocationIndex);
+        handleAllocationChange(element.id, 'totalAmount', element.estimatedCost, allocationIndex);
+        handleAllocationChange(element.id, 'allocationType', 'Linear', allocationIndex);
+      }
+      
+      // Process children with staggered start dates
+      if (element.childElements) {
+        element.childElements.forEach((child, index) => {
+          const childStartDate = new Date(startDate || new Date());
+          childStartDate.setMonth(childStartDate.getMonth() + index);
+          autoAllocateElement(child, childStartDate.toISOString().split('T')[0]);
+        });
+      }
+    };
+    
+    currentData.wbsStructure.forEach((element, index) => {
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() + index);
+      autoAllocateElement(element, startDate.toISOString().split('T')[0]);
+    });
+  };
+
+  const handleToggleAllocationExpand = (elementId: string) => {
+    setAllocationExpandedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(elementId)) {
+        newSet.delete(elementId);
+      } else {
+        newSet.add(elementId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleAddAllocation = (elementId: string) => {
+    const element = findElementById(currentData.wbsStructure, elementId);
+    if (element && element.estimatedCost > 0) {
+      // Create new allocation with unique ID
+      const newAllocation: AllocationSetupData = {
+        elementId,
+        elementName: element.name,
+        estimatedCost: element.estimatedCost,
+        allocationType: 'Linear',
+        startDate: '',
+        endDate: '',
+        totalAmount: element.estimatedCost,
+        notes: ''
+      };
+      setAllocationSetup(prev => [...prev, newAllocation]);
+      
+      // Expand the element to show the allocation form
+      setAllocationExpandedItems(prev => {
+        const newSet = new Set(prev);
+        newSet.add(elementId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleRemoveAllocation = (elementId: string, allocationIndex: number) => {
+    setAllocationSetup(prev => {
+      const elementAllocations = prev.filter(a => a.elementId === elementId);
+      const otherAllocations = prev.filter(a => a.elementId !== elementId);
+      const updatedElementAllocations = elementAllocations.filter((_, index) => index !== allocationIndex);
+      return [...otherAllocations, ...updatedElementAllocations];
+    });
+  };
+
+  const findElementById = (elements: BOEElement[], elementId: string): BOEElement | null => {
+    for (const element of elements) {
+      if (element.id === elementId) return element;
+      if (element.childElements) {
+        const found = findElementById(element.childElements, elementId);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const getValidationWarnings = (): string[] => {
+    const warnings: string[] = [];
+    
+    if (currentData.wbsStructure.length === 0) {
+      warnings.push('No WBS elements found. Please add elements in the WBS Structure step.');
+      return warnings;
+    }
+    
+    const missingCosts = getElementsMissingCosts();
+    if (missingCosts > 0) {
+      warnings.push(`${missingCosts} element(s) are missing cost estimates.`);
+    }
+    
+    const totalCost = calculateTotalCost();
+    if (totalCost === 0) {
+      warnings.push('No cost estimates found. Please add costs to your WBS elements.');
+    }
+    
+    return warnings;
+  };
+
+  const handleSaveWBSElement = (elementData: BOEElement) => {
+    const updateElementInArray = (elements: BOEElement[], updatedElement: BOEElement): BOEElement[] => {
+      return elements.map(el => {
+        if (el.id === updatedElement.id) {
+          return { ...el, ...updatedElement };
+        }
+        if (el.childElements) {
+          el.childElements = updateElementInArray(el.childElements, updatedElement);
+        }
+        return el;
+      });
+    };
+
+    const addChildToParent = (elements: BOEElement[], parentId: string, newElement: BOEElement): BOEElement[] => {
+      return elements.map(el => {
+        if (el.id === parentId) {
+          return {
+            ...el,
+            childElements: [...(el.childElements || []), newElement]
+          };
+        }
+        if (el.childElements) {
+          el.childElements = addChildToParent(el.childElements, parentId, newElement);
+        }
+        return el;
+      });
+    };
+
+    if (editingWBSElement) {
+      // Update existing element
+      setCurrentData(prev => ({
+        ...prev,
+        wbsStructure: updateElementInArray(prev.wbsStructure, elementData)
+      }));
+    } else {
+      // Add new element
+      const newElement = {
+        ...elementData,
+        id: `temp-${Date.now()}`,
+        childElements: []
+      };
+      
+      if (editingWBSElementParentId) {
+        // Add as child
+        setCurrentData(prev => ({
+          ...prev,
+          wbsStructure: addChildToParent(prev.wbsStructure, editingWBSElementParentId, newElement)
+        }));
+      } else {
+        // Add as root
+        setCurrentData(prev => ({
+          ...prev,
+          wbsStructure: [...prev.wbsStructure, newElement]
+        }));
+      }
+    }
+    
+    setShowWBSElementModal(false);
+    setEditingWBSElement(null);
+    setEditingWBSElementParentId(null);
   };
 
   const handleNext = () => {
@@ -144,7 +647,14 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
 
   const handlePrevious = () => {
     if (wizardStep > 0) {
-      setWizardStep(wizardStep - 1);
+      let previousStep = wizardStep - 1;
+      
+      // Skip template step when going backwards if copying from existing BOE or creating manually
+      if (previousStep === 1 && (creationMethod === 'copy' || creationMethod === 'manual')) {
+        previousStep = 0; // Go back to creation method step
+      }
+      
+      setWizardStep(previousStep);
     }
   };
 
@@ -171,7 +681,8 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
       case 3:
         return currentData.wbsStructure.length > 0;
       case 4:
-        return currentData.costEstimates.length > 0;
+        // Cost verification is complete if there are no validation warnings
+        return getValidationWarnings().length === 0 && currentData.wbsStructure.length > 0;
       case 5:
         // At least one allocation must be configured
         return allocationSetup.some(a => a.startDate && a.endDate && a.totalAmount > 0);
@@ -205,6 +716,275 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
       default:
         return totalAmount / months;
     }
+  };
+
+  // WBS Allocation Item Component for Wizard
+  interface WBSAllocationItemProps {
+    element: BOEElement;
+    level: number;
+    allocationSetup: AllocationSetupData[];
+    onAllocationChange: (elementId: string, field: keyof AllocationSetupData, value: any, allocationIndex: number) => void;
+    onAddAllocation: (elementId: string) => void;
+    onRemoveAllocation: (elementId: string, allocationIndex: number) => void;
+    onToggleExpand: (elementId: string) => void;
+    expandedItems: Set<string>;
+    costCategories: any[];
+    vendors: any[];
+  }
+
+  const WBSAllocationItem: React.FC<WBSAllocationItemProps> = ({
+    element,
+    level,
+    allocationSetup,
+    onAllocationChange,
+    onAddAllocation,
+    onRemoveAllocation,
+    onToggleExpand,
+    expandedItems,
+    costCategories,
+    vendors
+  }) => {
+    const elementAllocations = allocationSetup.filter(a => a.elementId === element.id);
+    const hasChildren = element.childElements && element.childElements.length > 0;
+    const isExpanded = expandedItems.has(element.id);
+    
+    // Get cost category and vendor names
+    const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
+    const vendor = vendors.find(v => v.id === element.vendorId);
+
+    const getAllocationStatus = () => {
+      if (elementAllocations.length === 0) return 'not-allocated';
+      const completeAllocations = elementAllocations.filter(a => 
+        a.startDate && a.endDate && a.totalAmount > 0
+      );
+      if (completeAllocations.length === elementAllocations.length) {
+        return 'allocated';
+      }
+      return 'partially-allocated';
+    };
+
+    const getStatusIcon = () => {
+      const status = getAllocationStatus();
+      switch (status) {
+        case 'allocated':
+          return <CheckCircleIcon className="h-4 w-4 text-green-600" />;
+        case 'partially-allocated':
+          return <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600" />;
+        case 'not-allocated':
+          return <div className="w-4 h-4 rounded-full bg-gray-300 border border-gray-400" />;
+      }
+    };
+
+    const getStatusText = () => {
+      const status = getAllocationStatus();
+      const allocationCount = elementAllocations.length;
+      switch (status) {
+        case 'allocated':
+          return allocationCount > 1 ? `${allocationCount} Allocations` : 'Allocated';
+        case 'partially-allocated':
+          return allocationCount > 1 ? `${allocationCount} Partial` : 'Partially Allocated';
+        case 'not-allocated':
+          return 'Not Allocated';
+      }
+    };
+
+    return (
+      <div className="wbs-allocation-item">
+        {/* Element Header */}
+        <div 
+          className="flex items-center py-3 px-4 hover:bg-gray-50 border border-gray-200 rounded-lg transition-all duration-200"
+          style={{ paddingLeft: `${level * 24 + 16}px` }}
+        >
+          {/* Expand/Collapse Button */}
+          {hasChildren && (
+            <button
+              onClick={() => onToggleExpand(element.id)}
+              className="mr-2 p-1 hover:bg-gray-200 rounded transition-colors"
+            >
+              {isExpanded ? (
+                <ChevronDownIcon className="h-4 w-4 text-gray-600" />
+              ) : (
+                <ChevronRightIcon className="h-4 w-4 text-gray-600" />
+              )}
+            </button>
+          )}
+          {!hasChildren && <div className="w-6 mr-2" />}
+
+          {/* Allocation Status */}
+          <div className="mr-3">
+            {getStatusIcon()}
+          </div>
+
+          {/* Element Code */}
+          <span className="text-sm font-mono text-gray-600 mr-3 min-w-[60px]">
+            {element.code}
+          </span>
+
+          {/* Element Name */}
+          <div className="flex-1">
+            <span className="text-sm font-medium text-gray-900">
+              {element.name}
+            </span>
+          </div>
+
+          {/* Estimated Cost */}
+          <span className="text-sm text-gray-600 mr-3 min-w-[80px] text-right">
+            {formatCurrency(element.estimatedCost)}
+          </span>
+
+          {/* Cost Category */}
+          <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
+            {costCategory?.name || 'Unassigned'}
+          </span>
+
+          {/* Vendor */}
+          <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
+            {vendor?.name || 'Unassigned'}
+          </span>
+
+          {/* Allocation Status Text */}
+          <span className="text-xs font-medium mr-3 min-w-[120px]">
+            {getStatusText()}
+          </span>
+
+          {/* Add Allocation Button */}
+          {element.estimatedCost > 0 && (
+            <button
+              onClick={() => onAddAllocation(element.id)}
+              className="px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+            >
+              Add Allocation
+            </button>
+          )}
+        </div>
+
+        {/* Allocation Configuration (if element has cost) */}
+        {element.estimatedCost > 0 && elementAllocations.length > 0 && (
+          <div className="ml-8 mt-3 space-y-3">
+            {elementAllocations.map((allocation, index) => (
+              <div key={`${element.id}-${index}`} className="bg-gray-50 border border-gray-200 rounded-lg">
+                {/* Allocation Header */}
+                <div className="p-3 bg-gray-100 border-b border-gray-200 rounded-t-lg">
+                  <div className="flex items-center justify-between">
+                    <h6 className="text-sm font-medium text-gray-900">
+                      Allocation {index + 1}
+                    </h6>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => onRemoveAllocation(element.id, index)}
+                        className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
+                        title="Remove allocation"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Allocation Form */}
+                <div className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Allocation Type</label>
+                      <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={allocation.allocationType}
+                        onChange={(e) => onAllocationChange(element.id, 'allocationType', e.target.value, index)}
+                      >
+                        <option value="Linear">Linear</option>
+                        <option value="Front-Loaded">Front-Loaded</option>
+                        <option value="Back-Loaded">Back-Loaded</option>
+                        <option value="Custom">Custom</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={allocation.startDate}
+                        onChange={(e) => onAllocationChange(element.id, 'startDate', e.target.value, index)}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={allocation.endDate}
+                        onChange={(e) => onAllocationChange(element.id, 'endDate', e.target.value, index)}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+                      <input
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={allocation.totalAmount}
+                        onChange={(e) => onAllocationChange(element.id, 'totalAmount', parseFloat(e.target.value) || 0, index)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  
+                  {allocation.startDate && allocation.endDate && allocation.totalAmount > 0 && (
+                    <div className="mt-3 p-3 bg-white rounded-md border border-gray-200">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Monthly Amount:</span>
+                        <span className="font-medium text-gray-900">
+                          {formatCurrency(getMonthlyAmount(allocation.totalAmount, allocation.startDate, allocation.endDate, allocation.allocationType))}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm mt-1">
+                        <span className="text-gray-600">Duration:</span>
+                        <span className="font-medium text-gray-900">
+                          {calculateNumberOfMonths(allocation.startDate, allocation.endDate)} months
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={2}
+                      value={allocation.notes}
+                      onChange={(e) => onAllocationChange(element.id, 'notes', e.target.value, index)}
+                      placeholder="Additional notes about this allocation..."
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Render children */}
+        {hasChildren && isExpanded && (
+          <div className="ml-6 mt-3">
+            {element.childElements!.map((child) => (
+              <WBSAllocationItem
+                key={child.id}
+                element={child}
+                level={level + 1}
+                allocationSetup={allocationSetup}
+                onAllocationChange={onAllocationChange}
+                onAddAllocation={onAddAllocation}
+                onRemoveAllocation={onRemoveAllocation}
+                onToggleExpand={onToggleExpand}
+                expandedItems={expandedItems}
+                costCategories={costCategories}
+                vendors={vendors}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderStepContent = () => {
@@ -347,7 +1127,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
           </div>
         );
 
-      case 1:
+      case 2:
         return (
           <div className="wizard-step">
             <h5>Basic Information</h5>
@@ -389,55 +1169,169 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
           </div>
         );
 
-      case 2:
+      case 3:
         return (
           <div className="wizard-step">
             <h5>Work Breakdown Structure</h5>
             <p className="text-muted mb-4">
               Define the hierarchical structure of your project work elements.
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <h6 className="text-blue-900 font-medium">Template Structure</h6>
-              <p className="text-blue-700">Based on your selected template: <strong>{currentData.template?.name}</strong></p>
-              <ul className="text-blue-700 mt-2 space-y-1">
-                <li>• Project Management</li>
-                <li>• Requirements Analysis</li>
-                <li>• Design & Development</li>
-                <li>• Testing & Validation</li>
-                <li>• Documentation</li>
-                <li>• Management Reserve</li>
-              </ul>
+            
+            {/* WBS Tree Editor */}
+            <div className="bg-white border border-gray-200 rounded-lg">
+              <div className="p-4 border-b border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <h6 className="text-gray-900 font-medium">WBS Elements</h6>
+                  <button
+                    onClick={() => handleAddWBSRoot()}
+                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    <PlusIcon className="h-4 w-4 mr-1" />
+                    Add Root Element
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-4">
+                {currentData.wbsStructure.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="w-12 h-12 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                      <PlusIcon className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <p className="text-sm">No WBS elements yet. Click "Add Root Element" to get started.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {currentData.wbsStructure.map((element) => (
+                      <WBSWizardTreeItem
+                        key={element.id}
+                        element={element}
+                        level={0}
+                        expandedItems={expandedWBSItems}
+                        onToggleExpand={handleToggleWBSExpand}
+                        onEdit={handleEditWBSElement}
+                        onDelete={handleDeleteWBSElement}
+                        onAddChild={handleAddWBSChild}
+                        costCategories={costCategories}
+                        vendors={vendors}
+                      />
+                    ))}
+                  </div>
+                )}
             </div>
-            <div className="text-center">
-              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
-                <span className="mr-2">+</span>
-                Add WBS Elements
-              </button>
             </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="wizard-step">
-            <h5>Cost Estimation</h5>
-            <p className="text-muted mb-4">
-              Enter cost estimates for each work element.
-            </p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h6 className="text-yellow-900 font-medium">Cost Estimation</h6>
-              <p className="text-yellow-700">This step will be implemented to allow detailed cost entry for each WBS element.</p>
-            </div>
-            <div className="text-center mt-4">
-              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
-                <span className="mr-2">💰</span>
-                Enter Cost Estimates
-              </button>
-            </div>
+            
           </div>
         );
 
       case 4:
+        return (
+          <div className="wizard-step">
+            <h5>Cost Verification</h5>
+            <p className="text-muted mb-4">
+              Review and verify your cost estimates before proceeding to allocation planning.
+            </p>
+            
+            {/* Cost Summary */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h6 className="text-lg font-medium text-gray-900">Cost Summary</h6>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {formatCurrency(calculateTotalCost())}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Total Estimated Cost
+                  </div>
+                </div>
+              </div>
+              
+              {/* Cost Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h6 className="text-sm font-medium text-gray-700 mb-3">Cost by Category</h6>
+                  <div className="space-y-2">
+                    {getCostBreakdownByCategory().map((category) => (
+                      <div key={category.name} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">{category.name}</span>
+                        <span className="font-medium">{formatCurrency(category.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <h6 className="text-sm font-medium text-gray-700 mb-3">WBS Elements</h6>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Elements with Costs</span>
+                      <span className="font-medium">{getElementsWithCosts()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Elements Missing Costs</span>
+                      <span className="font-medium text-red-600">{getElementsMissingCosts()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Total Elements</span>
+                      <span className="font-medium">{currentData.wbsStructure.length}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Validation Warnings */}
+            {getValidationWarnings().length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center mb-2">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 mr-2" />
+                  <h6 className="text-yellow-900 font-medium">Review Required</h6>
+                </div>
+                <ul className="text-sm text-yellow-700 space-y-1">
+                  {getValidationWarnings().map((warning, index) => (
+                    <li key={index}>• {warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {/* Success State */}
+            {getValidationWarnings().length === 0 && currentData.wbsStructure.length > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center">
+                  <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
+                  <h6 className="text-green-900 font-medium">Cost Verification Complete</h6>
+                </div>
+                <p className="text-sm text-green-700 mt-1">
+                  All WBS elements have cost estimates. You're ready to proceed to allocation planning.
+                </p>
+              </div>
+            )}
+            
+            {/* Action Buttons */}
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setWizardStep(3)} // Go back to WBS Structure
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <PencilIcon className="h-4 w-4 mr-2" />
+                Edit WBS Elements
+              </button>
+              
+              {currentData.wbsStructure.length === 0 && (
+                <button
+                  onClick={() => setWizardStep(3)} // Go back to WBS Structure
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Add WBS Elements
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case 5:
         return (
           <div className="wizard-step">
             <h5>Allocation Planning</h5>
@@ -445,104 +1339,98 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
               Plan monthly allocations for your BOE elements. This helps with cash flow planning and project scheduling.
             </p>
             
-            {allocationSetup.length === 0 ? (
+            {currentData.wbsStructure.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <ClockIcon className="mx-auto h-12 w-12 mb-4" />
                 <p>No WBS elements found. Please complete the previous steps first.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {allocationSetup.map((allocation, index) => (
-                  <div key={allocation.elementId} className="bg-white border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h6 className="text-gray-900 font-medium">{allocation.elementName}</h6>
-                      <span className="text-sm text-gray-500">
-                        Est. Cost: {formatCurrency(allocation.estimatedCost)}
-                      </span>
+              <div className="space-y-6">
+                {/* Allocation Summary */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h6 className="text-blue-900 font-medium">Allocation Summary</h6>
+                      <p className="text-blue-700 text-sm">
+                        {getAllocatedElementsCount()} of {getTotalElementsCount()} elements have allocations configured
+                      </p>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Allocation Type</label>
-                        <select
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={allocation.allocationType}
-                          onChange={(e) => handleAllocationChange(allocation.elementId, 'allocationType', e.target.value)}
-                        >
-                          <option value="Linear">Linear</option>
-                          <option value="Front-Loaded">Front-Loaded</option>
-                          <option value="Back-Loaded">Back-Loaded</option>
-                          <option value="Custom">Custom</option>
-                        </select>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-blue-900">
+                        {formatCurrency(getTotalAllocatedAmount())}
                       </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                        <input
-                          type="date"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={allocation.startDate}
-                          onChange={(e) => handleAllocationChange(allocation.elementId, 'startDate', e.target.value)}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                        <input
-                          type="date"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={allocation.endDate}
-                          onChange={(e) => handleAllocationChange(allocation.elementId, 'endDate', e.target.value)}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
-                        <input
-                          type="number"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={allocation.totalAmount}
-                          onChange={(e) => handleAllocationChange(allocation.elementId, 'totalAmount', parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                    </div>
-                    
-                    {allocation.startDate && allocation.endDate && allocation.totalAmount > 0 && (
-                      <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Monthly Amount:</span>
-                          <span className="font-medium text-gray-900">
-                            {formatCurrency(getMonthlyAmount(allocation.totalAmount, allocation.startDate, allocation.endDate, allocation.allocationType))}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm mt-1">
-                          <span className="text-gray-600">Duration:</span>
-                          <span className="font-medium text-gray-900">
-                            {calculateNumberOfMonths(allocation.startDate, allocation.endDate)} months
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                      <textarea
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        rows={2}
-                        value={allocation.notes}
-                        onChange={(e) => handleAllocationChange(allocation.elementId, 'notes', e.target.value)}
-                        placeholder="Additional notes about this allocation..."
-                      />
+                      <div className="text-sm text-blue-700">Total Allocated</div>
                     </div>
                   </div>
-                ))}
+                  
+                  {/* Skip and do later button */}
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-blue-700">
+                        <p>You can configure allocations now or skip and do it later in the BOE Details.</p>
+                      </div>
+                      <button
+                        onClick={() => setWizardStep(6)} // Skip to Review & Create
+                        className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors"
+                      >
+                        Skip and Do Later
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* WBS Elements with Allocation Status */}
+                <div className="bg-white border border-gray-200 rounded-lg">
+                  <div className="p-4 border-b border-gray-200 bg-gray-50">
+                    <h6 className="text-gray-900 font-medium">WBS Elements & Allocations</h6>
+                    <p className="text-sm text-gray-600">Configure allocations for each WBS element</p>
+                  </div>
+                  
+                  <div className="p-4">
+                                         <div className="space-y-3">
+                       {currentData.wbsStructure.map((element) => (
+                         <WBSAllocationItem
+                           key={element.id}
+                           element={element}
+                           level={0}
+                           allocationSetup={allocationSetup}
+                           onAllocationChange={handleAllocationChange}
+                           onAddAllocation={handleAddAllocation}
+                           onRemoveAllocation={handleRemoveAllocation}
+                           onToggleExpand={handleToggleAllocationExpand}
+                           expandedItems={allocationExpandedItems}
+                           costCategories={costCategories}
+                           vendors={vendors}
+                         />
+                       ))}
+                     </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={() => setWizardStep(3)} // Go back to WBS Structure
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <PencilIcon className="h-4 w-4 mr-2" />
+                    Edit WBS Elements
+                  </button>
+                  
+                  <button
+                    onClick={handleAutoAllocateAll}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
+                  >
+                    <ClockIcon className="h-4 w-4 mr-2" />
+                    Auto-Allocate All
+                  </button>
+                </div>
               </div>
             )}
           </div>
         );
 
-      case 5:
+      case 6:
         return (
           <div className="wizard-step">
             <h5>Review & Create</h5>
@@ -687,6 +1575,21 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
           )}
         </div>
       </div>
+
+      {/* WBS Element Modal */}
+      <Modal
+        isOpen={showWBSElementModal}
+        onClose={() => setShowWBSElementModal(false)}
+        title={editingWBSElement ? 'Edit WBS Element' : 'Add WBS Element'}
+        size="lg"
+      >
+        <BOEElementModal
+          element={editingWBSElement}
+          parentId={editingWBSElementParentId}
+          onSave={handleSaveWBSElement}
+          onCancel={() => setShowWBSElementModal(false)}
+        />
+      </Modal>
     </div>
   );
 };
