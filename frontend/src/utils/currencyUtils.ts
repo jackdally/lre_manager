@@ -111,4 +111,31 @@ export const safeNumber = (value: any): number => {
   }
   
   return 0;
+};
+
+/**
+ * Format a date string or Date object for display
+ */
+export const formatDate = (date: string | Date | null | undefined): string => {
+  if (!date) {
+    return 'N/A';
+  }
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid Date';
+    }
+    
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(dateObj);
+  } catch (error) {
+    return 'Invalid Date';
+  }
 }; 

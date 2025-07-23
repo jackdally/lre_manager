@@ -116,6 +116,36 @@ export const boeVersionsApi = {
     const response = await boeApi.post(`/programs/${programId}/boe/${versionId}/push-to-ledger`);
     return response.data;
   },
+
+  // Get all BOE versions for a program
+  getAllVersions: async (programId: string): Promise<BOEVersion[]> => {
+    const response = await boeApi.get(`/programs/${programId}/boe-versions`);
+    return response.data as BOEVersion[];
+  },
+
+  // Get version history for a specific BOE version
+  getVersionHistory: async (versionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${versionId}/history`);
+    return response.data;
+  },
+
+  // Compare two BOE versions
+  compareVersions: async (baseVersionId: string, compareVersionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${baseVersionId}/compare/${compareVersionId}`);
+    return response.data;
+  },
+
+  // Rollback to a previous BOE version
+  rollbackVersion: async (versionId: string, rollbackData: any): Promise<any> => {
+    const response = await boeApi.post(`/boe-versions/${versionId}/rollback`, rollbackData);
+    return response.data;
+  },
+
+  // Update comments for a BOE version
+  updateComments: async (versionId: string, commentData: any): Promise<BOEVersion> => {
+    const response = await boeApi.put(`/boe-versions/${versionId}/comments`, commentData);
+    return response.data as BOEVersion;
+  },
 };
 
 // BOE Elements API

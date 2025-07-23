@@ -1298,6 +1298,376 @@ router.get('/boe-versions/:boeVersionId/management-reserve/utilization', async (
   }
 });
 
+/**
+ * @swagger
+ * /api/programs/{id}/boe-versions:
+ *   get:
+ *     summary: Get all BOE versions for a program
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ */
+router.get('/programs/:id/boe-versions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid program ID' });
+    }
+
+    const boeVersions = await boeVersionRepository.find({
+      where: { program: { id } },
+      relations: ['elements', 'approvals'],
+      order: { createdAt: 'DESC' }
+    });
+
+    res.json(boeVersions);
+  } catch (error) {
+    console.error('Error fetching BOE versions:', error);
+    res.status(500).json({ message: 'Error fetching BOE versions', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{id}/history:
+ *   get:
+ *     summary: Get detailed version history for a BOE version
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.get('/boe-versions/:id/history', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id },
+      relations: ['elements', 'approvals', 'program']
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    // Get all versions for this program to show timeline
+    const allVersions = await boeVersionRepository.find({
+      where: { program: { id: boeVersion.program.id } },
+      order: { createdAt: 'ASC' }
+    });
+
+    // Find the index of current version
+    const currentIndex = allVersions.findIndex(v => v.id === id);
+    const previousVersion = currentIndex > 0 ? allVersions[currentIndex - 1] : null;
+
+    const history = {
+      currentVersion: boeVersion,
+      previousVersion,
+      allVersions: allVersions.map(v => ({
+        id: v.id,
+        versionNumber: v.versionNumber,
+        name: v.name,
+        status: v.status,
+        totalEstimatedCost: v.totalEstimatedCost,
+        createdAt: v.createdAt,
+        createdBy: v.createdBy,
+        changeSummary: v.changeSummary
+      })),
+      timeline: allVersions.map((v, index) => ({
+        id: v.id,
+        versionNumber: v.versionNumber,
+        name: v.name,
+        status: v.status,
+        createdAt: v.createdAt,
+        createdBy: v.createdBy,
+        isCurrent: v.id === id,
+        position: index + 1,
+        totalVersions: allVersions.length
+      }))
+    };
+
+    res.json(history);
+  } catch (error) {
+    console.error('Error fetching BOE version history:', error);
+    res.status(500).json({ message: 'Error fetching BOE version history', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{id}/compare/{compareId}:
+ *   get:
+ *     summary: Compare two BOE versions
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Base BOE Version ID
+ *       - in: path
+ *         name: compareId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Comparison BOE Version ID
+ */
+router.get('/boe-versions/:id/compare/:compareId', async (req, res) => {
+  try {
+    const { id, compareId } = req.params;
+    
+    if (!isValidUUID(id) || !isValidUUID(compareId)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const [baseVersion, compareVersion] = await Promise.all([
+      boeVersionRepository.findOne({
+        where: { id },
+        relations: ['elements', 'approvals']
+      }),
+      boeVersionRepository.findOne({
+        where: { id: compareId },
+        relations: ['elements', 'approvals']
+      })
+    ]);
+
+    if (!baseVersion || !compareVersion) {
+      return res.status(404).json({ message: 'One or both BOE versions not found' });
+    }
+
+    // Compare versions
+    const comparison = {
+      baseVersion: {
+        id: baseVersion.id,
+        versionNumber: baseVersion.versionNumber,
+        name: baseVersion.name,
+        status: baseVersion.status,
+        totalEstimatedCost: baseVersion.totalEstimatedCost,
+        managementReserveAmount: baseVersion.managementReserveAmount,
+        managementReservePercentage: baseVersion.managementReservePercentage,
+        elements: baseVersion.elements,
+        createdAt: baseVersion.createdAt
+      },
+      compareVersion: {
+        id: compareVersion.id,
+        versionNumber: compareVersion.versionNumber,
+        name: compareVersion.name,
+        status: compareVersion.status,
+        totalEstimatedCost: compareVersion.totalEstimatedCost,
+        managementReserveAmount: compareVersion.managementReserveAmount,
+        managementReservePercentage: compareVersion.managementReservePercentage,
+        elements: compareVersion.elements,
+        createdAt: compareVersion.createdAt
+      },
+      changes: {
+        costVariance: compareVersion.totalEstimatedCost - baseVersion.totalEstimatedCost,
+        costVariancePercentage: ((compareVersion.totalEstimatedCost - baseVersion.totalEstimatedCost) / baseVersion.totalEstimatedCost) * 100,
+        mrVariance: compareVersion.managementReserveAmount - baseVersion.managementReserveAmount,
+        mrVariancePercentage: ((compareVersion.managementReservePercentage - baseVersion.managementReservePercentage) / baseVersion.managementReservePercentage) * 100,
+        elementChanges: {
+          added: compareVersion.elements.filter(e => !baseVersion.elements.find(be => be.id === e.id)),
+          removed: baseVersion.elements.filter(e => !compareVersion.elements.find(ce => ce.id === e.id)),
+          modified: baseVersion.elements.filter(be => {
+            const ce = compareVersion.elements.find(e => e.id === be.id);
+            return ce && (ce.estimatedCost !== be.estimatedCost || ce.description !== be.description);
+          })
+        }
+      }
+    };
+
+    res.json(comparison);
+  } catch (error) {
+    console.error('Error comparing BOE versions:', error);
+    res.status(500).json({ message: 'Error comparing BOE versions', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{id}/rollback:
+ *   post:
+ *     summary: Rollback to a previous BOE version
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID to rollback to
+ */
+router.post('/boe-versions/:id/rollback', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rollbackReason, createNewVersion = true } = req.body;
+    
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const targetVersion = await boeVersionRepository.findOne({
+      where: { id },
+      relations: ['elements', 'program']
+    });
+
+    if (!targetVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    if (targetVersion.status === 'Draft') {
+      return res.status(400).json({ message: 'Cannot rollback to a draft version' });
+    }
+
+    let newVersion: BOEVersion | undefined;
+    if (createNewVersion) {
+      // Create a new version based on the target version
+      const versionNumber = await generateNextVersionNumber(targetVersion.program.id);
+      
+      newVersion = boeVersionRepository.create({
+        ...targetVersion,
+        id: undefined, // Let TypeORM generate new ID
+        versionNumber,
+        name: `${targetVersion.name} (Rollback from v${targetVersion.versionNumber})`,
+        description: `Rollback to version ${targetVersion.versionNumber}. ${rollbackReason || 'No reason provided'}`,
+        status: 'Draft',
+        changeSummary: `Rollback to version ${targetVersion.versionNumber}`,
+        justification: rollbackReason,
+        approvedBy: undefined,
+        approvedAt: undefined,
+        rejectedBy: undefined,
+        rejectedAt: undefined,
+        rejectionReason: undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: req.body.createdBy || 'system',
+        updatedBy: req.body.createdBy || 'system'
+      });
+
+      // Save the new version first to get the ID
+      const savedVersion = await boeVersionRepository.save(newVersion);
+      
+      // Copy elements with proper typing
+      if (targetVersion.elements && targetVersion.elements.length > 0) {
+        for (const element of targetVersion.elements) {
+          const newElement = boeElementRepository.create({
+            ...element,
+            id: undefined, // Let TypeORM generate new ID
+            boeVersion: savedVersion
+          });
+          await boeElementRepository.save(newElement);
+        }
+      }
+
+      await boeVersionRepository.save(savedVersion);
+
+      // Update program to point to new version
+      await programRepository.update(targetVersion.program.id, {
+        currentBOEVersionId: newVersion.id,
+        lastBOEUpdate: new Date()
+      });
+    }
+
+    res.json({
+      success: true,
+      message: createNewVersion ? 'Rollback completed successfully' : 'Rollback prepared',
+      newVersion: createNewVersion ? newVersion : null
+    });
+  } catch (error) {
+    console.error('Error rolling back BOE version:', error);
+    res.status(500).json({ message: 'Error rolling back BOE version', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{id}/comments:
+ *   put:
+ *     summary: Add or update comments for a BOE version
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.put('/boe-versions/:id/comments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comments, changeSummary, justification } = req.body;
+    
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid BOE version ID' });
+    }
+
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id }
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    // Update comments and related fields
+    if (comments !== undefined) {
+      boeVersion.changeSummary = comments;
+    }
+    if (changeSummary !== undefined) {
+      boeVersion.changeSummary = changeSummary;
+    }
+    if (justification !== undefined) {
+      boeVersion.justification = justification;
+    }
+
+    boeVersion.updatedAt = new Date();
+    boeVersion.updatedBy = req.body.updatedBy || 'system';
+
+    const updatedVersion = await boeVersionRepository.save(boeVersion);
+
+    res.json(updatedVersion);
+  } catch (error) {
+    console.error('Error updating BOE version comments:', error);
+    res.status(500).json({ message: 'Error updating BOE version comments', error });
+  }
+});
+
+// Helper function to generate next version number
+async function generateNextVersionNumber(programId: string): Promise<string> {
+  const existingVersions = await boeVersionRepository.find({
+    where: { program: { id: programId } },
+    order: { createdAt: 'DESC' }
+  });
+
+  if (existingVersions.length === 0) {
+    return '1.0';
+  }
+
+  // Parse the latest version number
+  const latestVersion = existingVersions[0].versionNumber;
+  const versionParts = latestVersion.split('.');
+  
+  if (versionParts.length === 2) {
+    const major = parseInt(versionParts[0]);
+    const minor = parseInt(versionParts[1]);
+    return `${major}.${minor + 1}`;
+  }
+
+  // Fallback: increment major version
+  const major = parseInt(versionParts[0]) || 1;
+  return `${major + 1}.0`;
+}
+
 // R&O Integration placeholder endpoints (for future use)
 router.get('/boe-versions/:boeVersionId/management-reserve/risk-matrix', async (req, res) => {
   try {
