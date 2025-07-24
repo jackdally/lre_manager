@@ -51,7 +51,7 @@ interface BOEVersionComparison {
 }
 
 const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }) => {
-  const { currentBOE } = useBOEStore();
+  const { currentBOE, setCurrentBOE, setToast } = useBOEStore();
   
   const [versionHistory, setVersionHistory] = useState<BOEVersionHistory | null>(null);
   const [comparison, setComparison] = useState<BOEVersionComparison | null>(null);
@@ -139,7 +139,7 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
       setSubmitting(true);
       setError(null);
       
-      await boeVersionsApi.rollbackVersion(selectedVersion.id, {
+      const result = await boeVersionsApi.rollbackVersion(selectedVersion.id, {
         rollbackReason: rollbackReason.trim(),
         createNewVersion: true
       });
@@ -148,14 +148,28 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
       setRollbackReason('');
       setSelectedVersion(null);
       
+      // Update current BOE in store with the new version
+      if (result.newVersion) {
+        setCurrentBOE(result.newVersion);
+      }
+      
       // Reload version history
       await loadVersionHistory();
       
-      // Show success message
-      alert('Rollback completed successfully! A new draft version has been created.');
+      // Show success toast
+      setToast({
+        message: 'Rollback completed successfully! A new draft version has been created.',
+        type: 'success'
+      });
     } catch (error) {
       console.error('Error rolling back version:', error);
       setError('Failed to rollback version');
+      
+      // Show error toast
+      setToast({
+        message: 'Failed to rollback version. Please try again.',
+        type: 'error'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -264,24 +278,8 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex-1 min-w-0">
-          <h4 className="text-lg font-medium text-gray-900 truncate">Version History</h4>
-          <p className="text-sm text-gray-600 mt-1 truncate">
-            Track changes and compare versions of your BOE
-          </p>
-        </div>
-        <div className="flex items-center space-x-2 ml-2">
-          {/* Resize Indicator */}
-          <div className="text-xs text-gray-400 px-2 py-1 bg-gray-100 rounded">
-            {sidebarWidth}px
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
+    <div className="h-full flex flex-col">
+      {/* Content - No header, parent component provides it */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">
           {/* Version Timeline */}

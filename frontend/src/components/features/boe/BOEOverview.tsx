@@ -30,11 +30,8 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
   
 
   
-  const [pushToLedgerModalOpen, setPushToLedgerModalOpen] = useState(false);
-  const [pushingToLedger, setPushingToLedger] = useState(false);
-  const [ledgerPushResult, setLedgerPushResult] = useState<any>(null);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingBOE, setDeletingBOE] = useState(false);
+
+
 
   const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
 
@@ -71,89 +68,14 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
 
   const handleConfirmOverwrite = async () => {
     setShowDraftOverwriteModal(false);
-    
-    // Delete the existing draft BOE before opening the wizard
-    if (currentBOE && currentBOE.status === 'Draft') {
-      await handleDeleteExistingDraft();
-    }
-    
     openWizard(programId);
   };
 
-  const handleDeleteExistingDraft = async () => {
-    if (!currentBOE || currentBOE.status !== 'Draft') return;
 
-    try {
-      setDeletingBOE(true);
-      
-      // Use the proper API service
-      const result = await boeVersionsApi.deleteBOE(programId, currentBOE.id);
-      
-      if (result.success) {
-        // Clear the current BOE from state
-        setCurrentBOE(null);
-      } else {
-        throw new Error(result.message || 'Failed to delete existing draft BOE');
-      }
-    } catch (error) {
-      console.error('Error deleting existing draft BOE:', error);
-      // Show error but still allow wizard to proceed
-    } finally {
-      setDeletingBOE(false);
-    }
-  };
 
-  const handlePushToLedger = async () => {
-    if (!currentBOE) return;
 
-    try {
-      setPushingToLedger(true);
-      
-      // Use the proper API service
-      const result = await boeVersionsApi.pushToLedger(programId, currentBOE.id);
-      setLedgerPushResult(result);
-      
-      // Update BOE status to "Baseline"
-      if (result.success) {
-        setCurrentBOE({
-          ...currentBOE,
-          status: 'Baseline'
-        });
-      }
-    } catch (error) {
-      console.error('Error pushing to ledger:', error);
-      setLedgerPushResult({
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to push to ledger'
-      });
-    } finally {
-      setPushingToLedger(false);
-    }
-  };
 
-  const handleDeleteBOE = async () => {
-    if (!currentBOE) return;
 
-    try {
-      setDeletingBOE(true);
-      
-      // Use the proper API service
-      const result = await boeVersionsApi.deleteBOE(programId, currentBOE.id);
-      
-      if (result.success) {
-        // Clear the current BOE from state
-        setCurrentBOE(null);
-        setDeleteModalOpen(false);
-      } else {
-        throw new Error(result.message || 'Failed to delete BOE');
-      }
-    } catch (error) {
-      console.error('Error deleting BOE:', error);
-      alert(error instanceof Error ? error.message : 'Failed to delete BOE');
-    } finally {
-      setDeletingBOE(false);
-    }
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -264,37 +186,6 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
               {getStatusIcon(currentBOE.status)}
               <span className="ml-1">{currentBOE.status}</span>
             </div>
-            <Button
-              onClick={handleCreateNewBOE}
-              variant="secondary"
-              size="sm"
-              className="flex items-center space-x-1"
-            >
-              <span>+</span>
-              <span>{currentBOE ? 'Create New Version' : 'Create New BOE'}</span>
-            </Button>
-            {currentBOE.status === 'Draft' && (
-              <>
-                <Button
-                  onClick={() => setPushToLedgerModalOpen(true)}
-                  variant="primary"
-                  size="sm"
-                  className="flex items-center space-x-1"
-                >
-                  <DocumentArrowUpIcon className="h-4 w-4" />
-                  <span>Push to Ledger</span>
-                </Button>
-                <Button
-                  onClick={() => setDeleteModalOpen(true)}
-                  variant="danger"
-                  size="sm"
-                  className="flex items-center space-x-1"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                  <span>Delete BOE</span>
-                </Button>
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -401,143 +292,9 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
         </div>
       </div>
 
-      {/* Push to Ledger Modal */}
-      <Modal
-        isOpen={pushToLedgerModalOpen}
-        onClose={() => setPushToLedgerModalOpen(false)}
-        title="Push BOE to Ledger"
-      >
-        <div className="space-y-4">
-          {!ledgerPushResult ? (
-            <>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-800 mb-2">⚠️ Important</h4>
-                <p className="text-sm text-blue-700">
-                  This action will create ledger entries for all BOE elements with estimated costs. 
-                  The BOE status will be updated to "Baseline" after successful push.
-                </p>
-              </div>
-              
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-medium mb-2">Summary</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• {totalElements} BOE elements to process</li>
-                  <li>• Total estimated cost: ${totalCost.toLocaleString()}</li>
-                  <li>• Ledger entries will be created as baseline budget</li>
-                  <li>• BOE status will change to "Baseline"</li>
-                </ul>
-              </div>
-              
-              <div className="flex justify-end space-x-2">
-                <Button
-                  onClick={() => setPushToLedgerModalOpen(false)}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handlePushToLedger}
-                  variant="primary"
-                  size="sm"
-                  disabled={pushingToLedger}
-                >
-                  {pushingToLedger ? 'Pushing...' : 'Push to Ledger'}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-4">
-              {ledgerPushResult.success ? (
-                <>
-                  <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">Success!</h4>
-                  <p className="text-gray-600 mb-4">
-                    Successfully pushed BOE to ledger. {ledgerPushResult.entriesCreated || 0} ledger entries were created.
-                  </p>
-                  <Button
-                    onClick={() => setPushToLedgerModalOpen(false)}
-                    variant="primary"
-                    size="sm"
-                  >
-                    Close
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <ExclamationTriangleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">Error</h4>
-                  <p className="text-gray-600 mb-4">
-                    {ledgerPushResult.message || 'Failed to push BOE to ledger'}
-                  </p>
-                  <div className="flex justify-center space-x-2">
-                    <Button
-                      onClick={() => setLedgerPushResult(null)}
-                      variant="secondary"
-                      size="sm"
-                    >
-                      Try Again
-                    </Button>
-                    <Button
-                      onClick={() => setPushToLedgerModalOpen(false)}
-                      variant="primary"
-                      size="sm"
-                    >
-                      Close
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </Modal>
 
-      {/* Delete BOE Confirmation Modal */}
-      <Modal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Delete BOE"
-      >
-        <div className="space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <h4 className="font-medium text-red-800 mb-2">⚠️ Warning</h4>
-            <p className="text-sm text-red-700">
-              This action will permanently delete the BOE version and all associated data. 
-              This action cannot be undone.
-            </p>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-medium mb-2">BOE Details</h4>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>• Version: {currentBOE?.versionNumber}</li>
-              <li>• Name: {currentBOE?.name}</li>
-              <li>• Status: {currentBOE?.status}</li>
-              <li>• Total Elements: {totalElements}</li>
-              <li>• Total Cost: {formatCurrency(totalCost)}</li>
-            </ul>
-          </div>
-          
-          <div className="flex justify-end space-x-2">
-            <Button
-              onClick={() => setDeleteModalOpen(false)}
-              variant="secondary"
-              size="sm"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleDeleteBOE}
-              variant="danger"
-              size="sm"
-              disabled={deletingBOE}
-            >
-              {deletingBOE ? 'Deleting...' : 'Delete BOE'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+
+
 
       {/* Draft Overwrite Confirmation Modal */}
       <Modal

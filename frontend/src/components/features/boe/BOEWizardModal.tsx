@@ -4,7 +4,7 @@ import { boeVersionsApi } from '../../../services/boeApi';
 import BOEWizard from './BOEWizard';
 
 const BOEWizardModal: React.FC = () => {
-  const { showWizard, wizardProgramId, currentBOE, closeWizard, setCurrentBOE } = useBOEStore();
+  const { showWizard, wizardProgramId, currentBOE, closeWizard, setCurrentBOE, setToast } = useBOEStore();
   const [isCreating, setIsCreating] = useState(false);
 
   if (!showWizard || !wizardProgramId) {
@@ -44,7 +44,7 @@ const BOEWizardModal: React.FC = () => {
             onComplete={async (boeData) => {
               try {
                 setIsCreating(true);
-                console.log('Creating BOE with data:', boeData);
+          
                 
                 let newBOE;
                 
@@ -59,7 +59,7 @@ const BOEWizardModal: React.FC = () => {
                   
                   const result = await boeVersionsApi.createVersion(wizardProgramId, versionData);
                   newBOE = result.boeVersion;
-                  console.log('BOE version created successfully:', newBOE);
+          
                 } else {
                   // Use regular BOE creation API
                   const boeCreationData: any = {
@@ -87,7 +87,7 @@ const BOEWizardModal: React.FC = () => {
                   }
                   
                   newBOE = await boeVersionsApi.createBOE(wizardProgramId, boeCreationData);
-                  console.log('BOE created successfully:', newBOE);
+          
                 }
                 
                 // Update the current BOE in the store
@@ -96,14 +96,21 @@ const BOEWizardModal: React.FC = () => {
                 // Close the wizard
                 closeWizard();
                 
-                // Show success message
-                alert(currentBOE && boeData.creationMethod 
-                  ? 'New BOE version created successfully!' 
-                  : 'BOE created successfully!');
+                // Show success toast
+                setToast({
+                  message: currentBOE && boeData.creationMethod 
+                    ? 'New BOE version created successfully!' 
+                    : 'BOE created successfully!',
+                  type: 'success'
+                });
                 
               } catch (error) {
                 console.error('Error creating BOE:', error);
-                alert('Error creating BOE. Please try again.');
+                // Show error toast
+                setToast({
+                  message: 'Error creating BOE. Please try again.',
+                  type: 'error'
+                });
               } finally {
                 setIsCreating(false);
               }

@@ -257,6 +257,9 @@ interface BOEState {
   showWizard: boolean;
   wizardProgramId: string | null;
 
+  // Toast Notifications
+  toast: { message: string; type: 'success' | 'error' | 'info' } | null;
+
   // Actions
   setTemplates: (templates: BOETemplate[]) => void;
   setSelectedTemplate: (template: BOETemplate | null) => void;
@@ -297,6 +300,10 @@ interface BOEState {
   // Global Wizard Actions
   openWizard: (programId: string) => void;
   closeWizard: () => void;
+
+  // Toast Actions
+  setToast: (toast: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
+  clearToast: () => void;
 
   // Computed values
   getTotalEstimatedCost: () => number;
@@ -358,6 +365,9 @@ const initialState = {
   // Global Wizard State
   showWizard: false,
   wizardProgramId: null,
+
+  // Toast Notifications
+  toast: null,
 };
 
 // Store
@@ -411,6 +421,10 @@ export const useBOEStore = create<BOEState>()(
       // Global Wizard Actions
       openWizard: (programId) => set({ showWizard: true, wizardProgramId: programId }),
       closeWizard: () => set({ showWizard: false, wizardProgramId: null }),
+
+      // Toast Actions
+      setToast: (toast) => set({ toast }),
+      clearToast: () => set({ toast: null }),
 
       // Computed values
       getTotalEstimatedCost: () => {

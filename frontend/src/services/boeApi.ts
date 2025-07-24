@@ -106,6 +106,12 @@ export const boeVersionsApi = {
     return response.data as BOEVersion;
   },
 
+  // Revert BOE to draft
+  revertToDraft: async (programId: string, versionId: string): Promise<BOEVersion> => {
+    const response = await boeApi.post(`/programs/${programId}/boe/${versionId}/revert-to-draft`);
+    return response.data as BOEVersion;
+  },
+
   // Delete BOE version (draft only)
   deleteBOE: async (programId: string, versionId: string): Promise<{ success: boolean; message: string }> => {
     const response = await boeApi.delete(`/programs/${programId}/boe/${versionId}`);
@@ -157,6 +163,24 @@ export const boeVersionsApi = {
   // Create new BOE version from current BOE
   createVersion: async (programId: string, versionData: any): Promise<any> => {
     const response = await boeApi.post(`/programs/${programId}/boe/create-version`, versionData);
+    return response.data;
+  },
+
+  // Validate BOE for approval submission
+  validateForApproval: async (versionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${versionId}/validate`);
+    return response.data;
+  },
+
+  // Validate BOE for push to ledger
+  validateForLedgerPush: async (versionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${versionId}/validate-ledger`);
+    return response.data;
+  },
+
+  // Get validation status
+  getValidationStatus: async (versionId: string): Promise<any> => {
+    const response = await boeApi.get(`/boe-versions/${versionId}/validation-status`);
     return response.data;
   },
 };

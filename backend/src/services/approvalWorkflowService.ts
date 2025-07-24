@@ -3,6 +3,7 @@ import { BOEVersion } from '../entities/BOEVersion';
 import { BOEApproval } from '../entities/BOEApproval';
 import { Program } from '../entities/Program';
 import { NotificationService } from './notificationService';
+import { BOEValidationService } from './boeValidationService';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeApprovalRepository = AppDataSource.getRepository(BOEApproval);
@@ -76,6 +77,12 @@ export class ApprovalWorkflowService {
       throw new Error('Only draft BOEs can be submitted for approval');
     }
 
+    // Validate BOE before submission
+    const validationResult = await BOEValidationService.validateBOEForApproval(boeVersionId);
+    if (!validationResult.isValid) {
+      throw new Error(`BOE validation failed: ${validationResult.errors.join(', ')}`);
+    }
+
     // Update BOE status to Under Review
     boeVersion.status = 'Under Review';
     boeVersion.updatedAt = new Date();
@@ -85,7 +92,7 @@ export class ApprovalWorkflowService {
     await this.createApprovalWorkflow(boeVersion);
 
     // Send notifications to approvers
-    await this.sendApprovalNotifications(boeVersion);
+    await ApprovalWorkflowService.sendApprovalNotifications(boeVersion);
 
     return boeVersion;
   }
@@ -155,11 +162,13 @@ export class ApprovalWorkflowService {
     approval: BOEApproval,
     action: 'approve' | 'reject'
   ): Promise<void> {
-    const program = await programRepository.findOne({
-      where: { id: boeVersion.program.id }
+    // Load the BOE version with program relation
+    const boeVersionWithProgram = await boeVersionRepository.findOne({
+      where: { id: boeVersion.id },
+      relations: ['program']
     });
 
-    const programName = program?.name || 'Unknown Program';
+    const programName = boeVersionWithProgram?.program?.name || 'Unknown Program';
 
     await NotificationService.sendApprovalCompletedNotification(
       boeVersion,
@@ -224,7 +233,7 @@ export class ApprovalWorkflowService {
     await boeApprovalRepository.save(approval);
 
     // Send notification for approval action
-    await this.sendApprovalActionNotification(boeVersion, approval, action);
+    await ApprovalWorkflowService.sendApprovalActionNotification(boeVersion, approval, action);
 
     // Check if all required approvals are complete
     const allApprovals = await boeApprovalRepository.find({
@@ -258,7 +267,7 @@ export class ApprovalWorkflowService {
   static async getApprovalStatus(boeVersionId: string): Promise<{
     boeVersion: BOEVersion;
     approvals: BOEApproval[];
-    currentLevel: number;
+    currentLevel: string;
     nextApprover: string | null;
     canApprove: boolean;
     isComplete: boolean;
@@ -273,21 +282,73 @@ export class ApprovalWorkflowService {
     }
 
     const approvals = boeVersion.approvals.sort((a: BOEApproval, b: BOEApproval) => a.sequenceOrder - b.sequenceOrder);
-    const pendingApprovals = approvals.filter((a: BOEApproval) => a.status === 'Pending');
-    const currentLevel = pendingApprovals.length > 0 ? pendingApprovals[0].approvalLevel : 0;
-    const nextApprover = pendingApprovals.length > 0 ? pendingApprovals[0].approverName || null : null;
     
-    const requiredApprovals = approvals.filter((a: BOEApproval) => a.isRequired);
-    const approvedRequired = requiredApprovals.filter((a: BOEApproval) => a.status === 'Approved');
-    const isComplete = approvedRequired.length === requiredApprovals.length;
+    // Handle different BOE statuses
+    if (boeVersion.status === 'Draft') {
+      // BOE is in draft - no approval workflow started yet
+      return {
+        boeVersion,
+        approvals,
+        currentLevel: 'Draft',
+        nextApprover: null,
+        canApprove: false,
+        isComplete: false
+      };
+    } else if (boeVersion.status === 'Approved') {
+      // BOE has been fully approved
+      return {
+        boeVersion,
+        approvals,
+        currentLevel: 'Complete',
+        nextApprover: null,
+        canApprove: false,
+        isComplete: true
+      };
+    } else if (boeVersion.status === 'Rejected') {
+      // BOE has been rejected
+      return {
+        boeVersion,
+        approvals,
+        currentLevel: 'Rejected',
+        nextApprover: null,
+        canApprove: false,
+        isComplete: true
+      };
+    } else if (boeVersion.status === 'Under Review') {
+      // BOE is under review - find current approval level
+      const pendingApprovals = approvals.filter((a: BOEApproval) => a.status === 'Pending');
+      const currentLevel = pendingApprovals.length > 0 ? `Level ${pendingApprovals[0].approvalLevel}` : 'Complete';
+      const nextApprover = pendingApprovals.length > 0 ? pendingApprovals[0].approverName || null : null;
+      
+      const requiredApprovals = approvals.filter((a: BOEApproval) => a.isRequired);
+      const approvedRequired = requiredApprovals.filter((a: BOEApproval) => a.status === 'Approved');
+      const isComplete = approvedRequired.length === requiredApprovals.length && requiredApprovals.length > 0;
 
+      // If all required approvals are complete, update BOE status to Approved
+      if (isComplete && boeVersion.status === 'Under Review') {
+        boeVersion.status = 'Approved';
+        boeVersion.updatedAt = new Date();
+        await boeVersionRepository.save(boeVersion);
+      }
+
+      return {
+        boeVersion,
+        approvals,
+        currentLevel,
+        nextApprover,
+        canApprove: !isComplete, // Can only approve if workflow is not complete
+        isComplete
+      };
+    }
+
+    // Fallback for unknown status
     return {
       boeVersion,
       approvals,
-      currentLevel,
-      nextApprover,
-      canApprove: boeVersion.status === 'Under Review',
-      isComplete
+      currentLevel: 'Unknown',
+      nextApprover: null,
+      canApprove: false,
+      isComplete: false
     };
   }
 

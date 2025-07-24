@@ -78,7 +78,7 @@ const BOETemplateSelector: React.FC<BOETemplateSelectorProps> = ({
 
   const handleTemplateWizardComplete = (templateData: any) => {
     // TODO: Save template via API
-    console.log('Template data:', templateData);
+    
     setShowTemplateWizard(false);
     setEditingTemplate(null);
     // Refresh templates list

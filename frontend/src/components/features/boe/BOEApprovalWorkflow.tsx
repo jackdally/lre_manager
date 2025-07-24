@@ -59,16 +59,18 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
         
         setApprovals(approvalsData);
         setApprovalStatus(statusData);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading approval data:', error);
-        setApprovalsError(error instanceof Error ? error.message : 'Failed to load approval data');
+        // Extract the error message from the API response
+        const errorMessage = error?.response?.data?.message || error?.message || 'Failed to load approval data';
+        setApprovalsError(errorMessage);
       } finally {
         setApprovalsLoading(false);
       }
     };
 
     loadApprovalData();
-  }, [currentBOE?.id]);
+  }, [currentBOE?.id, currentBOE?.status]);
 
   // Handle approval actions
   const handleSubmitForApproval = async () => {
@@ -76,18 +78,26 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
 
     try {
       setSubmittingAction(true);
+      setApprovalsError(null);
       
       // Submit BOE for approval
       const updatedBOE = await boeVersionsApi.submitForApproval(programId);
       setCurrentBOE(updatedBOE);
       
-      // Reload approvals
-      const approvalsData = await boeApprovalsApi.getApprovals(currentBOE.id);
-      setApprovals(approvalsData);
+      // Reload both approvals and approval status with the updated BOE
+      const [approvalsData, statusData] = await Promise.all([
+        boeApprovalsApi.getApprovals(updatedBOE.id),
+        boeApprovalsApi.getApprovalStatus(updatedBOE.id)
+      ]);
       
-    } catch (error) {
+      setApprovals(approvalsData);
+      setApprovalStatus(statusData);
+      
+    } catch (error: any) {
       console.error('Error submitting for approval:', error);
-      setApprovalsError(error instanceof Error ? error.message : 'Failed to submit for approval');
+      // Extract the validation error message from the API response
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to submit for approval';
+      setApprovalsError(errorMessage);
     } finally {
       setSubmittingAction(false);
     }
@@ -126,9 +136,11 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
       setRejectionReason('');
       setSelectedApprovalLevel(null);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing approval action:', error);
-      setApprovalsError(error instanceof Error ? error.message : 'Failed to process approval action');
+      // Extract the error message from the API response
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to process approval action';
+      setApprovalsError(errorMessage);
     } finally {
       setSubmittingAction(false);
     }
@@ -197,6 +209,66 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
 
   return (
     <div className="p-6 space-y-6">
+      {/* Error Display */}
+      {approvalsError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-red-800">Approval Submission Failed</h3>
+              <div className="mt-2 text-sm text-red-700">
+                {approvalsError.startsWith('BOE validation failed:') ? (
+                  <div>
+                    <p className="font-medium mb-2">The following issues must be resolved before approval:</p>
+                    <div className="space-y-3">
+                      {approvalsError.replace('BOE validation failed: ', '').split(', ').map((error, index) => {
+                        // Check if this is a category with items (e.g., "Missing Allocations: Backend Development, Frontend Development")
+                        if (error.includes(': ')) {
+                          const [category, items] = error.split(': ');
+                          const itemList = items.split(', ');
+                          
+                          return (
+                            <div key={index}>
+                              <div className="font-medium text-red-800 mb-1">{category}:</div>
+                              <ul className="list-disc list-inside ml-4 space-y-0.5">
+                                {itemList.map((item, itemIndex) => (
+                                  <li key={itemIndex} className="text-red-700">{item.trim()}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        } else {
+                          // Regular error without sub-items
+                          return (
+                            <div key={index} className="text-red-700">
+                              {error}
+                            </div>
+                          );
+                        }
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  approvalsError
+                )}
+              </div>
+              <div className="mt-3">
+                <button
+                  onClick={() => setApprovalsError(null)}
+                  className="text-sm text-red-600 hover:text-red-500 underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Current Status Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
@@ -244,7 +316,7 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <span className="text-sm font-medium text-gray-700">Current Level:</span>
-                <p className="text-sm text-gray-900">Level {approvalStatus.currentLevel || 'None'}</p>
+                <p className="text-sm text-gray-900">{approvalStatus.currentLevel || 'None'}</p>
               </div>
               <div>
                 <span className="text-sm font-medium text-gray-700">Next Approver:</span>
@@ -284,22 +356,28 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
             </Button>
           )}
 
-          {approvalStatus?.canApprove && approvalStatus.currentLevel && (
+          {approvalStatus?.canApprove && approvalStatus.currentLevel && approvalStatus.currentLevel.startsWith('Level ') && (
             <>
               <Button
-                onClick={() => openActionModal('approve', approvalStatus.currentLevel)}
+                onClick={() => {
+                  const levelNumber = parseInt(approvalStatus.currentLevel.replace('Level ', ''));
+                  openActionModal('approve', levelNumber);
+                }}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <CheckCircleIcon className="h-4 w-4 mr-2" />
-                Approve Level {approvalStatus.currentLevel}
+                Approve {approvalStatus.currentLevel}
               </Button>
 
               <Button
-                onClick={() => openActionModal('reject', approvalStatus.currentLevel)}
+                onClick={() => {
+                  const levelNumber = parseInt(approvalStatus.currentLevel.replace('Level ', ''));
+                  openActionModal('reject', levelNumber);
+                }}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 <XCircleIcon className="h-4 w-4 mr-2" />
-                Reject Level {approvalStatus.currentLevel}
+                Reject {approvalStatus.currentLevel}
               </Button>
             </>
           )}
@@ -323,11 +401,6 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
           <div className="text-center py-8">
             <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-2" />
             <p className="text-gray-500">Loading approval history...</p>
-          </div>
-        ) : approvalsError ? (
-          <div className="text-center py-8">
-            <ExclamationTriangleIcon className="h-8 w-8 text-red-400 mx-auto mb-2" />
-            <p className="text-red-500">{approvalsError}</p>
           </div>
         ) : approvals.length === 0 ? (
           <div className="text-center py-8">

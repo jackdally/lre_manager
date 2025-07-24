@@ -14,6 +14,7 @@ import { BOEElementAllocation } from '../entities/BOEElementAllocation';
 import { LedgerAuditTrailService } from './ledgerAuditTrailService';
 import { AuditSource } from '../entities/LedgerAuditTrail';
 import { BOEElementAllocationService } from './boeElementAllocationService';
+import { BOEValidationService } from './boeValidationService';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
@@ -547,6 +548,7 @@ export class BOEService {
 
     // Create BOE elements
     const createdElements: BOEElement[] = [];
+    const elementIdMapping: { [tempId: string]: string } = {}; // Map temp IDs to database IDs
     
     for (const elementData of elements) {
       const boeElement = new BOEElement();
@@ -565,13 +567,19 @@ export class BOEService {
 
       const savedElement = await boeElementRepository.save(boeElement);
       createdElements.push(savedElement);
+      
+      // Store mapping from temp ID to database ID
+      if (elementData.id) {
+        elementIdMapping[elementData.id] = savedElement.id;
+      }
     }
 
     // Create allocations for elements
     if (allocations && allocations.length > 0) {
       for (const allocationData of allocations) {
-        // Find the corresponding BOE element
-        const boeElement = createdElements.find(element => element.id === allocationData.elementId);
+        // Find the corresponding BOE element using the ID mapping
+        const databaseElementId = elementIdMapping[allocationData.elementId];
+        const boeElement = createdElements.find(element => element.id === databaseElementId);
         
         if (boeElement) {
           // Calculate monthly breakdown
@@ -668,6 +676,12 @@ export class BOEService {
    * Push entire BOE to ledger as baseline budget entries (using allocations)
    */
   static async pushBOEToLedger(boeVersionId: string, userId?: string): Promise<{ success: boolean; entriesCreated: number; message: string }> {
+    // Validate BOE before pushing to ledger
+    const validationResult = await BOEValidationService.validateBOEForLedgerPush(boeVersionId);
+    if (!validationResult.isValid) {
+      throw new Error(`BOE validation failed: ${validationResult.errors.join(', ')}`);
+    }
+
     const boeVersion = await boeVersionRepository.findOne({
       where: { id: boeVersionId },
       relations: ['program']
@@ -677,19 +691,11 @@ export class BOEService {
       throw new Error('BOE version not found');
     }
 
-    if (boeVersion.status === 'Approved') {
-      throw new Error('Cannot push approved BOE to ledger - create a new version first');
-    }
-
     // Get all element allocations for this BOE version
     const allocations = await elementAllocationRepository.find({
       where: { boeVersionId },
       relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor']
     });
-
-    if (allocations.length === 0) {
-      throw new Error('No element allocations found for this BOE version. Please create allocations before pushing to ledger.');
-    }
 
     let totalEntriesCreated = 0;
     const sessionId = `boe-push-${Date.now()}`;

@@ -9,7 +9,8 @@ import {
   ExclamationTriangleIcon,
   DocumentArrowUpIcon,
   EyeIcon,
-  CheckCircleIcon as CheckCircleIconSolid
+  CheckCircleIcon as CheckCircleIconSolid,
+  ArrowUturnLeftIcon
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../../utils/currencyUtils';
 
@@ -17,12 +18,20 @@ interface BOEStatusBannerProps {
   programId: string;
   onViewApprovalStatus?: () => void;
   onViewHistory?: () => void;
+  onPushToLedger?: () => void;
+  onSubmitForApproval?: () => void;
+  onRevertToDraft?: () => void;
+  onCreateNewVersion?: () => void;
 }
 
 const BOEStatusBanner: React.FC<BOEStatusBannerProps> = ({ 
   programId, 
   onViewApprovalStatus, 
-  onViewHistory 
+  onViewHistory,
+  onPushToLedger,
+  onSubmitForApproval,
+  onRevertToDraft,
+  onCreateNewVersion
 }) => {
   const { currentBOE } = useBOEStore();
 
@@ -95,7 +104,28 @@ const BOEStatusBanner: React.FC<BOEStatusBannerProps> = ({
         });
         break;
       
+      case 'Under Review':
+        actions.push({
+          label: 'View Approval Status',
+          icon: EyeIcon,
+          variant: 'primary',
+          action: 'view-approval-status'
+        });
+        actions.push({
+          label: 'Revert to Draft',
+          icon: ArrowUturnLeftIcon,
+          variant: 'primary',
+          action: 'revert-to-draft'
+        });
+        break;
+      
       case 'Approved':
+        actions.push({
+          label: 'View Approval Status',
+          icon: EyeIcon,
+          variant: 'info',
+          action: 'view-approval-status'
+        });
         actions.push({
           label: 'Push to Ledger',
           icon: DocumentArrowUpIcon,
@@ -105,6 +135,12 @@ const BOEStatusBanner: React.FC<BOEStatusBannerProps> = ({
         break;
       
       case 'Baseline':
+        actions.push({
+          label: 'View Approval Status',
+          icon: EyeIcon,
+          variant: 'info',
+          action: 'view-approval-status'
+        });
         actions.push({
           label: 'Create New Version',
           icon: DocumentCheckIcon,
@@ -126,13 +162,16 @@ const BOEStatusBanner: React.FC<BOEStatusBannerProps> = ({
         onViewHistory?.();
         break;
       case 'submit-for-approval':
-        // This will be handled by the parent component
+        onSubmitForApproval?.();
+        break;
+      case 'revert-to-draft':
+        onRevertToDraft?.();
         break;
       case 'push-to-ledger':
-        // This will be handled by the parent component
+        onPushToLedger?.();
         break;
       case 'create-new-version':
-        // This will be handled by the parent component
+        onCreateNewVersion?.();
         break;
     }
   };
@@ -162,11 +201,7 @@ const BOEStatusBanner: React.FC<BOEStatusBannerProps> = ({
               <Button
                 key={index}
                 onClick={() => handleAction(action.action)}
-                className={`${
-                  action.variant === 'primary' 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                }`}
+                variant={action.variant === 'info' ? 'secondary' : (action.variant as 'primary' | 'secondary')}
               >
                 <action.icon className="h-4 w-4 mr-2" />
                 {action.label}

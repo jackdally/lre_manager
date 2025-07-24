@@ -8,11 +8,13 @@ import { BOETemplateElement } from '../entities/BOETemplateElement';
 import { BOEApproval } from '../entities/BOEApproval';
 import { ManagementReserve } from '../entities/ManagementReserve';
 import { BOEComment } from '../entities/BOEComment';
+import { BOEElementAllocation } from '../entities/BOEElementAllocation';
 import { BOEService } from '../services/boeService';
 import { BOETemplateService } from '../services/boeTemplateService';
 import { BOECommentService } from '../services/boeCommentService';
 import { WbsTemplate } from '../entities/WbsTemplate';
 import { ApprovalWorkflowService } from '../services/approvalWorkflowService';
+import { BOEValidationService } from '../services/boeValidationService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -23,6 +25,7 @@ const boeTemplateElementRepository = AppDataSource.getRepository(BOETemplateElem
 const boeApprovalRepository = AppDataSource.getRepository(BOEApproval);
 const managementReserveRepository = AppDataSource.getRepository(ManagementReserve);
 const boeCommentRepository = AppDataSource.getRepository(BOEComment);
+const elementAllocationRepository = AppDataSource.getRepository(BOEElementAllocation);
 const wbsTemplateRepository = AppDataSource.getRepository(WbsTemplate);
 
 // Add UUID validation helper
@@ -98,7 +101,7 @@ router.get('/programs/:id/boe', async (req, res) => {
     if (program.currentBOEVersionId) {
       currentBOE = await boeVersionRepository.findOne({
         where: { id: program.currentBOEVersionId },
-        relations: ['elements', 'approvals']
+        relations: ['elements', 'elements.allocations', 'approvals']
       });
     }
 
@@ -141,7 +144,7 @@ router.post('/programs/:id/boe', async (req, res) => {
     }
 
     // Validate required fields
-    const requiredFields = ['name', 'description', 'versionNumber'];
+    const requiredFields = ['name', 'description'];
     const missingFields = requiredFields.filter(field => !req.body[field]);
     
     if (missingFields.length > 0) {
@@ -213,7 +216,13 @@ router.post('/programs/:id/boe', async (req, res) => {
     program.lastBOEUpdate = new Date();
     await programRepository.save(program);
 
-    res.status(201).json(savedBOE);
+    // Load the complete BOE with elements and allocations for the response
+    const completeBOE = await boeVersionRepository.findOne({
+      where: { id: savedBOE.id },
+      relations: ['elements', 'elements.allocations', 'elements.costCategory', 'elements.vendor']
+    });
+
+    res.status(201).json(completeBOE);
   } catch (error) {
     console.error('Error creating BOE:', error);
     res.status(500).json({ message: 'Error creating BOE', error });
@@ -381,7 +390,64 @@ router.post('/programs/:id/boe/approve', async (req, res) => {
     res.json(updatedBOE);
   } catch (error) {
     console.error('Error submitting BOE for approval:', error);
-    res.status(500).json({ message: 'Error submitting BOE for approval', error });
+    // Extract the actual error message from the validation service
+    const errorMessage = error instanceof Error ? error.message : 'Error submitting BOE for approval';
+    res.status(500).json({ message: errorMessage });
+  }
+});
+
+/**
+ * @swagger
+ * /api/programs/{id}/boe/{versionId}/revert-to-draft:
+ *   post:
+ *     summary: Revert BOE version to draft status
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Program ID
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/programs/:id/boe/:versionId/revert-to-draft', async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+    
+    if (!isValidUUID(id) || !isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid ID' });
+    }
+
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: versionId },
+      relations: ['program']
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    if (boeVersion.status !== 'Under Review') {
+      return res.status(400).json({ message: 'Only BOEs under review can be reverted to draft' });
+    }
+
+    // Revert to draft status
+    boeVersion.status = 'Draft';
+    boeVersion.updatedAt = new Date();
+    await boeVersionRepository.save(boeVersion);
+
+    // Clear any existing approvals
+    await boeApprovalRepository.delete({ boeVersion: { id: versionId } });
+
+    res.json(boeVersion);
+  } catch (error) {
+    console.error('Error reverting BOE to draft:', error);
+    res.status(500).json({ message: 'Error reverting BOE to draft', error });
   }
 });
 
@@ -466,6 +532,8 @@ router.get('/boe-versions/:versionId/approval-status', async (req, res) => {
     res.status(500).json({ message: 'Error getting approval status', error });
   }
 });
+
+
 
 /**
  * @swagger
@@ -750,7 +818,9 @@ router.post('/programs/:id/boe/:versionId/push-to-ledger', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error pushing BOE to ledger:', error);
-    res.status(500).json({ message: 'Error pushing BOE to ledger', error });
+    // Extract the actual error message from the validation service
+    const errorMessage = error instanceof Error ? error.message : 'Error pushing BOE to ledger';
+    res.status(500).json({ message: errorMessage });
   }
 });
 
@@ -1542,6 +1612,140 @@ router.get('/programs/:id/boe-versions', async (req, res) => {
 
 /**
  * @swagger
+ * /api/boe-versions/{versionId}/approvals:
+ *   get:
+ *     summary: Get all approvals for BOE version
+ *     parameters:
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.get('/boe-versions/:versionId/approvals', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    // Check if BOE version exists
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: versionId }
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    // Get all approvals for this BOE version
+    const approvals = await boeApprovalRepository.find({
+      where: { boeVersion: { id: versionId } },
+      order: { sequenceOrder: 'ASC', createdAt: 'ASC' }
+    });
+
+    res.json(approvals);
+  } catch (error) {
+    console.error('Error getting approvals:', error);
+    res.status(500).json({ message: 'Error getting approvals', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{versionId}/approvals:
+ *   post:
+ *     summary: Create approval for BOE version
+ *     parameters:
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ */
+router.post('/boe-versions/:versionId/approvals', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    const approvalData = req.body;
+    
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    // Check if BOE version exists
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: versionId }
+    });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    // Create new approval
+    const approval = boeApprovalRepository.create({
+      ...approvalData,
+      boeVersion: { id: versionId }
+    });
+
+    const savedApproval = await boeApprovalRepository.save(approval);
+    res.status(201).json(savedApproval);
+  } catch (error) {
+    console.error('Error creating approval:', error);
+    res.status(500).json({ message: 'Error creating approval', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-approvals/{approvalId}:
+ *   put:
+ *     summary: Update approval
+ *     parameters:
+ *       - in: path
+ *         name: approvalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Approval ID
+ */
+router.put('/boe-approvals/:approvalId', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const updateData = req.body;
+    
+    if (!isValidUUID(approvalId)) {
+      return res.status(400).json({ message: 'Invalid approval ID' });
+    }
+
+    // Check if approval exists
+    const existingApproval = await boeApprovalRepository.findOne({
+      where: { id: approvalId }
+    });
+
+    if (!existingApproval) {
+      return res.status(404).json({ message: 'Approval not found' });
+    }
+
+    // Update approval
+    await boeApprovalRepository.update(approvalId, updateData);
+    
+    // Get updated approval
+    const updatedApproval = await boeApprovalRepository.findOne({
+      where: { id: approvalId }
+    });
+
+    res.json(updatedApproval);
+  } catch (error) {
+    console.error('Error updating approval:', error);
+    res.status(500).json({ message: 'Error updating approval', error });
+  }
+});
+
+/**
+ * @swagger
  * /api/boe-versions/{id}/history:
  *   get:
  *     summary: Get detailed version history for a BOE version
@@ -1727,7 +1931,7 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
 
     const targetVersion = await boeVersionRepository.findOne({
       where: { id },
-      relations: ['elements', 'program']
+      relations: ['elements', 'elements.allocations', 'program']
     });
 
     if (!targetVersion) {
@@ -1766,7 +1970,7 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
       // Save the new version first to get the ID
       const savedVersion = await boeVersionRepository.save(newVersion);
       
-      // Copy elements with proper typing
+      // Copy elements with allocations
       if (targetVersion.elements && targetVersion.elements.length > 0) {
         for (const element of targetVersion.elements) {
           const newElement = boeElementRepository.create({
@@ -1774,8 +1978,37 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
             id: undefined, // Let TypeORM generate new ID
             boeVersion: savedVersion
           });
-          await boeElementRepository.save(newElement);
+          const savedElement = await boeElementRepository.save(newElement);
+          
+          // Copy allocations for this element
+          if (element.allocations && element.allocations.length > 0) {
+            for (const allocation of element.allocations) {
+              const newAllocation = elementAllocationRepository.create({
+                ...allocation,
+                id: undefined, // Let TypeORM generate new ID
+                boeElement: savedElement,
+                boeVersion: savedVersion
+              });
+              await elementAllocationRepository.save(newAllocation);
+            }
+          }
         }
+      }
+
+      // Copy management reserve if it exists
+      const targetManagementReserve = await managementReserveRepository.findOne({
+        where: { boeVersion: { id: targetVersion.id } }
+      });
+      
+      if (targetManagementReserve) {
+        const newManagementReserve = managementReserveRepository.create({
+          ...targetManagementReserve,
+          id: undefined, // Let TypeORM generate new ID
+          boeVersion: savedVersion,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        await managementReserveRepository.save(newManagementReserve);
       }
 
       await boeVersionRepository.save(savedVersion);
@@ -2105,6 +2338,114 @@ router.post('/boe-versions/:versionId/comments/resolve', async (req, res) => {
     } else {
       res.status(500).json({ error: 'Failed to resolve comments' });
     }
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{versionId}/validate:
+ *   get:
+ *     summary: Validate BOE version for approval submission
+ *     parameters:
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ *     responses:
+ *       200:
+ *         description: Validation result
+ *       400:
+ *         description: Invalid version ID
+ *       404:
+ *         description: BOE version not found
+ */
+router.get('/boe-versions/:versionId/validate', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    const validationResult = await BOEValidationService.validateBOEForApproval(versionId);
+    res.json(validationResult);
+  } catch (error) {
+    console.error('Error validating BOE for approval:', error);
+    res.status(500).json({ message: 'Error validating BOE for approval', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{versionId}/validate-ledger:
+ *   get:
+ *     summary: Validate BOE version for push to ledger
+ *     parameters:
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ *     responses:
+ *       200:
+ *         description: Validation result
+ *       400:
+ *         description: Invalid version ID
+ *       404:
+ *         description: BOE version not found
+ */
+router.get('/boe-versions/:versionId/validate-ledger', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    const validationResult = await BOEValidationService.validateBOEForLedgerPush(versionId);
+    res.json(validationResult);
+  } catch (error) {
+    console.error('Error validating BOE for ledger push:', error);
+    res.status(500).json({ message: 'Error validating BOE for ledger push', error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/boe-versions/{versionId}/validation-status:
+ *   get:
+ *     summary: Get validation status for BOE version
+ *     parameters:
+ *       - in: path
+ *         name: versionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ *     responses:
+ *       200:
+ *         description: Validation status
+ *       400:
+ *         description: Invalid version ID
+ *       404:
+ *         description: BOE version not found
+ */
+router.get('/boe-versions/:versionId/validation-status', async (req, res) => {
+  try {
+    const { versionId } = req.params;
+    
+    if (!isValidUUID(versionId)) {
+      return res.status(400).json({ message: 'Invalid version ID' });
+    }
+
+    const validationStatus = await BOEValidationService.getValidationStatus(versionId);
+    res.json(validationStatus);
+  } catch (error) {
+    console.error('Error getting BOE validation status:', error);
+    res.status(500).json({ message: 'Error getting BOE validation status', error });
   }
 });
 

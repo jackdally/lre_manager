@@ -14,6 +14,7 @@ import { BOETemplate } from '../../../store/boeStore';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
 import { boeApiService } from '../../../services/boeApi';
+import { boeVersionsApi } from '../../../services/boeApi';
 
 
 interface BOEPageProps {
@@ -36,6 +37,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     setBOELoading,
     setBOEError,
     openWizard,
+    toast,
+    clearToast,
   } = useBOEStore();
   
 
@@ -44,10 +47,15 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   const [showTemplateManagement, setShowTemplateManagement] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<BOETemplate | null>(null);
   const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showApprovalSidebar, setShowApprovalSidebar] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+  const [pushToLedgerModalOpen, setPushToLedgerModalOpen] = useState(false);
+  const [pushingToLedger, setPushingToLedger] = useState(false);
+  const [ledgerPushResult, setLedgerPushResult] = useState<any>(null);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+
+  const [showNewVersionConfirmation, setShowNewVersionConfirmation] = useState(false);
   const [approvalSidebarWidth, setApprovalSidebarWidth] = useState(() => {
     // Calculate responsive default width based on screen size
     const screenWidth = window.innerWidth;
@@ -69,6 +77,17 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
 
 
+  // Auto-clear toast after 5 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        clearToast();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast, clearToast]);
+
+  // Load BOE data when component mounts
   useEffect(() => {
     if (!programId) {
       setBOEError('Program ID is required');
@@ -98,6 +117,30 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
     loadBOE();
   }, [programId, setCurrentBOE, setBOELoading, setBOEError]);
+
+  // Reload BOE data when currentBOE changes (e.g., after rollback)
+  useEffect(() => {
+    if (currentBOE && programId && isInitialized) {
+      const loadBOEDetails = async () => {
+        try {
+          setBOELoading(true);
+          setBOEError(null);
+          
+          // Load complete BOE data with elements and allocations
+          const boeData = await boeApiService.versions.getCurrentBOE(programId);
+          setCurrentBOE(boeData.currentBOE || null);
+          
+          setBOELoading(false);
+        } catch (error) {
+          console.error('Error reloading BOE details:', error);
+          setBOEError(error instanceof Error ? error.message : 'Failed to reload BOE details');
+          setBOELoading(false);
+        }
+      };
+
+      loadBOEDetails();
+    }
+  }, [currentBOE?.id, programId, isInitialized, setCurrentBOE, setBOELoading, setBOEError]);
 
   const handleCreateBOEFromTemplate = () => {
     // Check if there's already a draft BOE
@@ -137,6 +180,93 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     
     openWizard(programId!);
     setShowTemplateManagement(false);
+  };
+
+  const handleSubmitForApproval = async () => {
+    if (!currentBOE || !programId) return;
+
+    try {
+      setApprovalError(null);
+      // Use the proper API service
+      const result = await boeVersionsApi.submitForApproval(programId);
+      
+      // Update BOE status to "Under Review"
+      if (result) {
+        setCurrentBOE({
+          ...currentBOE,
+          status: 'Under Review'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error submitting for approval:', error);
+      // Extract the validation error message
+      const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
+      setApprovalError(errorMessage);
+    }
+  };
+
+  const handleRevertToDraft = async () => {
+    if (!currentBOE || !programId) return;
+
+    try {
+      // Use the proper API service
+      const result = await boeVersionsApi.revertToDraft(programId, currentBOE.id);
+      
+      // Update BOE status to "Draft"
+      if (result) {
+        setCurrentBOE({
+          ...currentBOE,
+          status: 'Draft'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error reverting to draft:', error);
+      // Handle error - could show a toast or modal
+      alert('Failed to revert to draft: ' + (error?.response?.data?.message || error?.message || 'Unknown error'));
+    }
+  };
+
+  const handlePushToLedger = async () => {
+    if (!currentBOE || !programId) return;
+
+    try {
+      setPushingToLedger(true);
+      
+      // Use the proper API service
+      const result = await boeVersionsApi.pushToLedger(programId, currentBOE.id);
+      setLedgerPushResult(result);
+      
+      // Update BOE status to "Baseline"
+      if (result.success) {
+        setCurrentBOE({
+          ...currentBOE,
+          status: 'Baseline'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error pushing to ledger:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to push to ledger';
+      alert(errorMessage);
+    } finally {
+      setPushingToLedger(false);
+    }
+  };
+
+  const handleCreateNewVersion = () => {
+    // Show confirmation dialog first
+    setShowNewVersionConfirmation(true);
+  };
+
+  const handleConfirmNewVersion = () => {
+    setShowNewVersionConfirmation(false);
+    
+    // Check if there's already a draft BOE
+    if (currentBOE && currentBOE.status === 'Draft') {
+      setShowDraftOverwriteModal(true);
+    } else {
+      // Open the wizard with version-from-current method
+      openWizard(programId!);
+    }
   };
 
 
@@ -203,20 +333,22 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 </span>
               </button>
               
+              {/* Create New Version Button */}
+              {currentBOE && (
+                <button
+                  onClick={handleCreateNewVersion}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors flex items-center gap-2"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Create New Version
+                </button>
+              )}
+              
               {/* Secondary Action Buttons */}
               {currentBOE && (
                 <>
-                  <button
-                    onClick={() => setShowApprovalSidebar(true)}
-                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors flex items-center gap-2"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    Approval Status
-                  </button>
-                  
                   <button
                     onClick={() => setShowHistorySidebar(true)}
                     className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors flex items-center gap-2"
@@ -260,7 +392,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
             </div>
             <BOETemplateSelector
               onTemplateSelect={(template) => {
-                console.log('Template selected:', template);
+
                 setSelectedTemplate(template);
                 // Don't launch wizard here - just select the template
               }}
@@ -300,25 +432,96 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
         {/* BOE Status Banner */}
         {currentBOE && (
-          <BOEStatusBanner
-            programId={programId!}
-            onViewApprovalStatus={() => setShowApprovalModal(true)}
-            onViewHistory={() => setShowHistoryModal(true)}
-          />
+                      <BOEStatusBanner
+              programId={programId!}
+              onViewApprovalStatus={() => setShowApprovalSidebar(true)}
+              onViewHistory={() => setShowHistoryModal(true)}
+              onPushToLedger={() => setPushToLedgerModalOpen(true)}
+              onSubmitForApproval={handleSubmitForApproval}
+              onRevertToDraft={handleRevertToDraft}
+              onCreateNewVersion={handleCreateNewVersion}
+            />
         )}
+
+        {/* Approval Error Display */}
+        {approvalError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-red-800">Approval Submission Failed</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  {approvalError.startsWith('BOE validation failed:') ? (
+                    <div>
+                      <p className="font-medium mb-3">The following issues must be resolved before approval:</p>
+                      <div className="space-y-3">
+                        {(() => {
+                          const errorText = approvalError.replace('BOE validation failed: ', '');
+                          const errors = errorText.split(', ');
+                          
+                          // Group errors by category
+                          const categories: { [key: string]: string[] } = {};
+                          let currentCategory = '';
+                          
+                          errors.forEach(error => {
+                            if (error.includes(': ')) {
+                              // This is a category header
+                              const [category, items] = error.split(': ');
+                              currentCategory = category;
+                              categories[category] = items.split(', ').map(item => item.trim());
+                            } else if (currentCategory && !error.includes(':')) {
+                              // This is an item that belongs to the current category
+                              categories[currentCategory].push(error.trim());
+                            } else {
+                              // This is a standalone error
+                              categories[error] = [];
+                            }
+                          });
+                          
+                          return Object.entries(categories).map(([category, items], index) => (
+                            <div key={index}>
+                              <div className="font-medium text-red-800 mb-1">{category}:</div>
+                              {items.length > 0 ? (
+                                <ul className="list-disc list-inside ml-4 space-y-0.5">
+                                  {items.map((item, itemIndex) => (
+                                    <li key={itemIndex} className="text-red-700">{item}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <div className="ml-4 text-red-700">{category}</div>
+                              )}
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    approvalError
+                  )}
+                </div>
+                <div className="mt-3">
+                  <button
+                    onClick={() => setApprovalError(null)}
+                    className="text-sm text-red-600 hover:text-red-500 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+
 
         {/* Centralized BOE Wizard Modal */}
         <BOEWizardModal />
 
-        {/* Approval Status Modal */}
-        <Modal
-          isOpen={showApprovalModal}
-          onClose={() => setShowApprovalModal(false)}
-          title="BOE Approval Status"
-          size="lg"
-        >
-          <BOEApproval programId={programId!} />
-        </Modal>
+
 
         {/* History Modal */}
         <Modal
@@ -361,6 +564,147 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 Overwrite Draft
               </Button>
             </div>
+          </div>
+        </Modal>
+
+        {/* New Version Confirmation Modal */}
+        <Modal
+          isOpen={showNewVersionConfirmation}
+          onClose={() => setShowNewVersionConfirmation(false)}
+          title="Create New BOE Version"
+        >
+          <div className="space-y-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <h4 className="font-medium text-yellow-800 mb-2">⚠️ Important</h4>
+              <p className="text-sm text-yellow-700">
+                Creating a new BOE version will:
+              </p>
+              <ul className="text-sm text-yellow-700 mt-2 space-y-1">
+                <li>• Create a new version based on the current baseline BOE</li>
+                <li>• Require a new approval workflow</li>
+                <li>• Add a new baseline to the project once approved</li>
+                <li>• Maintain the current baseline BOE as historical data</li>
+              </ul>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Current BOE Information</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Version: {currentBOE?.versionNumber}</li>
+                <li>• Status: {currentBOE?.status}</li>
+                <li>• Total Cost: ${currentBOE?.totalEstimatedCost?.toLocaleString() || 0}</li>
+                <li>• Elements: {currentBOE?.elements?.length || 0}</li>
+              </ul>
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button
+                onClick={() => setShowNewVersionConfirmation(false)}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmNewVersion}
+                variant="primary"
+                size="sm"
+              >
+                Create New Version
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Push to Ledger Modal */}
+        <Modal
+          isOpen={pushToLedgerModalOpen}
+          onClose={() => setPushToLedgerModalOpen(false)}
+          title="Push BOE to Ledger"
+        >
+          <div className="space-y-4">
+            {!ledgerPushResult ? (
+              <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-800 mb-2">⚠️ Important</h4>
+                  <p className="text-sm text-blue-700">
+                    This action will create ledger entries for all BOE elements with estimated costs. 
+                    The BOE status will be updated to "Baseline" after successful push.
+                  </p>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-medium mb-2">Summary</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• BOE elements to process: {currentBOE?.elements?.length || 0}</li>
+                    <li>• Total estimated cost: ${currentBOE?.totalEstimatedCost?.toLocaleString() || 0}</li>
+                    <li>• Ledger entries will be created as baseline budget</li>
+                    <li>• BOE status will change to "Baseline"</li>
+                  </ul>
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    onClick={() => setPushToLedgerModalOpen(false)}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handlePushToLedger}
+                    variant="primary"
+                    size="sm"
+                    disabled={pushingToLedger}
+                  >
+                    {pushingToLedger ? 'Pushing...' : 'Push to Ledger'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                {ledgerPushResult.success ? (
+                  <>
+                    <div className="text-green-500 text-6xl mb-4">✓</div>
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">Success!</h4>
+                    <p className="text-gray-600 mb-4">
+                      Successfully pushed BOE to ledger. {ledgerPushResult.entriesCreated || 0} ledger entries were created.
+                    </p>
+                    <Button
+                      onClick={() => setPushToLedgerModalOpen(false)}
+                      variant="primary"
+                      size="sm"
+                    >
+                      Close
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-red-500 text-6xl mb-4">✗</div>
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">Error</h4>
+                    <p className="text-gray-600 mb-4">
+                      {ledgerPushResult.message || 'Failed to push BOE to ledger'}
+                    </p>
+                    <div className="flex justify-center space-x-2">
+                      <Button
+                        onClick={() => setLedgerPushResult(null)}
+                        variant="secondary"
+                        size="sm"
+                      >
+                        Try Again
+                      </Button>
+                      <Button
+                        onClick={() => setPushToLedgerModalOpen(false)}
+                        variant="primary"
+                        size="sm"
+                      >
+                        Close
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </Modal>
 
@@ -553,7 +897,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
             </div>
             
             {/* Sidebar Content */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden min-h-0">
               <BOEHistory programId={programId!} sidebarWidth={historySidebarWidth} />
             </div>
           </div>
@@ -568,6 +912,44 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
               setShowHistorySidebar(false);
             }}
           />
+        )}
+
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
+            toast.type === 'success' ? 'bg-green-500 text-white' : 
+            toast.type === 'error' ? 'bg-red-500 text-white' : 
+            'bg-blue-500 text-white'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {toast.type === 'success' && (
+                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {toast.type === 'error' && (
+                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                {toast.type === 'info' && (
+                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+                <span>{toast.message}</span>
+              </div>
+              <button
+                onClick={clearToast}
+                className="ml-4 text-white hover:text-gray-200 focus:outline-none"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </Layout>
