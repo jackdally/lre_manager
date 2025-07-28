@@ -1,6 +1,6 @@
 # BOE (Basis of Estimate) System Tasks
 
-## Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Complete - Phase 3B In Progress (BOE-081A & BOE-081B Complete)
+## Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Complete - Phase 3B In Progress (BOE-081A through BOE-081F Complete)
 - [x] BOE-000: Create implementation plan
 - [x] BOE-001: Define requirements and architecture
 - [x] BOE-002: Begin Phase 1 implementation
@@ -472,26 +472,79 @@
   - [x] **NEW**: Design system handles different action sets (split/re-forecast vs confirm/reject)
   - [x] **NEW**: All components use consistent Tailwind styling and accessibility features
 
-- [ ] **BOE-081C**: Enhance Re-forecasting UX (High Priority)
-  - [ ] Fix the functionality of the reforecasting so that the UX is much easier to use
-  - [ ] Make it clear how the user can reforecast planned costs and dates
-  - [ ] Add step-by-step wizard for re-forecasting operations
-  - [ ] Provide clear visual feedback for re-forecasting changes
-  - [ ] Add preview mode before applying re-forecasting changes
+- [x] **BOE-081C**: Integration of Shared Match Modal Components (High Priority) ✅ **COMPLETED** (July 28, 2025)
+  - [x] Successfully integrated shared MatchModal components into TransactionMatchModal
+  - [x] Created LedgerMatchModal component preserving all live update mechanisms
+  - [x] Preserved atomic state updates and race condition fixes from original implementation
+  - [x] Maintained all existing functionality including split/re-forecast modals
+  - [x] Preserved BOE context panel integration
+  - [x] Successfully replaced inline modal in LedgerTable with shared component
+  - [x] Verified TypeScript compilation and build success
+  - [x] **NEW**: Complete modal integration with shared components system
+  - [x] **NEW**: Preserved all critical live update mechanisms and state management
+  - [x] **NEW**: Maintained consistent UX across both actuals and ledger workflows
+  - [x] **NEW**: Ready for BOE-081D: Enhance Re-forecasting UX implementation
 
-- [ ] **BOE-081D**: Fix Re-forecasting Validation (Medium Priority)
-  - [ ] Fix the validation so that re-forecasted work is allowed to exceed baseline costs
-  - [ ] Update validation rules to allow planned amounts to exceed baseline
-  - [ ] Add warnings instead of hard validation errors for baseline exceedance
-  - [ ] Provide clear justification for baseline exceedance
-  - [ ] Add approval workflow for significant baseline exceedance
+- [x] **BOE-081D**: Enhance Re-forecasting UX (High Priority) ✅ **COMPLETED** (July 28, 2025)
+  - [x] Implemented step-by-step wizard for re-forecasting operations
+  - [x] Added clear visual feedback with progress indicators and step-by-step guidance
+  - [x] Created preview mode before applying re-forecasting changes
+  - [x] Enhanced visual hierarchy with modern UI/UX design
+  - [x] Added comprehensive validation and error handling
+  - [x] Implemented clear amount and date comparison displays
+  - [x] Added baseline warning system for BOE-created entries
+  - [x] **NEW**: Complete wizard redesign with 5-step process (Overview → Amount → Date → Reason → Preview)
+  - [x] **NEW**: Visual step indicators with progress tracking and completion status
+  - [x] **NEW**: Enhanced form validation with real-time feedback
+  - [x] **NEW**: Improved error handling and user guidance
+  - [x] **NEW**: Success completion screen with summary of changes
+  - [x] **NEW**: Consistent styling with shared modal design system
 
-- [ ] **BOE-081E**: Add Cost Re-leveling Automation (Medium Priority)
+- [x] **BOE-081E**: Enhanced Split & Re-forecast Logic (High Priority) ✅ **COMPLETED** (July 28, 2025)
+  - [x] Fixed frontend logic to show both split and re-forecast options when applicable
+  - [x] Enhanced backend suggestions with smart algorithm based on actual vs planned amounts
+  - [x] Added contextual guidance for different mismatch scenarios
+  - [x] Implemented overrun handling with future month re-leveling suggestions
+  - [x] Added underspend scenarios with partial delivery and future spreading options
+  - [x] Enhanced UI with color-coded suggestions based on suggestion type
+  - [x] **NEW**: Smart decision logic supporting real-world scenarios (partial delivery, overruns, schedule changes)
+  - [x] **NEW**: Enhanced user guidance with contextual messaging for each scenario
+  - [x] **NEW**: Backend API now accepts actual transaction data for intelligent suggestions
+  - [x] **NEW**: Visual improvements with better button layout and suggestion styling
+
+- [x] **BOE-081F**: Enhance Ledger Table Matching Modal with BOE Context (High Priority) ✅ **COMPLETED** (July 28, 2025)
+  - [x] Add BOE context panel to Ledger Table matching modal
+  - [x] Implement split and re-forecast capabilities in Ledger Table modal
+  - [x] Add mismatch detection and warnings for amount/date differences
+  - [x] Include enhanced action buttons with split/re-forecast options
+  - [x] Preserve all existing live update mechanisms and state management
+  - [x] **NEW**: Complete BOE context integration with BOEContextPanel component
+  - [x] **NEW**: Enhanced mismatch detection with amount and date comparison
+  - [x] **NEW**: Split and re-forecast modal integration with proper handlers
+  - [x] **NEW**: Consistent UX between Actuals and Ledger Table matching workflows
+  - [x] **NEW**: TypeScript compilation successful with proper type safety
+
+- [ ] **BOE-081G**: Add Cost Re-leveling Automation (Medium Priority)
   - [ ] Add automation so that a user can properly move costs from one period (month) to another
   - [ ] Implement "re-level" button to redistribute remaining costs across periods
   - [ ] Add smart re-leveling algorithms (linear, front-loaded, back-loaded)
   - [ ] Provide visual preview of re-leveling changes
   - [ ] Add bulk re-leveling operations for multiple allocations
+
+- [ ] **BOE-081H**: Update View Upload Modal UI (Medium Priority)
+  - [ ] Apply shared modal design system to View Upload modal
+  - [ ] Use consistent styling and layout from MatchModal components
+  - [ ] Implement modern UI/UX with improved visual hierarchy
+  - [ ] Add consistent action buttons and navigation patterns
+  - [ ] Ensure responsive design and accessibility features
+  - [ ] Maintain all existing functionality while improving presentation
+
+- [ ] **BOE-081I**: Fix Re-forecasting Validation (Medium Priority)
+  - [ ] Fix the validation so that re-forecasted work is allowed to exceed baseline costs
+  - [ ] Update validation rules to allow planned amounts to exceed baseline
+  - [ ] Add warnings instead of hard validation errors for baseline exceedance
+  - [ ] Provide clear justification for baseline exceedance
+  - [ ] Add approval workflow for significant baseline exceedance
 
 - [ ] **BOE-082**: Create AllocationForecastView component (Baseline vs. Actuals)
   - [ ] Display baseline vs actual allocations by month
@@ -1090,8 +1143,12 @@
 - ✅ **NEW**: Production Readiness - Removed delete functionality, cleaned up console logs, improved UX
 - ✅ **NEW**: BOE-081A TransactionMatchModal UX - Complete modal redesign with modern UI/UX and enhanced user experience
 - ✅ **NEW**: BOE-081B Shared Components - Flexible match modal system supporting both actuals and ledger workflows
+- ✅ **NEW**: BOE-081C Integration - Successfully integrated shared components while preserving all live update mechanisms
+- ✅ **NEW**: BOE-081D Re-forecasting UX - Complete wizard redesign with step-by-step guidance and enhanced user experience
+- ✅ **NEW**: BOE-081E Enhanced Split & Re-forecast Logic - Smart decision logic and intelligent suggestions for real-world scenarios
+- ✅ **NEW**: BOE-081F Ledger Table Matching Modal Enhancement - Complete BOE context and split/re-forecast integration
 
-**Next Phase**: Phase 3B - Ledger Integration & Invoice Processing (BOE-081A Complete, BOE-081B Complete, BOE-081C Next) OR Phase 3C - BOE-095 Pre-approval Validation System
+**Next Phase**: Phase 3B - Ledger Integration & Invoice Processing (BOE-081A Complete, BOE-081B Complete, BOE-081C Complete, BOE-081D Complete, BOE-081E Complete, BOE-081F Complete, BOE-081G Next) OR Phase 3C - BOE-095 Pre-approval Validation System
 
 ## Notes
 - **Priority**: High
@@ -1109,6 +1166,6 @@
 
 ---
 *Created: [Current Date]*  
-*Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Complete - Phase 3B In Progress (BOE-081A & BOE-081B Complete)*  
-*Next Step: Phase 3B - Ledger Integration & Invoice Processing (BOE-081C Next)*  
-*Last Updated: July 28, 2025 (BOE-081B Complete)* 
+*Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Complete - Phase 3B In Progress (BOE-081A through BOE-081F Complete)*  
+*Next Step: Phase 3B - Ledger Integration & Invoice Processing (BOE-081G Next)*  
+*Last Updated: July 28, 2025 (BOE-081F Complete)* 

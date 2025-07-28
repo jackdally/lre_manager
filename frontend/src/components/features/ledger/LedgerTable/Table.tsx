@@ -5,6 +5,7 @@ import type { LedgerEntry } from '../../../../types/ledger';
 import { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
 import { useLedgerUI } from '../../../../store/ledgerStore';
 import { Vendor } from '../../../../store/settingsStore';
+import LedgerMatchModal from './LedgerMatchModal';
 
 
 interface LedgerTableTableProps {
@@ -722,240 +723,28 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
         </div>
       )}
       {showPotentialModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-3xl w-full min-w-[320px] relative border-2 border-blue-200 overflow-x-hidden px-8">
-            <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold" onClick={() => setShowPotentialModal(false)} aria-label="Close">&times;</button>
-            <h2 className="text-2xl font-extrabold mb-4 text-blue-700 flex items-center gap-2">
-              <InformationCircleIcon className="h-6 w-6 text-yellow-500" />
-              {currentMatches.length > 1 ? 'Multiple Potential Matches' : 'Potential Match'}
-            </h2>
-            <div className="flex gap-4 mb-4 border-b border-blue-200">
-              <button
-                className={`px-4 py-2 font-bold border-b-2 transition ${potentialTab === 'matched' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-blue-600'}`}
-                onClick={() => { setPotentialTab('matched'); setPotentialIndex(0); }}
-              >
-                Potential Matches
-              </button>
-              <button
-                className={`px-4 py-2 font-bold border-b-2 transition ${potentialTab === 'rejected' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-blue-600'}`}
-                onClick={() => { setPotentialTab('rejected'); setPotentialIndex(0); }}
-              >
-                Rejected
-              </button>
-            </div>
-            {currentMatches.length === 0 && (
-              <div className="flex-1 flex items-center justify-center min-h-[120px] text-gray-500 text-lg font-semibold py-8">
-                {loadingPotential ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span>Loading matches...</span>
-                  </div>
-                ) : (
-                  potentialTab === 'matched'
-                    ? 'No potential matches for this ledger entry.'
-                    : 'No rejected matches for this ledger entry.'
-                )}
-              </div>
-            )}
-            {currentMatches.length > 0 && currentMatches[potentialIndex] && (
-              <div className="flex flex-col sm:flex-row gap-10 mb-6">
-                {/* Ledger Entry Section */}
-                <div className="flex-1 bg-gray-50 rounded-lg p-6 border border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-700 mb-2">Ledger Entry</h3>
-                  <div className="flex flex-col gap-1 text-base">
-                    <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.vendor_name || '--'}</span></div>
-                    <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.expense_description || '--'}</span></div>
-                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.planned_amount ?? 0)}</span></div>
-                    <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{
-                      (() => {
-                        const plannedDate = sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.planned_date;
-                        if (!plannedDate) return '--';
-                        const localDate = new Date(plannedDate + 'T00:00:00');
-                        return localDate.toLocaleDateString();
-                      })()
-                    }</span></div>
-                    <div><b className="text-gray-600">WBS Element:</b> <span className="text-gray-900">
-                      {(() => {
-                        const entry = sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId);
-                        return entry?.wbsElement ? 
-                          `${entry.wbsElement.code} - ${entry.wbsElement.name}` : 
-                          '--';
-                      })()}
-                    </span></div>
-                    {sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.notes && (
-                      <div><b className="text-gray-600">Notes:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.notes}</span></div>
-                    )}
-                  </div>
-                </div>
-                {/* Divider and Potential/Rejected Match Section */}
-                <div className={`flex-1 rounded-lg p-6 border ${potentialTab === 'rejected' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
-                  <h3 className={`text-lg font-bold mb-2 ${potentialTab === 'rejected' ? 'text-red-700' : 'text-blue-700'}`}>{potentialTab === 'matched' ? 'Potential Upload Match' : 'Rejected Match'}</h3>
-                  <div className="mb-3 flex flex-col gap-2 text-base">
-                    <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{currentMatches[potentialIndex].vendorName}</span></div>
-                    <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{currentMatches[potentialIndex].description}</span></div>
-                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(currentMatches[potentialIndex].amount)}</span></div>
-                    <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{currentMatches[potentialIndex].transactionDate ? new Date(currentMatches[potentialIndex].transactionDate).toLocaleDateString() : ''}</span></div>
-                    <div><b className="text-gray-600">Status:</b> <span className="text-gray-900 capitalize">{currentMatches[potentialIndex].status}</span></div>
-                    <div><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{currentMatches[potentialIndex].actualsUploadSession?.originalFilename}</span></div>
-                    <div><b className="text-gray-600">Match Confidence:</b> <span className={`font-bold ${Number(currentMatches[potentialIndex].matchConfidence ?? currentMatches[potentialIndex].confidence ?? 0) >= 0.8 ? 'text-green-600' : Number(currentMatches[potentialIndex].matchConfidence ?? currentMatches[potentialIndex].confidence ?? 0) >= 0.6 ? 'text-yellow-600' : 'text-red-600'}`}>{((Number(currentMatches[potentialIndex].matchConfidence ?? currentMatches[potentialIndex].confidence ?? 0)) * 100).toFixed(1)}%</span></div>
-                  </div>
-                  {potentialTab === 'rejected' && (
-                    <button
-                      className="mt-2 px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
-                      onClick={async () => {
-                        const undoId = currentMatches[potentialIndex].id;
-                        
-                        if (!potentialLedgerEntryId) return;
-                        
-                        const result = await undoReject(undoId, potentialLedgerEntryId as string);
-                        
-                        if (result?.success) {
-                          // FIX #2: Atomic state updates - update all related state in a coordinated way
-                          
-                          // First, refresh both potential and rejected match IDs from backend
-                          try {
-                            const [potentialRes, rejectedRes] = await Promise.all([
-                              fetch(`/api/programs/${programId}/ledger/potential-match-ids`),
-                              fetch(`/api/programs/${programId}/ledger/rejected-match-ids`)
-                            ]);
-                            
-                            if (potentialRes.ok && rejectedRes.ok) {
-                              const potentialIds = await potentialRes.json();
-                              const rejectedIds = await rejectedRes.json();
-                              
-                              // Update both states atomically with fresh data from backend
-                              setPotentialMatchIds(potentialIds);
-                              setEntriesWithRejectedMatches(new Set(rejectedIds));
-                            }
-                          } catch (error) {
-                            console.error('Failed to refresh match IDs after undo:', error);
-                            // Fallback to local state updates if API calls fail
-                            setEntriesWithRejectedMatches(prev => {
-                              const newSet = new Set(prev);
-                              const remainingRejectedForEntry = potentialRejected.filter(m => 
-                                m.ledgerEntry?.id === potentialLedgerEntryId && m.id !== undoId
-                              );
-                              if (remainingRejectedForEntry.length === 0) {
-                                newSet.delete(potentialLedgerEntryId);
-                              }
-                              return newSet;
-                            });
-                            
-                            setPotentialMatchIds(prev => {
-                              if (!prev.includes(potentialLedgerEntryId)) {
-                                return [...prev, potentialLedgerEntryId];
-                              }
-                              return prev;
-                            });
-                          }
-                          
-                          setToast({ message: 'Rejection undone successfully', type: 'success' });
-                          
-                          // Switch to matched tab to show the restored match
-                          setPotentialTab('matched');
-                          setPotentialIndex(0);
-                        } else {
-                          setToast({ message: result?.error || 'Failed to undo rejection', type: 'error' });
-                        }
-                      }}
-                    >
-                      Undo
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
-              {potentialTab === 'matched' && (
-                <div className="flex gap-3">
-                  <button
-                    className="btn btn-primary px-6 py-2 text-base font-semibold rounded shadow hover:bg-blue-700 transition"
-                    onClick={async () => {
-                      if (!potentialLedgerEntryId) return;
-                      
-                      const result = await confirmMatch(currentMatches[potentialIndex].id, potentialLedgerEntryId as string);
-                      
-                      if (result.success) {
-                        // Remove this ledger entry from potential match IDs
-                        if (potentialLedgerEntryId) {
-                          setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
-                        }
-                        
-                        setToast({ message: 'Match confirmed successfully.', type: 'success' });
-                        
-                        // Close modal after successful confirmation
-                        setShowPotentialModal(false);
-                      } else {
-                        setToast({ message: result.error || 'Failed to confirm match.', type: 'error' });
-                      }
-                    }}
-                  >
-                    <CheckCircleIcon className="h-5 w-5 inline mr-1" /> Confirm
-                  </button>
-                  <button
-                    className="btn btn-ghost px-6 py-2 text-base font-semibold rounded shadow hover:bg-gray-200 transition"
-                    onClick={async () => {
-                      if (!potentialLedgerEntryId) return;
-                      
-                      const result = await rejectMatch(currentMatches[potentialIndex].id, potentialLedgerEntryId as string);
-                      
-                      if (result.success) {
-                        const rejectedMatch = currentMatches[potentialIndex];
-                        
-                        // Mark this ledger entry as having rejected matches
-                        if (potentialLedgerEntryId) {
-                          setEntriesWithRejectedMatches(prev => new Set([...Array.from(prev), potentialLedgerEntryId]));
-                        }
-                        
-                        // If no more potential matches for this ledger entry, remove it from potential match IDs
-                        const newMatched = potentialMatched.filter(match => match.id !== rejectedMatch.id);
-                        if (newMatched.length === 0 && potentialLedgerEntryId) {
-                          setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
-                        }
-                        
-                        setToast({ message: 'Match rejected.', type: 'success', undoId: rejectedMatch.id });
-                        
-                        // If no more potential matches, close modal
-                        if (newMatched.length === 0) {
-                          setShowPotentialModal(false);
-                        }
-                      } else {
-                        setToast({ message: result.error || 'Failed to reject match.', type: 'error' });
-                      }
-                    }}
-                  >
-                    <XCircleIcon className="h-5 w-5 inline mr-1" /> Reject
-                  </button>
-                </div>
-              )}
-              {currentMatches.length > 1 && (
-                <div className="flex items-center justify-center mt-4 mx-4">
-                  <div className="flex flex-nowrap items-center gap-3 bg-blue-50 px-4 py-2 rounded shadow border border-blue-200">
-                    <button
-                      className="btn btn-xs btn-outline border-blue-400 text-blue-700 font-bold px-4 py-1 rounded flex items-center gap-1"
-                      disabled={potentialIndex === 0}
-                      onClick={() => setPotentialIndex((i: number) => Math.max(0, i - 1))}
-                      aria-label="Previous potential match"
-                    >
-                      <span aria-hidden="true">&#8592;</span>
-                      <span>Prev</span>
-                    </button>
-                    <span className="text-base font-semibold text-blue-700 whitespace-nowrap">{potentialIndex + 1} / {currentMatches.length}</span>
-                    <button
-                      className="btn btn-xs btn-outline border-blue-400 text-blue-700 font-bold px-4 py-1 rounded flex items-center gap-1"
-                      disabled={potentialIndex === currentMatches.length - 1}
-                      onClick={() => setPotentialIndex((i: number) => Math.min(currentMatches.length - 1, i + 1))}
-                      aria-label="Next potential match"
-                    >
-                      <span>Next</span>
-                      <span aria-hidden="true">&#8594;</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <LedgerMatchModal
+          isOpen={showPotentialModal}
+          onClose={() => setShowPotentialModal(false)}
+          ledgerEntry={sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId) || null}
+          currentTab={potentialTab}
+          currentIndex={potentialIndex}
+          potentialMatches={potentialMatched}
+          rejectedMatches={potentialRejected}
+          onTabChange={setPotentialTab}
+          onIndexChange={setPotentialIndex}
+          onConfirm={confirmMatch}
+          onReject={rejectMatch}
+          onUndoReject={undoReject}
+          setPotentialMatchIds={setPotentialMatchIds}
+          setEntriesWithRejectedMatches={setEntriesWithRejectedMatches}
+          setPotentialMatched={setPotentialMatched}
+          setPotentialRejected={setPotentialRejected}
+          setToast={setToast}
+          formatCurrency={formatCurrency}
+          ledgerEntryId={potentialLedgerEntryId || ''}
+          programId={programId}
+        />
       )}
     </>
   );

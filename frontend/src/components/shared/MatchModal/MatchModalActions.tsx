@@ -2,7 +2,8 @@ import React from 'react';
 import { 
   CheckCircleIcon, 
   XCircleIcon, 
-  ArrowPathIcon 
+  ArrowPathIcon,
+  ScissorsIcon
 } from '@heroicons/react/24/outline';
 
 interface MatchModalActionsProps {
@@ -30,6 +31,9 @@ const MatchModalActions: React.FC<MatchModalActionsProps> = ({
   canReForecast = false,
   showSplitReForecast = false
 }) => {
+  // Determine if we should show both options
+  const showBothOptions = showSplitReForecast && canSplit && canReForecast && onSplit && onReForecast;
+
   return (
     <div className="flex flex-wrap gap-3">
       {currentTab === 'potential' ? (
@@ -53,26 +57,60 @@ const MatchModalActions: React.FC<MatchModalActionsProps> = ({
             </button>
           )}
           
-          {/* Split/Re-forecast Options - only show if enabled */}
-          {showSplitReForecast && canSplit && onSplit && (
-            <button 
-              className="px-4 py-2.5 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors flex items-center gap-2"
-              onClick={onSplit}
-              title="Split ledger entry to match actual amount"
-            >
-              <ArrowPathIcon className="h-4 w-4" />
-              Split Entry
-            </button>
-          )}
-          {showSplitReForecast && canReForecast && !canSplit && onReForecast && (
-            <button 
-              className="px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              onClick={onReForecast}
-              title="Re-forecast planned amount or date"
-            >
-              <ArrowPathIcon className="h-4 w-4" />
-              Re-forecast
-            </button>
+          {/* Split/Re-forecast Options - Updated Logic */}
+          {showSplitReForecast && (
+            <>
+              {/* Show both options when applicable */}
+              {showBothOptions && (
+                <div className="w-full space-y-3">
+                  <div className="text-sm text-gray-600 font-medium">
+                    Choose your approach:
+                  </div>
+                  <div className="flex gap-3">
+                    <button 
+                      className="flex-1 px-4 py-2.5 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors flex items-center justify-center gap-2"
+                      onClick={onSplit}
+                      title="Split ledger entry for partial delivery"
+                    >
+                      <ScissorsIcon className="h-4 w-4" />
+                      Split Entry
+                    </button>
+                    <button 
+                      className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                      onClick={onReForecast}
+                      title="Re-forecast planned amount or date"
+                    >
+                      <ArrowPathIcon className="h-4 w-4" />
+                      Re-forecast
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Show only split when only split is applicable */}
+              {!showBothOptions && canSplit && onSplit && (
+                <button 
+                  className="px-4 py-2.5 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors flex items-center gap-2"
+                  onClick={onSplit}
+                  title="Split ledger entry for partial delivery"
+                >
+                  <ScissorsIcon className="h-4 w-4" />
+                  Split Entry
+                </button>
+              )}
+              
+              {/* Show only re-forecast when only re-forecast is applicable */}
+              {!showBothOptions && canReForecast && !canSplit && onReForecast && (
+                <button 
+                  className="px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  onClick={onReForecast}
+                  title="Re-forecast planned amount or date"
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  Re-forecast
+                </button>
+              )}
+            </>
           )}
         </>
       ) : (

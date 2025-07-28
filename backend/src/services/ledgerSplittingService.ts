@@ -371,25 +371,24 @@ export class LedgerSplittingService {
   }
 
   /**
-   * Get re-forecast suggestions based on BOE allocation
+   * Get re-forecast suggestions based on BOE allocation and actual vs planned amounts
    */
-  static async getReForecastSuggestions(ledgerEntryId: string): Promise<Array<{
+  static async getReForecastSuggestions(
+    ledgerEntryId: string, 
+    actualAmount?: number, 
+    actualDate?: string
+  ): Promise<Array<{
     plannedAmount: number;
     plannedDate: string;
     reason: string;
+    type: 'overrun' | 'underspend' | 'schedule_change' | 'boe_allocation';
   }>> {
     const entry = await this.ledgerRepo.findOne({
       where: { id: ledgerEntryId },
       relations: ['program', 'wbsElement', 'costCategory', 'vendor']
     });
 
-    if (!entry || !entry.createdFromBOE || !entry.boeElementAllocationId) {
-      return []; // No suggestions for non-BOE entries
-    }
-
-    // Get BOE allocation details
-    const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
-    if (!allocation || !allocation.monthlyBreakdown) {
+    if (!entry) {
       return [];
     }
 
@@ -397,19 +396,153 @@ export class LedgerSplittingService {
       plannedAmount: number;
       plannedDate: string;
       reason: string;
+      type: 'overrun' | 'underspend' | 'schedule_change' | 'boe_allocation';
     }> = [];
 
-    // Create suggestions based on monthly breakdown
-    for (const [month, data] of Object.entries(allocation.monthlyBreakdown)) {
-      if (data.amount && data.amount > 0) {
+    const plannedAmount = entry.planned_amount || 0;
+    const plannedDate = entry.planned_date;
+
+    // If we have actual data, provide smart suggestions
+    if (actualAmount !== undefined && actualDate) {
+      const actualNum = Number(actualAmount);
+      const plannedNum = Number(plannedAmount);
+
+      // Overrun scenario: actual > planned
+      if (actualNum > plannedNum) {
+        const overrun = actualNum - plannedNum;
         suggestions.push({
-          plannedAmount: data.amount,
-          plannedDate: data.date,
-          reason: `BOE allocation for ${month}: ${data.amount}`
+          plannedAmount: actualNum,
+          plannedDate: actualDate,
+          reason: `Cover overrun: Increase planned amount to ${actualNum} to match actual invoice`,
+          type: 'overrun'
+        });
+
+        // If this is a BOE-created entry, suggest pulling from future months
+        if (entry.createdFromBOE && entry.boeElementAllocationId) {
+          const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
+          if (allocation && allocation.monthlyBreakdown) {
+            const futureMonths = this.getFutureMonthsWithAllocation(allocation, actualDate);
+            if (futureMonths.length > 0) {
+              const pullAmount = Math.min(overrun, this.getTotalFutureAllocation(futureMonths));
+              suggestions.push({
+                plannedAmount: plannedNum + pullAmount,
+                plannedDate: actualDate,
+                reason: `Pull ${pullAmount} from future months to cover overrun`,
+                type: 'overrun'
+              });
+            }
+          }
+        }
+      }
+      // Underspend scenario: actual < planned
+      else if (actualNum < plannedNum) {
+        const remaining = plannedNum - actualNum;
+        
+        // Option 1: Keep current planned amount (for partial delivery)
+        suggestions.push({
+          plannedAmount: plannedNum,
+          plannedDate: plannedDate || actualDate,
+          reason: `Keep current planned amount: ${plannedNum} (partial delivery scenario)`,
+          type: 'underspend'
+        });
+
+        // Option 2: Adjust to actual amount
+        suggestions.push({
+          plannedAmount: actualNum,
+          plannedDate: actualDate,
+          reason: `Adjust to actual amount: ${actualNum} (re-forecast remaining ${remaining} to future)`,
+          type: 'underspend'
+        });
+
+        // Option 3: Spread remaining to future months
+        if (entry.createdFromBOE && entry.boeElementAllocationId) {
+          const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
+          if (allocation && allocation.monthlyBreakdown) {
+            const futureMonths = this.getFutureMonthsWithAllocation(allocation, actualDate);
+            if (futureMonths.length > 0) {
+              const spreadAmount = Math.min(remaining, this.getTotalFutureAllocation(futureMonths));
+              suggestions.push({
+                plannedAmount: actualNum + spreadAmount,
+                plannedDate: actualDate,
+                reason: `Spread remaining ${spreadAmount} to future months`,
+                type: 'underspend'
+              });
+            }
+          }
+        }
+      }
+      // Schedule change scenario: same amount, different date
+      else if (actualDate !== plannedDate) {
+        suggestions.push({
+          plannedAmount: plannedNum,
+          plannedDate: actualDate,
+          reason: `Schedule change: Move planned amount to actual date`,
+          type: 'schedule_change'
+        });
+      }
+    }
+
+    // If this is a BOE-created entry, also provide BOE allocation suggestions
+    if (entry.createdFromBOE && entry.boeElementAllocationId) {
+      const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
+      if (allocation && allocation.monthlyBreakdown) {
+        // Add BOE allocation suggestions
+        for (const [month, data] of Object.entries(allocation.monthlyBreakdown)) {
+          if (data.amount && data.amount > 0) {
+            suggestions.push({
+              plannedAmount: data.amount,
+              plannedDate: data.date,
+              reason: `BOE allocation for ${month}: ${data.amount}`,
+              type: 'boe_allocation'
+            });
+          }
+        }
+      }
+    }
+
+    // If no smart suggestions were generated, provide basic suggestions
+    if (suggestions.length === 0) {
+      if (actualAmount !== undefined) {
+        suggestions.push({
+          plannedAmount: Number(actualAmount),
+          plannedDate: actualDate || plannedDate || new Date().toISOString().split('T')[0],
+          reason: `Match actual amount: ${actualAmount}`,
+          type: 'underspend'
         });
       }
     }
 
     return suggestions;
+  }
+
+  /**
+   * Get future months with allocation from a given date
+   */
+  private static getFutureMonthsWithAllocation(allocation: any, fromDate: string): Array<{ month: string; amount: number; date: string }> {
+    const futureMonths: Array<{ month: string; amount: number; date: string }> = [];
+    const fromDateObj = new Date(fromDate);
+
+    for (const [month, data] of Object.entries(allocation.monthlyBreakdown)) {
+      const monthData = data as any;
+      if (monthData.amount && monthData.amount > 0 && monthData.date) {
+        const monthDate = new Date(monthData.date);
+        if (monthDate > fromDateObj) {
+          futureMonths.push({
+            month,
+            amount: monthData.amount,
+            date: monthData.date
+          });
+        }
+      }
+    }
+
+    return futureMonths.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  /**
+   * Get total allocation amount from future months
+   */
+  private static getTotalFutureAllocation(futureMonths: Array<{ month: string; amount: number; date: string }>): number {
+    return futureMonths.reduce((total, month) => total + month.amount, 0);
   }
 } 

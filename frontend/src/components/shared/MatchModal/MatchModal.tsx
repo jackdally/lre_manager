@@ -129,6 +129,9 @@ const MatchModal: React.FC<MatchModalProps> = ({
               />
             ) : (
               <div className="space-y-6">
+                {/* Right Panel Content - Show First for Better UX */}
+                {rightPanel}
+
                 {/* Mismatch Warning */}
                 <MatchModalMismatchWarning
                   hasAmountMismatch={hasAmountMismatch}
@@ -143,9 +146,6 @@ const MatchModal: React.FC<MatchModalProps> = ({
 
                 {/* Additional Content (e.g., BOE Context Panel) */}
                 {additionalContent}
-
-                {/* Right Panel Content */}
-                {rightPanel}
 
                 {/* Navigation and Actions */}
                 <div className="space-y-4">

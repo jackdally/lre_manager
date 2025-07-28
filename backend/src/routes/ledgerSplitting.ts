@@ -142,7 +142,7 @@ router.get('/:ledgerEntryId/split-suggestions', async (req, res) => {
  * @swagger
  * /api/ledger-splitting/{ledgerEntryId}/re-forecast-suggestions:
  *   get:
- *     summary: Get re-forecast suggestions based on BOE allocation
+ *     summary: Get re-forecast suggestions based on BOE allocation and actual data
  *     parameters:
  *       - in: path
  *         name: ledgerEntryId
@@ -150,11 +150,31 @@ router.get('/:ledgerEntryId/split-suggestions', async (req, res) => {
  *         schema:
  *           type: string
  *         description: Ledger entry ID
+ *       - in: query
+ *         name: actualAmount
+ *         schema:
+ *           type: number
+ *         description: Actual transaction amount for smart suggestions
+ *       - in: query
+ *         name: actualDate
+ *         schema:
+ *           type: string
+ *         description: Actual transaction date for smart suggestions
  */
 router.get('/:ledgerEntryId/re-forecast-suggestions', async (req, res) => {
   try {
     const { ledgerEntryId } = req.params;
-    const suggestions = await LedgerSplittingService.getReForecastSuggestions(ledgerEntryId);
+    const { actualAmount, actualDate } = req.query;
+
+    // Parse actual amount and date from query parameters
+    const parsedActualAmount = actualAmount ? Number(actualAmount) : undefined;
+    const parsedActualDate = actualDate ? String(actualDate) : undefined;
+
+    const suggestions = await LedgerSplittingService.getReForecastSuggestions(
+      ledgerEntryId, 
+      parsedActualAmount, 
+      parsedActualDate
+    );
 
     res.json({
       suggestions,
