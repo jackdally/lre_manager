@@ -102,7 +102,14 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
     setNewPlannedAmount(suggestion.plannedAmount);
     setNewPlannedDate(suggestion.plannedDate);
     setReForecastReason(suggestion.reason);
-    setCurrentStep('preview');
+    
+    // If suggestion mentions re-leveling, set scope and go to re-leveling step
+    if (suggestion.reason.includes('re-level')) {
+      setRelevelingScope('remaining'); // Default to remaining months for re-leveling
+      setCurrentStep('releveling');
+    } else {
+      setCurrentStep('preview');
+    }
   };
 
   const handleSubmit = async () => {
@@ -233,30 +240,31 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
       { key: 'amount', label: 'Amount', icon: CurrencyDollarIcon },
       { key: 'date', label: 'Date', icon: CalendarIcon },
       { key: 'reason', label: 'Reason', icon: ChatBubbleLeftRightIcon },
+      { key: 'releveling', label: 'Re-level', icon: ArrowPathIcon },
       { key: 'preview', label: 'Preview', icon: DocumentMagnifyingGlassIcon }
     ];
 
     return (
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8 overflow-x-auto">
         {steps.map((step, index) => {
           const status = getStepStatus(step.key as WizardStep);
           const Icon = step.icon;
           
           return (
-            <div key={step.key} className="flex items-center">
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+            <div key={step.key} className="flex items-center flex-shrink-0">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
                 status === 'complete' ? 'bg-green-500 border-green-500 text-white' :
                 status === 'current' ? 'bg-blue-500 border-blue-500 text-white' :
                 'bg-gray-100 border-gray-300 text-gray-400'
               }`}>
                 {status === 'complete' ? (
-                  <CheckCircleIcon className="w-6 h-6" />
+                  <CheckCircleIcon className="w-4 h-4" />
                 ) : (
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-4 h-4" />
                 )}
               </div>
-              <div className="ml-3">
-                <div className={`text-sm font-medium ${
+              <div className="ml-2">
+                <div className={`text-xs font-medium ${
                   status === 'complete' ? 'text-green-600' :
                   status === 'current' ? 'text-blue-600' :
                   'text-gray-400'
@@ -265,7 +273,7 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
                 </div>
               </div>
               {index < steps.length - 1 && (
-                <div className={`w-16 h-0.5 mx-4 ${
+                <div className={`w-8 h-0.5 mx-2 ${
                   status === 'complete' ? 'bg-green-500' : 'bg-gray-300'
                 }`} />
               )}
@@ -351,75 +359,88 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
       )}
 
              {/* Smart Re-forecast Suggestions */}
-       {suggestions.length > 0 && (
-         <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-           <h4 className="font-semibold text-blue-900 mb-4 flex items-center gap-2">
-             <InformationCircleIcon className="h-5 w-5" />
-             Smart Re-forecast Suggestions
-           </h4>
-           <p className="text-sm text-blue-700 mb-4">
-             Based on your actual transaction and BOE allocation, here are suggested re-forecasts:
-           </p>
-           <div className="space-y-3">
-             {suggestions.map((suggestion, index) => {
-               // Determine styling based on suggestion type
-               const getSuggestionStyle = () => {
-                 switch (suggestion.type) {
-                   case 'overrun':
-                     return 'bg-red-50 border-red-200 text-red-800';
-                   case 'underspend':
-                     return 'bg-green-50 border-green-200 text-green-800';
-                   case 'schedule_change':
-                     return 'bg-purple-50 border-purple-200 text-purple-800';
-                   case 'boe_allocation':
-                     return 'bg-yellow-50 border-yellow-200 text-yellow-800';
-                   default:
-                     return 'bg-white border-gray-200 text-gray-800';
-                 }
-               };
+      {suggestions.length > 0 && (
+        <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+          <h4 className="font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <InformationCircleIcon className="h-5 w-5" />
+            Smart Re-forecast Suggestions
+          </h4>
+          <p className="text-sm text-blue-700 mb-4">
+            Based on your actual transaction, here are suggested re-forecast actions:
+          </p>
+          <div className="space-y-3">
+            {suggestions.map((suggestion, index) => {
+              // Determine styling based on suggestion type
+              const getSuggestionStyle = () => {
+                switch (suggestion.type) {
+                  case 'overrun':
+                    return 'bg-red-50 border-red-200 text-red-800';
+                  case 'underspend':
+                    return 'bg-green-50 border-green-200 text-green-800';
+                  case 'schedule_change':
+                    return 'bg-purple-50 border-purple-200 text-purple-800';
+                  case 'boe_allocation':
+                    return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+                  default:
+                    return 'bg-white border-gray-200 text-gray-800';
+                }
+              };
 
-               const getButtonStyle = () => {
-                 switch (suggestion.type) {
-                   case 'overrun':
-                     return 'bg-red-600 hover:bg-red-700';
-                   case 'underspend':
-                     return 'bg-green-600 hover:bg-green-700';
-                   case 'schedule_change':
-                     return 'bg-purple-600 hover:bg-purple-700';
-                   case 'boe_allocation':
-                     return 'bg-yellow-600 hover:bg-yellow-700';
-                   default:
-                     return 'bg-blue-600 hover:bg-blue-700';
-                 }
-               };
+              const getButtonStyle = () => {
+                switch (suggestion.type) {
+                  case 'overrun':
+                    return 'bg-red-600 hover:bg-red-700';
+                  case 'underspend':
+                    return 'bg-green-600 hover:bg-green-700';
+                  case 'schedule_change':
+                    return 'bg-purple-600 hover:bg-purple-700';
+                  case 'boe_allocation':
+                    return 'bg-yellow-600 hover:bg-yellow-700';
+                  default:
+                    return 'bg-blue-600 hover:bg-blue-700';
+                }
+              };
 
-               return (
-                 <div key={index} className={`flex justify-between items-center p-3 rounded border ${getSuggestionStyle()}`}>
-                   <div className="text-sm flex-1">
-                     <div className="font-medium">{suggestion.reason}</div>
-                     {suggestion.type && (
-                       <div className="text-xs opacity-75 mt-1">
-                         Type: {suggestion.type.replace('_', ' ')}
-                       </div>
-                     )}
-                   </div>
-                   <div className="flex items-center gap-3 ml-4">
-                     <span className="text-sm font-medium">
-                       {formatCurrency(suggestion.plannedAmount)} on {suggestion.plannedDate}
-                     </span>
-                     <button
-                       onClick={() => applySuggestion(suggestion)}
-                       className={`text-xs text-white px-3 py-1.5 rounded transition-colors ${getButtonStyle()}`}
-                     >
-                       Apply
-                     </button>
-                   </div>
-                 </div>
-               );
-             })}
-           </div>
-         </div>
-       )}
+              const getActionText = () => {
+                // If suggestion mentions re-leveling, indicate it will be available in next step
+                if (suggestion.reason.includes('re-level')) {
+                  return 'Start Re-forecast';
+                }
+                return 'Apply';
+              };
+
+              return (
+                <div key={index} className={`flex justify-between items-center p-3 rounded border ${getSuggestionStyle()}`}>
+                  <div className="text-sm flex-1">
+                    <div className="font-medium">{suggestion.reason}</div>
+                    {suggestion.type && (
+                      <div className="text-xs opacity-75 mt-1">
+                        Type: {suggestion.type.replace('_', ' ')}
+                      </div>
+                    )}
+                    {suggestion.reason.includes('re-level') && (
+                      <div className="text-xs text-blue-600 mt-1">
+                        💡 This will open the re-leveling step to configure how to redistribute costs
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 ml-4">
+                    <span className="text-sm font-medium">
+                      {formatCurrency(suggestion.plannedAmount)} on {suggestion.plannedDate}
+                    </span>
+                    <button
+                      onClick={() => applySuggestion(suggestion)}
+                      className={`text-xs text-white px-3 py-1.5 rounded transition-colors ${getButtonStyle()}`}
+                    >
+                      {getActionText()}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 

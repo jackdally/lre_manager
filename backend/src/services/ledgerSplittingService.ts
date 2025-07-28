@@ -590,66 +590,44 @@ export class LedgerSplittingService {
       // Overrun scenario: actual > planned
       if (actualNum > plannedNum) {
         const overrun = actualNum - plannedNum;
+        
+        // Primary suggestion: Match actual amount
         suggestions.push({
           plannedAmount: actualNum,
           plannedDate: actualDate,
-          reason: `Cover overrun: Increase planned amount to ${actualNum} to match actual invoice`,
+          reason: `Match actual invoice: Increase planned amount to ${actualNum} to cover overrun of ${this.formatCurrency(overrun)}`,
           type: 'overrun'
         });
 
-        // If this is a BOE-created entry, suggest pulling from future months
+        // If this is a BOE-created entry, suggest re-leveling option
         if (entry.createdFromBOE && entry.boeElementAllocationId) {
-          const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
-          if (allocation && allocation.monthlyBreakdown) {
-            const futureMonths = this.getFutureMonthsWithAllocation(allocation, actualDate);
-            if (futureMonths.length > 0) {
-              const pullAmount = Math.min(overrun, this.getTotalFutureAllocation(futureMonths));
-              suggestions.push({
-                plannedAmount: plannedNum + pullAmount,
-                plannedDate: actualDate,
-                reason: `Pull ${pullAmount} from future months to cover overrun`,
-                type: 'overrun'
-              });
-            }
-          }
+          suggestions.push({
+            plannedAmount: plannedNum,
+            plannedDate: actualDate,
+            reason: `Re-level overrun: Keep planned at ${plannedNum}, use re-leveling to pull ${this.formatCurrency(overrun)} from future months`,
+            type: 'overrun'
+          });
         }
       }
       // Underspend scenario: actual < planned
       else if (actualNum < plannedNum) {
         const remaining = plannedNum - actualNum;
         
-        // Option 1: Keep current planned amount (for partial delivery)
-        suggestions.push({
-          plannedAmount: plannedNum,
-          plannedDate: plannedDate || actualDate,
-          reason: `Keep current planned amount: ${plannedNum} (partial delivery scenario)`,
-          type: 'underspend'
-        });
-
-        // Option 2: Adjust to actual amount
+        // Primary suggestion: Match actual amount and re-level remaining
         suggestions.push({
           plannedAmount: actualNum,
           plannedDate: actualDate,
-          reason: `Adjust to actual amount: ${actualNum} (re-forecast remaining ${remaining} to future)`,
+          reason: `Match actual invoice: Adjust to ${actualNum}, re-level remaining ${this.formatCurrency(remaining)} to future months`,
           type: 'underspend'
         });
 
-        // Option 3: Spread remaining to future months
-        if (entry.createdFromBOE && entry.boeElementAllocationId) {
-          const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
-          if (allocation && allocation.monthlyBreakdown) {
-            const futureMonths = this.getFutureMonthsWithAllocation(allocation, actualDate);
-            if (futureMonths.length > 0) {
-              const spreadAmount = Math.min(remaining, this.getTotalFutureAllocation(futureMonths));
-              suggestions.push({
-                plannedAmount: actualNum + spreadAmount,
-                plannedDate: actualDate,
-                reason: `Spread remaining ${spreadAmount} to future months`,
-                type: 'underspend'
-              });
-            }
-          }
-        }
+        // Alternative: Keep current amount (for cases where partial delivery is expected)
+        suggestions.push({
+          plannedAmount: plannedNum,
+          plannedDate: actualDate,
+          reason: `Keep planned amount: Maintain ${plannedNum} for expected additional deliveries`,
+          type: 'underspend'
+        });
       }
       // Schedule change scenario: same amount, different date
       else if (actualDate !== plannedDate) {
@@ -659,24 +637,6 @@ export class LedgerSplittingService {
           reason: `Schedule change: Move planned amount to actual date`,
           type: 'schedule_change'
         });
-      }
-    }
-
-    // If this is a BOE-created entry, also provide BOE allocation suggestions
-    if (entry.createdFromBOE && entry.boeElementAllocationId) {
-      const allocation = await BOEElementAllocationService.getElementAllocation(entry.boeElementAllocationId);
-      if (allocation && allocation.monthlyBreakdown) {
-        // Add BOE allocation suggestions
-        for (const [month, data] of Object.entries(allocation.monthlyBreakdown)) {
-          if (data.amount && data.amount > 0) {
-            suggestions.push({
-              plannedAmount: data.amount,
-              plannedDate: data.date,
-              reason: `BOE allocation for ${month}: ${data.amount}`,
-              type: 'boe_allocation'
-            });
-          }
-        }
       }
     }
 
@@ -693,6 +653,16 @@ export class LedgerSplittingService {
     }
 
     return suggestions;
+  }
+
+  /**
+   * Helper function to format currency
+   */
+  private static formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
   }
 
   /**
