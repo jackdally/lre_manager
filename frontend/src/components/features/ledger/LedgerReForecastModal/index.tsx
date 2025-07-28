@@ -32,7 +32,7 @@ interface LedgerReForecastModalProps {
   };
 }
 
-type WizardStep = 'overview' | 'amount' | 'date' | 'reason' | 'preview' | 'complete';
+type WizardStep = 'overview' | 'amount' | 'date' | 'reason' | 'releveling' | 'preview' | 'complete';
 
 const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
   isOpen,
@@ -49,6 +49,12 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
+  
+  // Re-leveling state
+  const [relevelingScope, setRelevelingScope] = useState<'single' | 'remaining' | 'entire'>('single');
+  const [relevelingAlgorithm, setRelevelingAlgorithm] = useState<'linear' | 'front-loaded' | 'back-loaded' | 'custom'>('linear');
+  const [relevelingPreview, setRelevelingPreview] = useState<any>(null);
+  const [baselineExceedanceJustification, setBaselineExceedanceJustification] = useState('');
 
   useEffect(() => {
     if (isOpen && ledgerEntry) {
@@ -58,6 +64,10 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
       setReForecastReason('');
       setError(null);
       setIsComplete(false);
+      setRelevelingScope('single');
+      setRelevelingAlgorithm('linear');
+      setRelevelingPreview(null);
+      setBaselineExceedanceJustification('');
       loadSuggestions();
       
       // Auto-populate re-forecast if actual transaction data is provided
@@ -118,11 +128,17 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
     setError(null);
 
     try {
-      await axios.post(`/api/ledger-splitting/${ledgerEntry.id}/re-forecast`, {
+      // Enhanced payload with re-leveling information
+      const payload = {
         newPlannedAmount,
         newPlannedDate,
-        reForecastReason: reForecastReason.trim()
-      });
+        reForecastReason: reForecastReason.trim(),
+        relevelingScope,
+        relevelingAlgorithm,
+        baselineExceedanceJustification: baselineExceedanceJustification.trim() || undefined
+      };
+
+      await axios.post(`/api/ledger-splitting/${ledgerEntry.id}/re-forecast`, payload);
 
       setIsComplete(true);
       setCurrentStep('complete');
@@ -165,7 +181,7 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
     if (currentStep === step) return 'current';
     if (currentStep === 'complete') return 'complete';
     
-    const stepOrder: WizardStep[] = ['overview', 'amount', 'date', 'reason', 'preview', 'complete'];
+    const stepOrder: WizardStep[] = ['overview', 'amount', 'date', 'reason', 'releveling', 'preview', 'complete'];
     const currentIndex = stepOrder.indexOf(currentStep);
     const stepIndex = stepOrder.indexOf(step);
     
@@ -182,6 +198,12 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
         return newPlannedDate && newPlannedAmount > 0;
       case 'reason':
         return newPlannedDate && newPlannedAmount > 0 && reForecastReason.trim();
+      case 'releveling':
+        // Require justification if there's a baseline exceedance and not single scope
+        if (relevelingScope !== 'single' && getBaselineWarning() && !baselineExceedanceJustification.trim()) {
+          return false;
+        }
+        return true;
       case 'preview':
         return true;
       default:
@@ -190,7 +212,7 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
   };
 
   const handleNext = () => {
-    const stepOrder: WizardStep[] = ['overview', 'amount', 'date', 'reason', 'preview', 'complete'];
+    const stepOrder: WizardStep[] = ['overview', 'amount', 'date', 'reason', 'releveling', 'preview', 'complete'];
     const currentIndex = stepOrder.indexOf(currentStep);
     if (currentIndex < stepOrder.length - 1) {
       setCurrentStep(stepOrder[currentIndex + 1]);
@@ -198,7 +220,7 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
   };
 
   const handlePrevious = () => {
-    const stepOrder: WizardStep[] = ['overview', 'amount', 'date', 'reason', 'preview', 'complete'];
+    const stepOrder: WizardStep[] = ['overview', 'amount', 'date', 'reason', 'releveling', 'preview', 'complete'];
     const currentIndex = stepOrder.indexOf(currentStep);
     if (currentIndex > 0) {
       setCurrentStep(stepOrder[currentIndex - 1]);
@@ -531,6 +553,183 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
     </div>
   );
 
+  const renderRelevelingStep = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <ArrowPathIcon className="mx-auto h-12 w-12 text-purple-600 mb-4" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Re-leveling Options</h3>
+        <p className="text-gray-600">Choose how to redistribute costs across related ledger entries.</p>
+      </div>
+
+      <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+        <div className="space-y-6">
+          {/* Scope Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Re-leveling Scope
+            </label>
+            <div className="space-y-3">
+              <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="relevelingScope"
+                  value="single"
+                  checked={relevelingScope === 'single'}
+                  onChange={(e) => setRelevelingScope(e.target.value as any)}
+                  className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                />
+                <div className="ml-3">
+                  <div className="text-sm font-medium text-gray-900">Adjust this entry only</div>
+                  <div className="text-sm text-gray-500">Standard re-forecast behavior - only update this specific ledger entry</div>
+                </div>
+              </label>
+              
+              <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="relevelingScope"
+                  value="remaining"
+                  checked={relevelingScope === 'remaining'}
+                  onChange={(e) => setRelevelingScope(e.target.value as any)}
+                  className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                />
+                <div className="ml-3">
+                  <div className="text-sm font-medium text-gray-900">Re-level remaining months</div>
+                  <div className="text-sm text-gray-500">Redistribute the variance across future months only</div>
+                </div>
+              </label>
+              
+              <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="relevelingScope"
+                  value="entire"
+                  checked={relevelingScope === 'entire'}
+                  onChange={(e) => setRelevelingScope(e.target.value as any)}
+                  className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                />
+                <div className="ml-3">
+                  <div className="text-sm font-medium text-gray-900">Re-level entire allocation</div>
+                  <div className="text-sm text-gray-500">Redistribute across all months (past and future)</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Algorithm Selection - Only show if not single scope */}
+          {relevelingScope !== 'single' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Re-leveling Algorithm
+              </label>
+              <div className="space-y-3">
+                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="relevelingAlgorithm"
+                    value="linear"
+                    checked={relevelingAlgorithm === 'linear'}
+                    onChange={(e) => setRelevelingAlgorithm(e.target.value as any)}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                  />
+                  <div className="ml-3">
+                    <div className="text-sm font-medium text-gray-900">Linear</div>
+                    <div className="text-sm text-gray-500">Evenly distribute the variance across selected months</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="relevelingAlgorithm"
+                    value="front-loaded"
+                    checked={relevelingAlgorithm === 'front-loaded'}
+                    onChange={(e) => setRelevelingAlgorithm(e.target.value as any)}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                  />
+                  <div className="ml-3">
+                    <div className="text-sm font-medium text-gray-900">Front-Loaded</div>
+                    <div className="text-sm text-gray-500">Apply more variance to earlier months</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="relevelingAlgorithm"
+                    value="back-loaded"
+                    checked={relevelingAlgorithm === 'back-loaded'}
+                    onChange={(e) => setRelevelingAlgorithm(e.target.value as any)}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                  />
+                  <div className="ml-3">
+                    <div className="text-sm font-medium text-gray-900">Back-Loaded</div>
+                    <div className="text-sm text-gray-500">Apply more variance to later months</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="relevelingAlgorithm"
+                    value="custom"
+                    checked={relevelingAlgorithm === 'custom'}
+                    onChange={(e) => setRelevelingAlgorithm(e.target.value as any)}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                  />
+                  <div className="ml-3">
+                    <div className="text-sm font-medium text-gray-900">Custom</div>
+                    <div className="text-sm text-gray-500">Manual adjustment with visual feedback</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Preview Info */}
+          {relevelingScope !== 'single' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <InformationCircleIcon className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <div className="font-medium mb-1">Re-leveling Preview</div>
+                  <div>
+                    {relevelingScope === 'remaining' && (
+                      <span>This will redistribute the variance across future months using the {relevelingAlgorithm} algorithm.</span>
+                    )}
+                    {relevelingScope === 'entire' && (
+                      <span>This will redistribute the variance across all months using the {relevelingAlgorithm} algorithm.</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Baseline Exceedance Justification - Only show if there's a baseline warning */}
+          {relevelingScope !== 'single' && getBaselineWarning() && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Baseline Exceedance Justification *
+              </label>
+              <textarea
+                value={baselineExceedanceJustification}
+                onChange={(e) => setBaselineExceedanceJustification(e.target.value)}
+                rows={3}
+                className="block w-full py-3 px-3 border border-yellow-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-yellow-50"
+                placeholder="Explain why the planned amount exceeds the baseline amount..."
+                required
+              />
+              <p className="mt-1 text-xs text-yellow-600">
+                Required when planned amount exceeds baseline amount.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPreviewStep = () => (
     <div className="space-y-6">
       <div className="text-center">
@@ -573,6 +772,28 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
             <h5 className="font-medium text-gray-900 mb-2">Re-forecast Reason</h5>
             <p className="text-sm text-gray-700">{reForecastReason}</p>
           </div>
+
+          {/* Re-leveling Information */}
+          {relevelingScope !== 'single' && (
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <h5 className="font-medium text-gray-900 mb-2">Re-leveling Configuration</h5>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Scope:</span>
+                  <span className="font-medium">
+                    {relevelingScope === 'remaining' ? 'Remaining Months' : 'Entire Allocation'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Algorithm:</span>
+                  <span className="font-medium capitalize">{relevelingAlgorithm.replace('-', ' ')}</span>
+                </div>
+                <div className="text-gray-500 text-xs mt-2">
+                  This will redistribute the variance across {relevelingScope === 'remaining' ? 'future months' : 'all months'} using the {relevelingAlgorithm} algorithm.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Warnings */}
           {getBaselineWarning() && (
@@ -622,6 +843,8 @@ const LedgerReForecastModal: React.FC<LedgerReForecastModalProps> = ({
         return renderDateStep();
       case 'reason':
         return renderReasonStep();
+      case 'releveling':
+        return renderRelevelingStep();
       case 'preview':
         return renderPreviewStep();
       case 'complete':

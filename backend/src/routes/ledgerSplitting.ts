@@ -70,7 +70,15 @@ router.post('/:ledgerEntryId/split', async (req, res) => {
 router.post('/:ledgerEntryId/re-forecast', async (req, res) => {
   try {
     const { ledgerEntryId } = req.params;
-    const { newPlannedAmount, newPlannedDate, reForecastReason, userId } = req.body;
+    const { 
+      newPlannedAmount, 
+      newPlannedDate, 
+      reForecastReason, 
+      userId,
+      relevelingScope,
+      relevelingAlgorithm,
+      baselineExceedanceJustification
+    } = req.body;
 
     if (typeof newPlannedAmount !== 'number' || newPlannedAmount < 0) {
       return res.status(400).json({ error: 'Valid new planned amount is required' });
@@ -89,7 +97,10 @@ router.post('/:ledgerEntryId/re-forecast', async (req, res) => {
       newPlannedAmount,
       newPlannedDate,
       reForecastReason,
-      userId
+      userId,
+      relevelingScope,
+      relevelingAlgorithm,
+      baselineExceedanceJustification
     });
 
     res.json({

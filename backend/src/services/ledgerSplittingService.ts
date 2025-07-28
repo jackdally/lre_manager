@@ -32,6 +32,10 @@ export interface ReForecastRequest {
   newPlannedDate: string;
   reForecastReason: string;
   userId?: string;
+  // Re-leveling options
+  relevelingScope?: 'single' | 'remaining' | 'entire';
+  relevelingAlgorithm?: 'linear' | 'front-loaded' | 'back-loaded' | 'custom';
+  baselineExceedanceJustification?: string;
 }
 
 export class LedgerSplittingService {
@@ -211,7 +215,16 @@ export class LedgerSplittingService {
    * Re-forecast a ledger entry's planned amount and date
    */
   static async reForecastLedgerEntry(request: ReForecastRequest): Promise<LedgerEntry> {
-    const { ledgerEntryId, newPlannedAmount, newPlannedDate, reForecastReason, userId } = request;
+    const { 
+      ledgerEntryId, 
+      newPlannedAmount, 
+      newPlannedDate, 
+      reForecastReason, 
+      userId,
+      relevelingScope = 'single',
+      relevelingAlgorithm = 'linear',
+      baselineExceedanceJustification
+    } = request;
 
     // Get the ledger entry
     const entry = await this.ledgerRepo.findOne({
@@ -234,12 +247,25 @@ export class LedgerSplittingService {
       await this.validateBOEReForecastConstraints(entry, newPlannedAmount, newPlannedDate);
     }
 
-    // Update the entry
-    entry.planned_amount = newPlannedAmount;
-    entry.planned_date = newPlannedDate;
-    entry.notes = entry.notes ? `${entry.notes}\nRE-FORECAST: ${reForecastReason}` : `RE-FORECAST: ${reForecastReason}`;
+    // Handle re-leveling if scope is not single
+    if (relevelingScope !== 'single' && entry.createdFromBOE && entry.boeElementAllocationId) {
+      await this.handleReleveling(
+        entry,
+        newPlannedAmount,
+        newPlannedDate,
+        relevelingScope,
+        relevelingAlgorithm,
+        baselineExceedanceJustification,
+        userId
+      );
+    } else {
+      // Standard single entry update
+      entry.planned_amount = newPlannedAmount;
+      entry.planned_date = newPlannedDate;
+      entry.notes = entry.notes ? `${entry.notes}\nRE-FORECAST: ${reForecastReason}` : `RE-FORECAST: ${reForecastReason}`;
 
-    const updatedEntry = await this.ledgerRepo.save(entry);
+      await this.ledgerRepo.save(entry);
+    }
 
     // Create audit trail entry
     await LedgerAuditTrailService.auditLedgerEntryUpdate(
@@ -250,7 +276,161 @@ export class LedgerSplittingService {
       userId
     );
 
-    return updatedEntry;
+    // Return the updated entry
+    return await this.ledgerRepo.findOne({
+      where: { id: ledgerEntryId },
+      relations: ['program', 'wbsElement', 'costCategory', 'vendor']
+    }) as LedgerEntry;
+  }
+
+  /**
+   * Handle re-leveling across multiple ledger entries
+   */
+  private static async handleReleveling(
+    originalEntry: LedgerEntry,
+    newPlannedAmount: number,
+    newPlannedDate: string,
+    scope: 'remaining' | 'entire',
+    algorithm: 'linear' | 'front-loaded' | 'back-loaded' | 'custom',
+    justification?: string,
+    userId?: string
+  ): Promise<void> {
+    if (!originalEntry.boeElementAllocationId) {
+      throw new Error('Cannot re-level: entry is not associated with a BOE allocation');
+    }
+
+    // Get all ledger entries for this BOE allocation
+    const relatedEntries = await this.ledgerRepo.find({
+      where: { boeElementAllocationId: originalEntry.boeElementAllocationId },
+      order: { planned_date: 'ASC' }
+    });
+
+    if (relatedEntries.length === 0) {
+      throw new Error('No related ledger entries found for re-leveling');
+    }
+
+    // Calculate the variance (difference between new and original planned amount)
+    const variance = newPlannedAmount - (originalEntry.planned_amount || 0);
+
+    // Determine which entries to re-level based on scope
+    let entriesToRelevel: LedgerEntry[];
+    if (scope === 'remaining') {
+      // Only future entries (after the current entry's date)
+      const currentDate = new Date(originalEntry.planned_date || '');
+      entriesToRelevel = relatedEntries.filter(entry => 
+        new Date(entry.planned_date || '') > currentDate
+      );
+    } else {
+      // All entries except the current one
+      entriesToRelevel = relatedEntries.filter(entry => entry.id !== originalEntry.id);
+    }
+
+    if (entriesToRelevel.length === 0) {
+      throw new Error('No entries available for re-leveling with the selected scope');
+    }
+
+    // Calculate redistribution based on algorithm
+    const redistribution = this.calculateRedistribution(
+      entriesToRelevel,
+      variance,
+      algorithm
+    );
+
+    // Update the original entry
+    originalEntry.planned_amount = newPlannedAmount;
+    originalEntry.planned_date = newPlannedDate;
+    await this.ledgerRepo.save(originalEntry);
+
+    // Update related entries with redistributed amounts
+    for (const entry of entriesToRelevel) {
+      const redistributionAmount = redistribution.get(entry.id) || 0;
+      const newAmount = (entry.planned_amount || 0) + redistributionAmount;
+      
+      // Ensure amount doesn't go below 0
+      entry.planned_amount = Math.max(0, newAmount);
+      
+      // Add re-leveling note
+      const relevelingNote = `RE-LEVELED: ${redistributionAmount >= 0 ? '+' : ''}${redistributionAmount.toFixed(2)}`;
+      entry.notes = entry.notes ? `${entry.notes}\n${relevelingNote}` : relevelingNote;
+      
+      await this.ledgerRepo.save(entry);
+    }
+
+    // Create audit trail for all changes
+    for (const entry of [originalEntry, ...entriesToRelevel]) {
+      await LedgerAuditTrailService.auditLedgerEntryUpdate(
+        entry.id,
+        { planned_amount: entry.planned_amount, planned_date: entry.planned_date },
+        { planned_amount: entry.planned_amount, planned_date: entry.planned_date },
+        AuditSource.RE_FORECASTED,
+        userId
+      );
+    }
+  }
+
+  /**
+   * Calculate redistribution amounts based on algorithm
+   */
+  private static calculateRedistribution(
+    entries: LedgerEntry[],
+    totalVariance: number,
+    algorithm: 'linear' | 'front-loaded' | 'back-loaded' | 'custom'
+  ): Map<string, number> {
+    const redistribution = new Map<string, number>();
+    
+    if (entries.length === 0) return redistribution;
+
+    switch (algorithm) {
+      case 'linear':
+        // Evenly distribute across all entries
+        const linearAmount = totalVariance / entries.length;
+        for (const entry of entries) {
+          redistribution.set(entry.id, linearAmount);
+        }
+        break;
+
+      case 'front-loaded':
+        // Distribute more to earlier entries
+        const frontLoadedWeights = entries.map((_, index) => 
+          entries.length - index // Higher weight for earlier entries
+        );
+        const frontLoadedTotalWeight = frontLoadedWeights.reduce((sum, weight) => sum + weight, 0);
+        
+        for (let i = 0; i < entries.length; i++) {
+          const weight = frontLoadedWeights[i];
+          const amount = (totalVariance * weight) / frontLoadedTotalWeight;
+          redistribution.set(entries[i].id, amount);
+        }
+        break;
+
+      case 'back-loaded':
+        // Distribute more to later entries
+        const backLoadedWeights = entries.map((_, index) => 
+          index + 1 // Higher weight for later entries
+        );
+        const backLoadedTotalWeight = backLoadedWeights.reduce((sum, weight) => sum + weight, 0);
+        
+        for (let i = 0; i < entries.length; i++) {
+          const weight = backLoadedWeights[i];
+          const amount = (totalVariance * weight) / backLoadedTotalWeight;
+          redistribution.set(entries[i].id, amount);
+        }
+        break;
+
+      case 'custom':
+        // For now, use linear as default for custom
+        // TODO: Implement custom redistribution logic
+        const customAmount = totalVariance / entries.length;
+        for (const entry of entries) {
+          redistribution.set(entry.id, customAmount);
+        }
+        break;
+
+      default:
+        throw new Error(`Unsupported re-leveling algorithm: ${algorithm}`);
+    }
+
+    return redistribution;
   }
 
   /**

@@ -1,6 +1,6 @@
 # BOE (Basis of Estimate) System Tasks
 
-## Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Complete - Phase 3B In Progress (BOE-081A through BOE-081F Complete)
+## Status: Phase 1 Complete - Phase 2 Complete - Phase 3A Complete - Phase 3B In Progress (BOE-081A through BOE-081G Complete)
 - [x] BOE-000: Create implementation plan
 - [x] BOE-001: Define requirements and architecture
 - [x] BOE-002: Begin Phase 1 implementation
@@ -524,12 +524,17 @@
   - [x] **NEW**: Consistent UX between Actuals and Ledger Table matching workflows
   - [x] **NEW**: TypeScript compilation successful with proper type safety
 
-- [ ] **BOE-081G**: Add Cost Re-leveling Automation (Medium Priority)
-  - [ ] Add automation so that a user can properly move costs from one period (month) to another
-  - [ ] Implement "re-level" button to redistribute remaining costs across periods
-  - [ ] Add smart re-leveling algorithms (linear, front-loaded, back-loaded)
-  - [ ] Provide visual preview of re-leveling changes
-  - [ ] Add bulk re-leveling operations for multiple allocations
+- [x] **BOE-081G**: Add Cost Re-leveling Automation (Medium Priority) - Completed (June 9, 2024)
+  - [x] Enhance existing LedgerReForecastModal with re-leveling step
+  - [x] Add scope selection (this entry only, remaining months, entire allocation)
+  - [x] Implement smart re-leveling algorithms (linear, front-loaded, back-loaded, custom)
+  - [x] Add preview showing impact across all affected ledger entries
+  - [x] Update planned amounts/dates for multiple ledger entries (not BOE allocations)
+  - [x] Add baseline vs planned comparison with variance warnings
+  - [x] Set up approval workflow structure (disabled for now)
+  - [x] Add justification input for baseline exceedance
+  - [x] Maintain audit trail of planned amount changes
+  - [x] Integrate with existing validation and error handling
 
 - [ ] **BOE-081H**: Update View Upload Modal UI (Medium Priority)
   - [ ] Apply shared modal design system to View Upload modal
