@@ -177,13 +177,13 @@ router.post('/transaction/:transactionId/confirm-match', async (req, res) => {
 router.post('/transaction/:transactionId/add-to-ledger', async (req, res) => {
   try {
     const { transactionId } = req.params;
-    const { wbsCategory, wbsSubcategory } = req.body;
+    const { wbsElementId } = req.body;
 
-    if (!wbsCategory || !wbsSubcategory) {
-      return res.status(400).json({ error: 'WBS category and subcategory are required' });
+    if (!wbsElementId) {
+      return res.status(400).json({ error: 'WBS element ID is required' });
     }
 
-    await importService.addUnmatchedToLedger(transactionId, wbsCategory, wbsSubcategory);
+    await importService.addUnmatchedToLedger(transactionId, wbsElementId);
     res.json({ message: 'Transaction added to ledger successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to add transaction to ledger' });
@@ -738,6 +738,23 @@ router.post('/:programId/force-smart-matching', async (req, res) => {
   } catch (err) {
     console.error('Error running smart matching:', err);
     res.status(500).json({ error: 'Failed to run smart matching' });
+  }
+});
+
+// Get BOE context for a ledger entry
+router.get('/ledger-entry/:ledgerEntryId/boe-context', async (req, res) => {
+  try {
+    const { ledgerEntryId } = req.params;
+    const boeContext = await importService.getBOEContextForLedgerEntry(ledgerEntryId);
+    
+    if (!boeContext) {
+      return res.status(404).json({ error: 'BOE context not found for this ledger entry' });
+    }
+    
+    res.json(boeContext);
+  } catch (error: any) {
+    console.error('Error getting BOE context:', error);
+    res.status(500).json({ error: error.message || 'Failed to get BOE context' });
   }
 });
 

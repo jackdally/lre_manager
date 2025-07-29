@@ -1,42 +1,12 @@
 import React, { useCallback } from 'react';
-import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { Tooltip } from 'react-tooltip';
 import type { LedgerEntry } from '../../../../types/ledger';
 import { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
 import { useLedgerUI } from '../../../../store/ledgerStore';
+import { Vendor } from '../../../../store/settingsStore';
+import LedgerMatchModal from './LedgerMatchModal';
 
-// Type for potential match objects
-export interface PotentialMatch {
-  id: string;
-  vendorName: string;
-  description: string;
-  amount: number;
-  transactionDate: string;
-  status: string;
-  actualsUploadSession?: {
-    id: string;
-    originalFilename: string;
-    description: string;
-    createdAt: string;
-  } | null;
-  matchConfidence?: number;
-  confidence?: number;
-  // Add the ledgerEntry property that the API now returns
-  ledgerEntry?: {
-    id: string;
-    vendor_name: string;
-    expense_description: string;
-    planned_amount: number;
-    planned_date: string;
-    wbs_category: string;
-    wbs_subcategory: string;
-    actual_amount?: number;
-    actual_date?: string;
-    notes?: string;
-    invoice_link_text?: string;
-    invoice_link_url?: string;
-  };
-}
 
 interface LedgerTableTableProps {
   // Data
@@ -67,9 +37,25 @@ interface LedgerTableTableProps {
   searchLoading?: boolean;
   
   // Options
-  wbsCategoryOptions: string[];
-  wbsSubcategoryOptions: string[];
-  vendorOptions: string[];
+  vendorOptions: Vendor[];
+  dropdownOptions: {
+    vendors: Vendor[];
+    wbsElements: Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      level: number;
+      parentId?: string;
+    }>;
+    costCategories: Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      isActive: boolean;
+    }>;
+  };
   
   // Handlers
   handleSelectAll: () => void;
@@ -103,13 +89,12 @@ interface LedgerTableTableProps {
   // Add filter props
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
-  wbsCategoryFilter?: string;
-  wbsSubcategoryFilter?: string;
+  wbsElementFilter?: string;
   potentialTab: 'matched' | 'rejected';
-  potentialMatched: PotentialMatch[];
-  setPotentialMatched: (matches: PotentialMatch[] | ((prev: PotentialMatch[]) => PotentialMatch[])) => void;
-  potentialRejected: PotentialMatch[];
-  setPotentialRejected: (matches: PotentialMatch[] | ((prev: PotentialMatch[]) => PotentialMatch[])) => void;
+  potentialMatched: PotentialMatchData[];
+  setPotentialMatched: (matches: PotentialMatchData[] | ((prev: PotentialMatchData[]) => PotentialMatchData[])) => void;
+  potentialRejected: RejectedMatchData[];
+  setPotentialRejected: (matches: RejectedMatchData[] | ((prev: RejectedMatchData[]) => RejectedMatchData[])) => void;
   setToast: (toast: any) => void;
   setEntriesWithRejectedMatches: (set: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setPotentialMatchIds: (ids: string[] | ((prev: string[]) => string[])) => void;
@@ -117,6 +102,9 @@ interface LedgerTableTableProps {
   confirmMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   rejectMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   undoReject: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
+  
+  // Audit Trail
+  onAuditTrailClick?: (entryId: string, entry: LedgerEntry) => void;
 }
 
 const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'> & { /* remove potentialMatchIds prop */ }> = (props) => {
@@ -154,9 +142,8 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     loadingPotential,
     loading = false,
     searchLoading = false,
-    wbsCategoryOptions,
-    wbsSubcategoryOptions,
     vendorOptions,
+    dropdownOptions,
     handleSelectAll,
     handleSelectRow,
     handleCellClick,
@@ -184,8 +171,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     programId,
     filterType,
     vendorFilter,
-    wbsCategoryFilter,
-    wbsSubcategoryFilter,
+    wbsElementFilter,
     setShowPotentialModal,
     potentialTab,
     potentialMatched,
@@ -291,10 +277,10 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
           <thead>
             <tr className="bg-gray-50">
               <th className="px-2 py-2"><input type="checkbox" checked={selectedRows.length === sortedEntries.length && sortedEntries.length > 0} onChange={handleSelectAll} /></th>
-              <th className="px-2 py-2">WBS Category</th>
-              <th className="px-2 py-2">WBS Subcategory</th>
+              <th className="px-2 py-2">WBS Element</th>
               <th className="px-2 py-2">Vendor</th>
               <th className="px-2 py-2 w-64 max-w-xl">Description</th>
+              <th className="px-2 py-2">Cost Category</th>
               <th className="px-2 py-2 w-28 max-w-[7rem]">Invoice Link</th>
               <th className="px-2 py-2 text-right">Baseline Date</th>
               <th className="px-2 py-2 text-right">Baseline Amount</th>
@@ -309,7 +295,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center">
+                <td colSpan={15} className="px-4 py-8 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                     <span className="text-gray-600">Loading entries...</span>
@@ -319,7 +305,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
             )}
             {searchLoading && !loading && (
               <tr>
-                <td colSpan={14} className="px-4 py-4 text-center">
+                <td colSpan={15} className="px-4 py-4 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                     <span className="text-gray-600 text-sm">Searching...</span>
@@ -329,7 +315,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
             )}
             {!loading && !searchLoading && sortedEntries.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={15} className="px-4 py-8 text-center text-gray-500">
                   No entries found.
                 </td>
               </tr>
@@ -349,50 +335,33 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   }
                 >
                   <td className="px-2 py-1"><input type="checkbox" checked={selectedRows.includes(entry.id)} onChange={() => handleSelectRow(entry.id)} /></td>
-                  {/* WBS Category (dropdown) */}
+                  {/* WBS Element (dropdown) */}
                   <td 
                     className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'wbs_category', entry.wbs_category)}
+                    onClick={() => handleCellClick(entry.id, 'wbsElementId', entry.wbsElementId)}
                     onKeyDown={(e) => handleKeyDown(e, idx, 1)}
                     tabIndex={0}
                   >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'wbs_category' ? (
+                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'wbsElementId' ? (
                       <select
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbs_category', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbs_category')}
+                        onChange={(e) => {
+                          // For dropdowns, save immediately when selection changes
+                          handleCellInputBlur(entry.id, 'wbsElementId', e.target.value);
+                        }}
+                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbsElementId')}
                         autoFocus
                       >
-                        <option value="">-- Select --</option>
-                        {wbsCategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        <option value="">-- Select WBS Element --</option>
+                        {(dropdownOptions.wbsElements || []).map(element => (
+                          <option key={element.id} value={element.id}>
+                            {element.code} - {element.name}
+                          </option>
+                        ))}
                       </select>
                     ) : (
-                      entry.wbs_category
-                    )}
-                  </td>
-                  {/* WBS Subcategory (dropdown) */}
-                  <td 
-                    className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'wbs_subcategory', entry.wbs_subcategory)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 2)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'wbs_subcategory' ? (
-                      <select
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'wbs_subcategory', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbs_subcategory')}
-                        autoFocus
-                      >
-                        <option value="">-- Select --</option>
-                        {wbsSubcategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    ) : (
-                      entry.wbs_subcategory
+                      entry.wbsElement ? `${entry.wbsElement.code} - ${entry.wbsElement.name}` : '--'
                     )}
                   </td>
                   {/* Vendor (dropdown) */}
@@ -406,13 +375,15 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                       <select
                         className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
                         value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'vendor_name', e.target.value)}
+                        onChange={(e) => {
+                          // For dropdowns, save immediately when selection changes
+                          handleCellInputBlur(entry.id, 'vendor_name', e.target.value);
+                        }}
                         onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'vendor_name')}
                         autoFocus
                       >
                         <option value="">-- Select --</option>
-                        {vendorOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        {(vendorOptions || []).map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
                       </select>
                     ) : (
                       entry.vendor_name
@@ -438,8 +409,37 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                       entry.expense_description
                     )}
                   </td>
+                  {/* Cost Category (dropdown) */}
+                  <td 
+                    className="px-2 py-1" 
+                    onClick={() => handleCellClick(entry.id, 'costCategoryId', entry.costCategoryId)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 5)}
+                    tabIndex={0}
+                  >
+                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'costCategoryId' ? (
+                      <select
+                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
+                        value={cellEditValue}
+                        onChange={(e) => {
+                          // For dropdowns, save immediately when selection changes
+                          handleCellInputBlur(entry.id, 'costCategoryId', e.target.value);
+                        }}
+                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'costCategoryId')}
+                        autoFocus
+                      >
+                        <option value="">-- Select Cost Category --</option>
+                        {(dropdownOptions.costCategories || []).map(category => (
+                          <option key={category.id} value={category.id}>
+                            {category.code} - {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      entry.costCategory ? `${entry.costCategory.code} - ${entry.costCategory.name}` : '--'
+                    )}
+                  </td>
                   {/* Invoice Link (popover edit) */}
-                  <td className="px-2 py-1 w-28 max-w-[7rem] relative" onClick={e => { e.stopPropagation(); handlePopoverOpen(entry.id, entry.invoice_link_text ?? '', entry.invoice_link_url ?? '', e); }}>
+                  <td className="px-2 py-1 w-28 max-w-[7rem] relative" onClick={e => { e.stopPropagation(); handlePopoverOpen(entry.id, entry.invoice_link_text ?? '', entry.invoice_link_url ?? '', e); }} onKeyDown={(e) => handleKeyDown(e, idx, 6)} tabIndex={0}>
                     {entry.invoice_link_text && entry.invoice_link_url ? (
                       <a href={entry.invoice_link_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{entry.invoice_link_text}</a>
                     ) : (
@@ -476,7 +476,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'baseline_date', entry.baseline_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 6)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 8)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'baseline_date' ? (
@@ -497,7 +497,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'baseline_amount', entry.baseline_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 7)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 9)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'baseline_amount' ? (
@@ -518,7 +518,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'planned_date', entry.planned_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 8)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 11)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'planned_date' ? (
@@ -539,7 +539,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'planned_amount', entry.planned_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 9)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 12)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'planned_amount' ? (
@@ -560,7 +560,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'actual_date', entry.actual_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 10)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 13)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'actual_date' ? (
@@ -581,7 +581,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1 text-right" 
                     onClick={() => handleCellClick(entry.id, 'actual_amount', entry.actual_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 11)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 14)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'actual_amount' ? (
@@ -602,7 +602,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   <td 
                     className="px-2 py-1" 
                     onClick={() => handleCellClick(entry.id, 'notes', entry.notes)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 12)}
+                    onKeyDown={(e) => handleKeyDown(e, idx, 15)}
                     tabIndex={0}
                   >
                     {editingCell && editingCell.rowId === entry.id && editingCell.field === 'notes' ? (
@@ -683,6 +683,22 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                       })()}
                       <Tooltip id={`upload-tooltip-${entry.id}`}>View details of the upload that set these actuals</Tooltip>
                       <Tooltip id={`potential-tooltip-${entry.id}`}>Review and confirm a potential match from an upload</Tooltip>
+                      
+                      {/* Audit Trail Button */}
+                      <button
+                        className="ml-2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="View Audit Trail"
+                        data-tooltip-id={`audit-tooltip-${entry.id}`}
+                        onClick={() => {
+                          // This will be handled by the parent component
+                          if (props.onAuditTrailClick) {
+                            props.onAuditTrailClick(entry.id, entry);
+                          }
+                        }}
+                      >
+                        <ClockIcon className="h-4 w-4" />
+                      </button>
+                      <Tooltip id={`audit-tooltip-${entry.id}`}>View audit trail for this ledger entry</Tooltip>
                     </div>
                   </td>
                   {/* At the end of the row, if this is the new row, show Save/Cancel icons */}
@@ -707,234 +723,28 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
         </div>
       )}
       {showPotentialModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-3xl w-full min-w-[320px] relative border-2 border-blue-200 overflow-x-hidden px-8">
-            <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold" onClick={() => setShowPotentialModal(false)} aria-label="Close">&times;</button>
-            <h2 className="text-2xl font-extrabold mb-4 text-blue-700 flex items-center gap-2">
-              <InformationCircleIcon className="h-6 w-6 text-yellow-500" />
-              {currentMatches.length > 1 ? 'Multiple Potential Matches' : 'Potential Match'}
-            </h2>
-            <div className="flex gap-4 mb-4 border-b border-blue-200">
-              <button
-                className={`px-4 py-2 font-bold border-b-2 transition ${potentialTab === 'matched' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-blue-600'}`}
-                onClick={() => { setPotentialTab('matched'); setPotentialIndex(0); }}
-              >
-                Potential Matches
-              </button>
-              <button
-                className={`px-4 py-2 font-bold border-b-2 transition ${potentialTab === 'rejected' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-blue-600'}`}
-                onClick={() => { setPotentialTab('rejected'); setPotentialIndex(0); }}
-              >
-                Rejected
-              </button>
-            </div>
-            {currentMatches.length === 0 && (
-              <div className="flex-1 flex items-center justify-center min-h-[120px] text-gray-500 text-lg font-semibold py-8">
-                {loadingPotential ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span>Loading matches...</span>
-                  </div>
-                ) : (
-                  potentialTab === 'matched'
-                    ? 'No potential matches for this ledger entry.'
-                    : 'No rejected matches for this ledger entry.'
-                )}
-              </div>
-            )}
-            {currentMatches.length > 0 && currentMatches[potentialIndex] && (
-              <div className="flex flex-col sm:flex-row gap-10 mb-6">
-                {/* Ledger Entry Section */}
-                <div className="flex-1 bg-gray-50 rounded-lg p-6 border border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-700 mb-2">Ledger Entry</h3>
-                  <div className="flex flex-col gap-1 text-base">
-                    <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.vendor_name || '--'}</span></div>
-                    <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.expense_description || '--'}</span></div>
-                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.planned_amount ?? 0)}</span></div>
-                    <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{
-                      (() => {
-                        const plannedDate = sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.planned_date;
-                        if (!plannedDate) return '--';
-                        const localDate = new Date(plannedDate + 'T00:00:00');
-                        return localDate.toLocaleDateString();
-                      })()
-                    }</span></div>
-                    <div><b className="text-gray-600">WBS Category:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.wbs_category || '--'}</span></div>
-                    <div><b className="text-gray-600">WBS Subcategory:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.wbs_subcategory || '--'}</span></div>
-                    {sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.notes && (
-                      <div><b className="text-gray-600">Notes:</b> <span className="text-gray-900">{sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId)?.notes}</span></div>
-                    )}
-                  </div>
-                </div>
-                {/* Divider and Potential/Rejected Match Section */}
-                <div className={`flex-1 rounded-lg p-6 border ${potentialTab === 'rejected' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
-                  <h3 className={`text-lg font-bold mb-2 ${potentialTab === 'rejected' ? 'text-red-700' : 'text-blue-700'}`}>{potentialTab === 'matched' ? 'Potential Upload Match' : 'Rejected Match'}</h3>
-                  <div className="mb-3 flex flex-col gap-2 text-base">
-                    <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{currentMatches[potentialIndex].vendorName}</span></div>
-                    <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{currentMatches[potentialIndex].description}</span></div>
-                    <div><b className="text-gray-600">Amount:</b> <span className="text-blue-700 font-semibold">{formatCurrency(currentMatches[potentialIndex].amount)}</span></div>
-                    <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{currentMatches[potentialIndex].transactionDate ? new Date(currentMatches[potentialIndex].transactionDate).toLocaleDateString() : ''}</span></div>
-                    <div><b className="text-gray-600">Status:</b> <span className="text-gray-900 capitalize">{currentMatches[potentialIndex].status}</span></div>
-                    <div><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{currentMatches[potentialIndex].actualsUploadSession?.originalFilename}</span></div>
-                    <div><b className="text-gray-600">Match Confidence:</b> <span className={`font-bold ${Number(currentMatches[potentialIndex].matchConfidence ?? currentMatches[potentialIndex].confidence ?? 0) >= 0.8 ? 'text-green-600' : Number(currentMatches[potentialIndex].matchConfidence ?? currentMatches[potentialIndex].confidence ?? 0) >= 0.6 ? 'text-yellow-600' : 'text-red-600'}`}>{((Number(currentMatches[potentialIndex].matchConfidence ?? currentMatches[potentialIndex].confidence ?? 0)) * 100).toFixed(1)}%</span></div>
-                  </div>
-                  {potentialTab === 'rejected' && (
-                    <button
-                      className="mt-2 px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
-                      onClick={async () => {
-                        const undoId = currentMatches[potentialIndex].id;
-                        
-                        if (!potentialLedgerEntryId) return;
-                        
-                        const result = await undoReject(undoId, potentialLedgerEntryId as string);
-                        
-                        if (result?.success) {
-                          // FIX #2: Atomic state updates - update all related state in a coordinated way
-                          
-                          // First, refresh both potential and rejected match IDs from backend
-                          try {
-                            const [potentialRes, rejectedRes] = await Promise.all([
-                              fetch(`/api/programs/${programId}/ledger/potential-match-ids`),
-                              fetch(`/api/programs/${programId}/ledger/rejected-match-ids`)
-                            ]);
-                            
-                            if (potentialRes.ok && rejectedRes.ok) {
-                              const potentialIds = await potentialRes.json();
-                              const rejectedIds = await rejectedRes.json();
-                              
-                              // Update both states atomically with fresh data from backend
-                              setPotentialMatchIds(potentialIds);
-                              setEntriesWithRejectedMatches(new Set(rejectedIds));
-                            }
-                          } catch (error) {
-                            console.error('Failed to refresh match IDs after undo:', error);
-                            // Fallback to local state updates if API calls fail
-                            setEntriesWithRejectedMatches(prev => {
-                              const newSet = new Set(prev);
-                              const remainingRejectedForEntry = potentialRejected.filter(m => 
-                                m.ledgerEntry?.id === potentialLedgerEntryId && m.id !== undoId
-                              );
-                              if (remainingRejectedForEntry.length === 0) {
-                                newSet.delete(potentialLedgerEntryId);
-                              }
-                              return newSet;
-                            });
-                            
-                            setPotentialMatchIds(prev => {
-                              if (!prev.includes(potentialLedgerEntryId)) {
-                                return [...prev, potentialLedgerEntryId];
-                              }
-                              return prev;
-                            });
-                          }
-                          
-                          setToast({ message: 'Rejection undone successfully', type: 'success' });
-                          
-                          // Switch to matched tab to show the restored match
-                          setPotentialTab('matched');
-                          setPotentialIndex(0);
-                        } else {
-                          setToast({ message: result?.error || 'Failed to undo rejection', type: 'error' });
-                        }
-                      }}
-                    >
-                      Undo
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
-              {potentialTab === 'matched' && (
-                <div className="flex gap-3">
-                  <button
-                    className="btn btn-primary px-6 py-2 text-base font-semibold rounded shadow hover:bg-blue-700 transition"
-                    onClick={async () => {
-                      if (!potentialLedgerEntryId) return;
-                      
-                      const result = await confirmMatch(currentMatches[potentialIndex].id, potentialLedgerEntryId as string);
-                      
-                      if (result.success) {
-                        // Remove this ledger entry from potential match IDs
-                        if (potentialLedgerEntryId) {
-                          setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
-                        }
-                        
-                        setToast({ message: 'Match confirmed successfully.', type: 'success' });
-                        
-                        // Close modal after successful confirmation
-                        setShowPotentialModal(false);
-                      } else {
-                        setToast({ message: result.error || 'Failed to confirm match.', type: 'error' });
-                      }
-                    }}
-                  >
-                    <CheckCircleIcon className="h-5 w-5 inline mr-1" /> Confirm
-                  </button>
-                  <button
-                    className="btn btn-ghost px-6 py-2 text-base font-semibold rounded shadow hover:bg-gray-200 transition"
-                    onClick={async () => {
-                      if (!potentialLedgerEntryId) return;
-                      
-                      const result = await rejectMatch(currentMatches[potentialIndex].id, potentialLedgerEntryId as string);
-                      
-                      if (result.success) {
-                        const rejectedMatch = currentMatches[potentialIndex];
-                        
-                        // Mark this ledger entry as having rejected matches
-                        if (potentialLedgerEntryId) {
-                          setEntriesWithRejectedMatches(prev => new Set([...Array.from(prev), potentialLedgerEntryId]));
-                        }
-                        
-                        // If no more potential matches for this ledger entry, remove it from potential match IDs
-                        const newMatched = potentialMatched.filter(match => match.id !== rejectedMatch.id);
-                        if (newMatched.length === 0 && potentialLedgerEntryId) {
-                          setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(potentialLedgerEntryId)));
-                        }
-                        
-                        setToast({ message: 'Match rejected.', type: 'success', undoId: rejectedMatch.id });
-                        
-                        // If no more potential matches, close modal
-                        if (newMatched.length === 0) {
-                          setShowPotentialModal(false);
-                        }
-                      } else {
-                        setToast({ message: result.error || 'Failed to reject match.', type: 'error' });
-                      }
-                    }}
-                  >
-                    <XCircleIcon className="h-5 w-5 inline mr-1" /> Reject
-                  </button>
-                </div>
-              )}
-              {currentMatches.length > 1 && (
-                <div className="flex items-center justify-center mt-4 mx-4">
-                  <div className="flex flex-nowrap items-center gap-3 bg-blue-50 px-4 py-2 rounded shadow border border-blue-200">
-                    <button
-                      className="btn btn-xs btn-outline border-blue-400 text-blue-700 font-bold px-4 py-1 rounded flex items-center gap-1"
-                      disabled={potentialIndex === 0}
-                      onClick={() => setPotentialIndex((i: number) => Math.max(0, i - 1))}
-                      aria-label="Previous potential match"
-                    >
-                      <span aria-hidden="true">&#8592;</span>
-                      <span>Prev</span>
-                    </button>
-                    <span className="text-base font-semibold text-blue-700 whitespace-nowrap">{potentialIndex + 1} / {currentMatches.length}</span>
-                    <button
-                      className="btn btn-xs btn-outline border-blue-400 text-blue-700 font-bold px-4 py-1 rounded flex items-center gap-1"
-                      disabled={potentialIndex === currentMatches.length - 1}
-                      onClick={() => setPotentialIndex((i: number) => Math.min(currentMatches.length - 1, i + 1))}
-                      aria-label="Next potential match"
-                    >
-                      <span>Next</span>
-                      <span aria-hidden="true">&#8594;</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <LedgerMatchModal
+          isOpen={showPotentialModal}
+          onClose={() => setShowPotentialModal(false)}
+          ledgerEntry={sortedEntries.find((e: LedgerEntry) => e.id === potentialLedgerEntryId) || null}
+          currentTab={potentialTab}
+          currentIndex={potentialIndex}
+          potentialMatches={potentialMatched}
+          rejectedMatches={potentialRejected}
+          onTabChange={setPotentialTab}
+          onIndexChange={setPotentialIndex}
+          onConfirm={confirmMatch}
+          onReject={rejectMatch}
+          onUndoReject={undoReject}
+          setPotentialMatchIds={setPotentialMatchIds}
+          setEntriesWithRejectedMatches={setEntriesWithRejectedMatches}
+          setPotentialMatched={setPotentialMatched}
+          setPotentialRejected={setPotentialRejected}
+          setToast={setToast}
+          formatCurrency={formatCurrency}
+          ledgerEntryId={potentialLedgerEntryId || ''}
+          programId={programId}
+        />
       )}
     </>
   );
@@ -966,9 +776,8 @@ const arePropsEqual = (prevProps: Omit<LedgerTableTableProps, 'potentialMatchIds
     prevProps.loadingPotential === nextProps.loadingPotential &&
     prevProps.loading === nextProps.loading &&
     prevProps.searchLoading === nextProps.searchLoading &&
-    prevProps.wbsCategoryOptions === nextProps.wbsCategoryOptions &&
-    prevProps.wbsSubcategoryOptions === nextProps.wbsSubcategoryOptions &&
     prevProps.vendorOptions === nextProps.vendorOptions &&
+    prevProps.dropdownOptions === nextProps.dropdownOptions &&
     prevProps.handleSelectAll === nextProps.handleSelectAll &&
     prevProps.handleSelectRow === nextProps.handleSelectRow &&
     prevProps.handleCellClick === nextProps.handleCellClick &&
@@ -996,8 +805,7 @@ const arePropsEqual = (prevProps: Omit<LedgerTableTableProps, 'potentialMatchIds
     prevProps.programId === nextProps.programId &&
     prevProps.filterType === nextProps.filterType &&
     prevProps.vendorFilter === nextProps.vendorFilter &&
-    prevProps.wbsCategoryFilter === nextProps.wbsCategoryFilter &&
-    prevProps.wbsSubcategoryFilter === nextProps.wbsSubcategoryFilter &&
+    prevProps.wbsElementFilter === nextProps.wbsElementFilter &&
     prevProps.setShowPotentialModal === nextProps.setShowPotentialModal &&
     prevProps.potentialTab === nextProps.potentialTab &&
     prevProps.potentialMatched === nextProps.potentialMatched &&
@@ -1013,4 +821,4 @@ const arePropsEqual = (prevProps: Omit<LedgerTableTableProps, 'potentialMatchIds
   );
 };
 
-export default React.memo(LedgerTableTable, arePropsEqual); 
+export default LedgerTableTable; 

@@ -13,8 +13,7 @@ export interface ProgramCreateRequest {
 export interface LedgerEntryCreateRequest {
   vendor_name: string;
   expense_description: string;
-  wbs_category: string;
-  wbs_subcategory: string;
+  wbsElementCode: string;
   baseline_date?: string;
   baseline_amount?: number;
   planned_date?: string;

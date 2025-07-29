@@ -1,5 +1,12 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
-import { InformationCircleIcon, DocumentMagnifyingGlassIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  CheckCircleIcon,
+  XCircleIcon
+} from '@heroicons/react/24/outline';
 import { Tooltip } from 'react-tooltip';
 import { useSearchParams } from 'react-router-dom';
 import LedgerBulkEditModal from './BulkEditModal';
@@ -7,28 +14,31 @@ import LedgerBulkDeleteModal from './BulkDeleteModal';
 import LedgerErrorModal from './ErrorModal';
 import LedgerTableHeader from './Header';
 import LedgerTableTable from './Table';
+import LedgerMatchModal from './LedgerMatchModal';
+import LedgerAuditTrailSidebar from '../LedgerAuditTrailSidebar/LedgerAuditTrailSidebar';
+import ViewUploadModal from './ViewUploadModal';
+import { LedgerEntry } from '../../../../types/ledger';
 
 // Import custom hooks
 import { usePotentialMatchModal } from '../../../../hooks/usePotentialMatchModal';
 import { useDebouncedApi } from '../../../../hooks/useDebouncedApi';
 import { usePerformanceMonitor } from '../../../../hooks/usePerformanceMonitor';
 
-// Import Zustand store
-import { 
-  useLedgerStore, 
-  useLedgerEntries, 
-  useLedgerTotal, 
-  useLedgerFilters, 
-  useLedgerUI, 
-  useLedgerDropdownOptions, 
-  useLedgerProgramId, 
+// Import Zustand store hooks
+import {
+  useLedgerEntries,
+  useLedgerTotal,
+  useLedgerFilters,
+  useLedgerUI,
+  useLedgerDropdownOptions,
+  useLedgerProgramId,
   useLedgerShowAll,
   useLedgerInitialize,
   useLedgerFetchEntries,
   useLedgerSetFilterType,
   useLedgerSetVendorFilter,
-  useLedgerSetWbsCategoryFilter,
-  useLedgerSetWbsSubcategoryFilter,
+  useLedgerSetWbsElementFilter,
+  useLedgerSetCostCategoryFilter,
   useLedgerSetSearch,
   useLedgerSetPage,
   useLedgerSetShowAll,
@@ -77,15 +87,15 @@ interface LedgerTableProps {
   programId: string;
   showAll?: boolean;
   onChange?: () => void;
-  onOptionsUpdate?: (options: { vendors: string[], categories: string[], subcategories: string[] }) => void;
+  onOptionsUpdate?: (options: { vendors: string[], wbsElements: Array<{ id: string; code: string; name: string; description: string; level: number; parentId?: string; }> }) => void;
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
-  wbsCategoryFilter?: string;
-  wbsSubcategoryFilter?: string;
+  wbsElementFilter?: string;
+  costCategoryFilter?: string;
   setFilterType: (type: 'all' | 'currentMonthPlanned' | 'emptyActuals') => void;
   setVendorFilter: (vendor: string | undefined) => void;
-  setWbsCategoryFilter: (cat: string | undefined) => void;
-  setWbsSubcategoryFilter: (subcat: string | undefined) => void;
+  setWbsElementFilter: (elementId: string | undefined) => void;
+  setCostCategoryFilter: (categoryId: string | undefined) => void;
 }
 
 const PAGE_SIZE = 10;
@@ -96,19 +106,19 @@ const formatCurrency = (val: number | string | undefined | null) => {
   return Number(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 };
 
-const LedgerTable: React.FC<LedgerTableProps> = ({ 
-  programId, 
-  showAll, 
-  onChange, 
-  onOptionsUpdate, 
-  filterType, 
-  vendorFilter, 
-  wbsCategoryFilter, 
-  wbsSubcategoryFilter, 
-  setFilterType, 
-  setVendorFilter, 
-  setWbsCategoryFilter, 
-  setWbsSubcategoryFilter 
+const LedgerTable: React.FC<LedgerTableProps> = ({
+  programId,
+  showAll,
+  onChange,
+  onOptionsUpdate,
+  filterType,
+  vendorFilter,
+  wbsElementFilter,
+  costCategoryFilter,
+  setFilterType,
+  setVendorFilter,
+  setWbsElementFilter,
+  setCostCategoryFilter
 }) => {
   // Zustand store state
   const entries = useLedgerEntries();
@@ -119,13 +129,15 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const storeProgramId = useLedgerProgramId();
   const storeShowAll = useLedgerShowAll();
 
+
+
   // Zustand store actions - use individual hooks to avoid stale closures
   const initialize = useLedgerInitialize();
   const fetchEntries = useLedgerFetchEntries();
   const setFilterTypeAction = useLedgerSetFilterType();
   const setVendorFilterAction = useLedgerSetVendorFilter();
-  const setWbsCategoryFilterAction = useLedgerSetWbsCategoryFilter();
-  const setWbsSubcategoryFilterAction = useLedgerSetWbsSubcategoryFilter();
+  const setWbsElementFilterAction = useLedgerSetWbsElementFilter();
+  const setCostCategoryFilterAction = useLedgerSetCostCategoryFilter();
   const setSearch = useLedgerSetSearch();
   const setPage = useLedgerSetPage();
   const setShowAllAction = useLedgerSetShowAll();
@@ -169,13 +181,17 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const resetUI = useLedgerResetUI();
   const setHighlightId = useLedgerSetHighlightId();
 
+  // Audit Trail Sidebar State
+  const [auditTrailSidebarOpen, setAuditTrailSidebarOpen] = useState(false);
+  const [selectedAuditTrailEntry, setSelectedAuditTrailEntry] = useState<any>(null);
+
   // Get URL search parameters for highlighting
   const [searchParams] = useSearchParams();
 
   // Custom hooks
   const potentialMatchModal = usePotentialMatchModal(programId);
   const debouncedApiResult = useDebouncedApi({ delay: 300 });
-  const { debouncedCall } = debouncedApiResult || { debouncedCall: () => {} };
+  const { debouncedCall } = debouncedApiResult || { debouncedCall: () => { } };
   const performanceMonitor = usePerformanceMonitor();
 
   // Wrapper functions to handle type conversion
@@ -218,20 +234,23 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
     if (filters.vendorFilter !== vendorFilter) {
       setVendorFilterAction(vendorFilter);
     }
-    if (filters.wbsCategoryFilter !== wbsCategoryFilter) {
-      setWbsCategoryFilterAction(wbsCategoryFilter);
+    if (filters.wbsElementFilter !== wbsElementFilter) {
+      setWbsElementFilterAction(wbsElementFilter);
     }
-    if (filters.wbsSubcategoryFilter !== wbsSubcategoryFilter) {
-      setWbsSubcategoryFilterAction(wbsSubcategoryFilter);
+    if (filters.costCategoryFilter !== costCategoryFilter) {
+      setCostCategoryFilterAction(costCategoryFilter);
     }
-  }, [filterType, vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter]); // Remove store filters from dependencies to prevent loops
+  }, [filterType, vendorFilter, wbsElementFilter, costCategoryFilter]); // Remove store filters from dependencies to prevent loops
 
   // Sync store state with parent component - only when dropdown options actually change
   useEffect(() => {
     if (onOptionsUpdate && dropdownOptions.vendors.length > 0) {
-      onOptionsUpdate(dropdownOptions);
+      onOptionsUpdate({
+        vendors: dropdownOptions.vendors.map(vendor => vendor.name),
+        wbsElements: dropdownOptions.wbsElements
+      });
     }
-  }, [dropdownOptions.vendors, dropdownOptions.categories, dropdownOptions.subcategories, onOptionsUpdate]);
+  }, [dropdownOptions.vendors, dropdownOptions.wbsElements, onOptionsUpdate]);
 
   // Handle search with debouncing
   const handleSearchChange = useCallback((newSearch: string) => {
@@ -257,6 +276,9 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   // Handle cell input blur or Enter
   const handleCellInputBlur = useCallback(async (rowId: string, field: string, currentValue?: string) => {
     const valueToSave = currentValue !== undefined ? currentValue : ui.cellEditValue;
+
+
+
     try {
       await saveCellEdit(rowId, field, valueToSave);
     } catch (error) {
@@ -291,11 +313,11 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
     try {
       // Always use the store's confirmMatch method for immediate UI updates
       const result = await confirmMatch(transactionId, ledgerEntryId);
-      
+
       if (result.success) {
         setToast({ message: 'Match confirmed successfully.', type: 'success' });
         onChange?.();
-        
+
         // Close the modal if it's open
         if (potentialMatchModal?.closeModal) {
           potentialMatchModal.closeModal();
@@ -303,7 +325,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
       } else {
         setToast({ message: result.error || 'Failed to confirm match.', type: 'error' });
       }
-      
+
       return result;
     } catch (error) {
       setToast({ message: 'Failed to confirm match.', type: 'error' });
@@ -316,26 +338,26 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
       // Use the potential match modal's rejectMatch method if available
       if (potentialMatchModal?.rejectMatch) {
         const result = await potentialMatchModal.rejectMatch(transactionId, ledgerEntryId);
-        
+
         if (result.success) {
           setToast({ message: 'Match rejected.', type: 'success' });
           onChange?.();
         } else {
           setToast({ message: result.error || 'Failed to reject match.', type: 'error' });
         }
-        
+
         return result;
       } else {
         // Fallback to store actions
         const result = await rejectMatch(transactionId, ledgerEntryId);
-        
+
         if (result.success) {
           setToast({ message: 'Match rejected.', type: 'success' });
           onChange?.();
         } else {
           setToast({ message: result.error || 'Failed to reject match.', type: 'error' });
         }
-        
+
         return result;
       }
     } catch (error) {
@@ -350,26 +372,26 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
       // Use the potential match modal's undoReject method if available
       if (potentialMatchModal?.undoReject) {
         const result = await potentialMatchModal.undoReject(transactionId, ledgerEntryId);
-        
+
         if (result.success) {
           setToast({ message: 'Rejection undone successfully', type: 'success' });
           onChange?.();
         } else {
           setToast({ message: result.error || 'Failed to undo rejection', type: 'error' });
         }
-        
+
         return result;
       } else {
         // Fallback to store actions
         const result = await undoReject(transactionId, ledgerEntryId);
-        
+
         if (result.success) {
           setToast({ message: 'Rejection undone successfully', type: 'success' });
           onChange?.();
         } else {
           setToast({ message: result.error || 'Failed to undo rejection', type: 'error' });
         }
-        
+
         return result;
       }
     } catch (error) {
@@ -378,6 +400,29 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
       return { success: false, error: 'Failed to undo rejection' };
     }
   }, [onChange, potentialMatchModal, undoReject, setToast]);
+
+  // Audit Trail Handler
+  const handleAuditTrailClick = useCallback((entryId: string, entry: any) => {
+    setSelectedAuditTrailEntry(entry);
+    setAuditTrailSidebarOpen(true);
+  }, []);
+
+  // BOE Navigation Handler
+  const handleNavigateToBOE = useCallback((boeVersionId: string, allocationId?: string) => {
+    // Close the audit trail sidebar
+    setAuditTrailSidebarOpen(false);
+
+    // Navigate to the BOE page with the specific allocation highlighted
+    // This would typically use React Router navigation
+    const programId = storeProgramId;
+    if (programId) {
+      const url = allocationId
+        ? `/programs/${programId}/boe?versionId=${boeVersionId}&highlightAllocation=${allocationId}`
+        : `/programs/${programId}/boe?versionId=${boeVersionId}`;
+
+      window.open(url, '_blank');
+    }
+  }, [storeProgramId]);
 
   // Handle show potential matches
   const handleShowPotentialMatches = useCallback(async (entryId: string) => {
@@ -454,13 +499,13 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         onBulkDelete={() => setShowBulkDeleteModal(true)}
         vendorFilter={filters.vendorFilter}
         setVendorFilter={setVendorFilterAction}
-        wbsCategoryFilter={filters.wbsCategoryFilter}
-        setWbsCategoryFilter={setWbsCategoryFilterAction}
-        wbsSubcategoryFilter={filters.wbsSubcategoryFilter}
-        setWbsSubcategoryFilter={setWbsSubcategoryFilterAction}
+        wbsElementFilter={filters.wbsElementFilter}
+        setWbsElementFilter={setWbsElementFilterAction}
+        costCategoryFilter={filters.costCategoryFilter}
+        setCostCategoryFilter={setCostCategoryFilter}
         vendorOptions={dropdownOptions.vendors}
-        wbsCategoryOptions={dropdownOptions.categories}
-        wbsSubcategoryOptions={dropdownOptions.subcategories}
+        wbsElementOptions={dropdownOptions.wbsElements}
+        costCategoryOptions={dropdownOptions.costCategories}
       />
 
       {ui.showErrorModal && ui.error && (
@@ -477,9 +522,9 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
           selectedCount={ui.selectedRows.length}
           bulkEditFields={ui.bulkEditFields}
           clearedFields={ui.clearedFields}
-          wbsCategoryOptions={dropdownOptions.categories}
-          wbsSubcategoryOptions={dropdownOptions.subcategories}
+          wbsElementOptions={dropdownOptions.wbsElements}
           vendorOptions={dropdownOptions.vendors}
+          costCategoryOptions={dropdownOptions.costCategories}
           isCleared={(field: string) => ui.clearedFields[field]}
           handleBulkEditFieldChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
             const { name, value } = e.target;
@@ -532,8 +577,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         loadingPotential={potentialMatchModal?.isLoading || false}
         loading={ui.loading}
         searchLoading={ui.searchLoading}
-        wbsCategoryOptions={dropdownOptions.categories}
-        wbsSubcategoryOptions={dropdownOptions.subcategories}
+        dropdownOptions={dropdownOptions}
         vendorOptions={dropdownOptions.vendors}
         handleSelectAll={selectAll}
         handleSelectRow={selectRow}
@@ -563,7 +607,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         setUploadModalData={setUploadModalData}
         setPopoverText={setPopoverText}
         setPopoverUrl={setPopoverUrl}
-        setPotentialTab={potentialMatchModal?.switchTab || (() => {})}
+        setPotentialTab={potentialMatchModal?.switchTab || (() => { })}
         setPotentialIndex={(index: number | ((prev: number) => number)) => {
           if (typeof index === 'function' && potentialMatchModal?.setIndex) {
             const currentIndex = potentialMatchModal.currentIndex || 0;
@@ -573,89 +617,52 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
             potentialMatchModal.setIndex(index);
           }
         }}
-        setPotentialLedgerEntryId={() => {}}
+        setPotentialLedgerEntryId={() => { }}
         fetchEntries={fetchEntries}
         formatCurrency={formatCurrency}
         highlightedRowRef={React.useRef<HTMLTableRowElement | null>(null)}
         programId={programId}
         filterType={filters.filterType}
         vendorFilter={filters.vendorFilter}
-        wbsCategoryFilter={filters.wbsCategoryFilter}
-        wbsSubcategoryFilter={filters.wbsSubcategoryFilter}
-        setShowPotentialModal={potentialMatchModal?.closeModal || (() => {})}
+        wbsElementFilter={filters.wbsElementFilter}
+        setShowPotentialModal={potentialMatchModal?.closeModal || (() => { })}
         potentialTab={potentialMatchModal?.currentTab || 'matched'}
         potentialMatched={potentialMatchModal?.potentialMatches || []}
-        setPotentialMatched={potentialMatchModal?.setPotentialMatches || (() => {})}
+        setPotentialMatched={potentialMatchModal?.setPotentialMatches || (() => { })}
         potentialRejected={potentialMatchModal?.rejectedMatches || []}
-        setPotentialRejected={potentialMatchModal?.setRejectedMatches || (() => {})}
+        setPotentialRejected={potentialMatchModal?.setRejectedMatches || (() => { })}
         setToast={setToast}
         setEntriesWithRejectedMatches={handleSetEntriesWithRejectedMatches}
         setPotentialMatchIds={handleSetPotentialMatchIds}
         confirmMatch={handleConfirmMatch}
         rejectMatch={handleRejectMatch}
         undoReject={handleUndoReject}
+        onAuditTrailClick={handleAuditTrailClick}
+      />
+
+      {/* Audit Trail Sidebar */}
+      <LedgerAuditTrailSidebar
+        isOpen={auditTrailSidebarOpen}
+        onClose={() => setAuditTrailSidebarOpen(false)}
+        ledgerEntryId={selectedAuditTrailEntry?.id || null}
+        ledgerEntryData={selectedAuditTrailEntry}
+        onNavigateToBOE={handleNavigateToBOE}
       />
 
       {/* View Upload Modal */}
-      {ui.showUploadModal && ui.uploadModalData && (
-        <div className="fixed inset-0 flex items-center justify-center z-[9999] bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full relative border-2 border-green-200">
-            <button 
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold" 
-              onClick={() => setShowUploadModal(false)} 
-              aria-label="Close"
-            >
-              &times;
-            </button>
-            <h2 className="text-2xl font-extrabold mb-4 text-green-700 flex items-center gap-2">
-              <DocumentMagnifyingGlassIcon className="h-6 w-6 text-green-500" /> Upload Details
-            </h2>
-            <div className="mb-3 flex flex-col gap-2 text-base">
-              <div><b className="text-gray-600">Vendor:</b> <span className="text-gray-900">{ui.uploadModalData.vendorName}</span></div>
-              <div><b className="text-gray-600">Description:</b> <span className="text-gray-900">{ui.uploadModalData.description}</span></div>
-              <div><b className="text-gray-600">Amount:</b> <span className="text-green-700 font-semibold">{formatCurrency(ui.uploadModalData.amount)}</span></div>
-              <div><b className="text-gray-600">Date:</b> <span className="text-gray-900">{ui.uploadModalData.transactionDate ? new Date(ui.uploadModalData.transactionDate).toLocaleDateString() : ''}</span></div>
-              <div><b className="text-gray-600">Status:</b> <span className="text-gray-900 capitalize">{ui.uploadModalData.status}</span></div>
-              <div><b className="text-gray-600">Upload Session:</b> <span className="text-gray-900">{ui.uploadModalData.actualsUploadSession?.originalFilename}</span></div>
-              {ui.uploadModalData.actualsUploadSession?.description && (
-                <div><b className="text-gray-600">Session Description:</b> <span className="text-gray-900">{ui.uploadModalData.actualsUploadSession.description}</span></div>
-              )}
-              <div><b className="text-gray-600">Uploaded:</b> <span className="text-gray-900">{ui.uploadModalData.actualsUploadSession?.createdAt ? new Date(ui.uploadModalData.actualsUploadSession.createdAt).toLocaleString() : ''}</span></div>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-end items-center mt-6 gap-4">
-              {ui.uploadModalData.status === 'confirmed' && (
-                <button
-                  className="btn btn-error px-6 py-2 text-base font-semibold rounded shadow hover:bg-red-700 transition mb-2 sm:mb-0"
-                  onClick={async () => {
-                    if (window.confirm('Are you sure you want to remove this match? This will revert the actuals and restore potential matches.')) {
-                      try {
-                        await removeMatch(ui.uploadModalData.id);
-                        setShowUploadModal(false);
-                      } catch (error) {
-                        console.error('Remove match failed:', error);
-                      }
-                    }
-                  }}
-                >
-                  Remove Match
-                </button>
-              )}
-              <button
-                className="btn btn-ghost px-6 py-2 text-base font-semibold rounded shadow hover:bg-gray-100 transition"
-                onClick={() => setShowUploadModal(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ViewUploadModal
+        isOpen={ui.showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        uploadData={ui.uploadModalData}
+        onRemoveMatch={removeMatch}
+        formatCurrency={formatCurrency}
+        setToast={setToast}
+      />
 
       {/* Toast Notification */}
       {ui.toast && (
-        <div className={`fixed top-4 right-4 z-[10000] p-4 rounded-lg shadow-lg ${
-          ui.toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
+        <div className={`fixed top-4 right-4 z-[10000] p-4 rounded-lg shadow-lg ${ui.toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          }`}>
           <div className="flex items-center gap-2">
             {ui.toast.type === 'success' ? (
               <CheckCircleIcon className="h-5 w-5" />

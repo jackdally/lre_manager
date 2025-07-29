@@ -2,6 +2,7 @@ import React from 'react';
 import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import LedgerTableCell from './Cell';
 import type { LedgerEntry } from '../../../../types/ledger';
+import { Vendor } from '../../../../store/settingsStore';
 
 interface LedgerTableRowProps {
   entry: LedgerEntry;
@@ -14,9 +15,22 @@ interface LedgerTableRowProps {
   cellEditValue: any;
   hasPotentialMatches: boolean;
   hasRejectedMatches: boolean;
-  wbsCategoryOptions: string[];
-  wbsSubcategoryOptions: string[];
-  vendorOptions: string[];
+  wbsElementOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  }>;
+  vendorOptions: Vendor[];
+  costCategoryOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
+  }>;
   formatCurrency: (val: any) => string;
   onSelect: (id: string) => void;
   onCellClick: (rowId: string, field: string, value: any) => void;
@@ -39,9 +53,9 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
   cellEditValue,
   hasPotentialMatches,
   hasRejectedMatches,
-  wbsCategoryOptions,
-  wbsSubcategoryOptions,
+  wbsElementOptions,
   vendorOptions,
+  costCategoryOptions,
   formatCurrency,
   onSelect,
   onCellClick,
@@ -52,25 +66,43 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
   onShowPotentialMatches,
   highlightedRowRef
 }) => {
+
   const renderCell = (field: string, value: any, options?: string[]) => {
     const isEditingThisCell = isEditing && editingField === field;
     
-    console.log('🔵 renderCell:', { field, value, isEditing, editingField, isEditingThisCell, cellEditValue });
+
     
     if (isEditingThisCell) {
-      console.log('🟢 Rendering edit input for field:', field);
-      if (field === 'wbs_category' || field === 'wbs_subcategory' || field === 'vendor_name') {
+
+      if (field === 'wbsElementId' || field === 'vendor_name' || field === 'costCategoryId') {
+
         return (
           <select
             className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-            value={cellEditValue}
-            onChange={onCellInputChange}
-            onBlur={(e) => onCellInputBlur(entry.id, field, e.target.value)}
+            value={cellEditValue ?? ''}
+            onChange={(e) => {
+              // For dropdowns, save immediately when selection changes
+              console.log('🟡 Dropdown onChange:', { field, value: e.target.value, entryId: entry.id });
+              // Save immediately and blur to exit edit mode
+              onCellInputBlur(entry.id, field, e.target.value);
+              // Force blur to exit edit mode
+              e.target.blur();
+            }}
             onKeyDown={e => onCellInputKeyDown(e, entry.id, field)}
             autoFocus
           >
             <option value="">-- Select --</option>
-            {options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {field === 'wbsElementId' && wbsElementOptions?.map(element => (
+              <option key={element.id} value={element.id}>
+                {element.code} - {element.name}
+              </option>
+            ))}
+            {field === 'vendor_name' && options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {field === 'costCategoryId' && costCategoryOptions?.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.code} - {category.name}
+              </option>
+            ))}
           </select>
         );
       } else if (field === 'expense_description') {
@@ -145,26 +177,15 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
         />
       </td>
       
-      {/* WBS Category */}
+      {/* WBS Element */}
       <td 
         className="px-2 py-1" 
         onClick={() => {
-          console.log('🔵 WBS Category clicked:', { id: entry.id, value: entry.wbs_category });
-          onCellClick(entry.id, 'wbs_category', entry.wbs_category);
+          console.log('🔵 WBS Element clicked:', { id: entry.id, value: entry.wbsElement?.code });
+          onCellClick(entry.id, 'wbsElementId', entry.wbsElement?.id);
         }}
       >
-        {renderCell('wbs_category', entry.wbs_category, wbsCategoryOptions)}
-      </td>
-      
-      {/* WBS Subcategory */}
-      <td 
-        className="px-2 py-1" 
-        onClick={() => {
-          console.log('🔵 WBS Subcategory clicked:', { id: entry.id, value: entry.wbs_subcategory });
-          onCellClick(entry.id, 'wbs_subcategory', entry.wbs_subcategory);
-        }}
-      >
-        {renderCell('wbs_subcategory', entry.wbs_subcategory, wbsSubcategoryOptions)}
+        {renderCell('wbsElementId', entry.wbsElement ? `${entry.wbsElement.code} - ${entry.wbsElement.name}` : '', undefined)}
       </td>
       
       {/* Vendor */}
@@ -175,7 +196,7 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
           onCellClick(entry.id, 'vendor_name', entry.vendor_name);
         }}
       >
-        {renderCell('vendor_name', entry.vendor_name, vendorOptions)}
+        {renderCell('vendor_name', entry.vendor_name, vendorOptions.map(vendor => vendor.name))}
       </td>
       
       {/* Description */}
@@ -187,6 +208,18 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
         }}
       >
         {renderCell('expense_description', entry.expense_description)}
+      </td>
+      
+      {/* Cost Category */}
+      <td 
+        className="px-2 py-1 cursor-pointer" 
+        onClick={(e) => {
+          console.log('🔵 Cost Category clicked:', { id: entry.id, value: entry.costCategory?.code, costCategoryId: entry.costCategory?.id });
+          e.stopPropagation();
+          onCellClick(entry.id, 'costCategoryId', entry.costCategory?.id);
+        }}
+      >
+        {renderCell('costCategoryId', entry.costCategory ? `${entry.costCategory.code} - ${entry.costCategory.name}` : '', undefined)}
       </td>
       
       {/* Invoice Link */}
@@ -312,6 +345,25 @@ const LedgerTableRow: React.FC<LedgerTableRowProps> = React.memo(({
   // Custom comparison for React.memo
   return (
     prevProps.entry.id === nextProps.entry.id &&
+    prevProps.entry.costCategoryId === nextProps.entry.costCategoryId &&
+    prevProps.entry.costCategory?.id === nextProps.entry.costCategory?.id &&
+    prevProps.entry.costCategory?.code === nextProps.entry.costCategory?.code &&
+    prevProps.entry.costCategory?.name === nextProps.entry.costCategory?.name &&
+    prevProps.entry.wbsElementId === nextProps.entry.wbsElementId &&
+    prevProps.entry.wbsElement?.id === nextProps.entry.wbsElement?.id &&
+    prevProps.entry.wbsElement?.code === nextProps.entry.wbsElement?.code &&
+    prevProps.entry.wbsElement?.name === nextProps.entry.wbsElement?.name &&
+    prevProps.entry.vendor_name === nextProps.entry.vendor_name &&
+    prevProps.entry.expense_description === nextProps.entry.expense_description &&
+    prevProps.entry.baseline_date === nextProps.entry.baseline_date &&
+    prevProps.entry.baseline_amount === nextProps.entry.baseline_amount &&
+    prevProps.entry.planned_date === nextProps.entry.planned_date &&
+    prevProps.entry.planned_amount === nextProps.entry.planned_amount &&
+    prevProps.entry.actual_date === nextProps.entry.actual_date &&
+    prevProps.entry.actual_amount === nextProps.entry.actual_amount &&
+    prevProps.entry.notes === nextProps.entry.notes &&
+    prevProps.entry.invoice_link_text === nextProps.entry.invoice_link_text &&
+    prevProps.entry.invoice_link_url === nextProps.entry.invoice_link_url &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.isEditing === nextProps.isEditing &&
     prevProps.editingField === nextProps.editingField &&

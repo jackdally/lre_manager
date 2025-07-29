@@ -4,6 +4,7 @@ import axios from 'axios';
 import React from 'react';
 import type { LedgerEntry } from '../types/ledger';
 import type { ActualsUploadTransaction, ActualsUploadSession, PotentialMatchData, RejectedMatchData } from '../types/actuals';
+import { Vendor } from './settingsStore';
 
 export type MatchStatus = 'potential' | 'confirmed' | 'rejected';
 
@@ -17,8 +18,8 @@ interface Match {
 export interface LedgerFilters {
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
-  wbsCategoryFilter?: string;
-  wbsSubcategoryFilter?: string;
+  wbsElementFilter?: string;
+  costCategoryFilter?: string;
   search: string;
 }
 
@@ -48,9 +49,22 @@ export interface LedgerUIState {
 }
 
 export interface LedgerDropdownOptions {
-  vendors: string[];
-  categories: string[];
-  subcategories: string[];
+  vendors: Vendor[];
+  wbsElements: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  }>;
+  costCategories: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
+  }>;
 }
 
 interface LedgerStoreState {
@@ -88,22 +102,22 @@ interface LedgerStoreState {
   // Enhanced actions for LedgerTable
   // Initialization
   initialize: (programId: string, showAll?: boolean) => void;
-  
+
   // Data fetching
   fetchEntries: () => Promise<void>;
   fetchDropdownOptions: () => Promise<void>;
   refreshPotentialMatchIds: () => Promise<void>;
   refreshRejectedMatchIds: () => Promise<void>;
-  
+
   // Filter actions
   setFilterType: (type: 'all' | 'currentMonthPlanned' | 'emptyActuals') => void;
   setVendorFilter: (vendor: string | undefined) => void;
-  setWbsCategoryFilter: (cat: string | undefined) => void;
-  setWbsSubcategoryFilter: (subcat: string | undefined) => void;
+  setWbsElementFilter: (elementId: string | undefined) => void;
+  setCostCategoryFilter: (categoryId: string | undefined) => void;
   setSearch: (search: string) => void;
   setPage: (page: number) => void;
   setShowAll: (showAll: boolean) => void;
-  
+
   // UI actions
   setSearchLoading: (searchLoading: boolean) => void;
   setShowErrorModal: (show: boolean) => void;
@@ -124,16 +138,16 @@ interface LedgerStoreState {
   setPotentialMatchIds: (ids: string[]) => void;
   setEntriesWithRejectedMatches: (entries: Set<string>) => void;
   setToast: (toast: { message: string; type: 'success' | 'error'; undoId?: string } | null) => void;
-  
+
   // Row selection
   selectRow: (id: string) => void;
   selectAll: () => void;
-  
+
   // Cell editing
   startCellEdit: (rowId: string, field: string, value: any) => void;
   saveCellEdit: (rowId: string, field: string, value: any) => Promise<void>;
   cancelCellEdit: () => void;
-  
+
   // Entry operations
   addEntry: () => void;
   saveNewEntry: () => Promise<void>;
@@ -142,24 +156,24 @@ interface LedgerStoreState {
   deleteEntry: (id: string) => Promise<void>;
   bulkUpdateEntries: (ids: string[], updates: Partial<LedgerEntry>) => Promise<void>;
   bulkDeleteEntries: (ids: string[]) => Promise<void>;
-  
+
   // Bulk edit
   startBulkEdit: () => void;
   updateBulkEditField: (field: string, value: any) => void;
   toggleBulkEditClear: (field: string) => void;
   saveBulkEdit: () => Promise<void>;
-  
+
   // Popover operations
   openPopover: (rowId: string, text: string, url: string, anchorEl: HTMLElement) => void;
   closePopover: () => void;
   savePopover: () => Promise<void>;
-  
+
   // Match operations
   confirmMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   rejectMatch: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   undoReject: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   removeMatch: (transactionId: string) => Promise<void>;
-  
+
   // Utility actions
   clearError: () => void;
   clearToast: () => void;
@@ -168,7 +182,7 @@ interface LedgerStoreState {
 
 // Constants
 const PAGE_SIZE = 10;
-const requiredFields = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory'];
+const requiredFields = ['vendor_name', 'expense_description', 'wbsElementId'];
 
 // Helper functions
 const formatCurrency = (val: number | string | undefined | null) => {
@@ -193,12 +207,15 @@ export const useLedgerStore = create<LedgerStoreState>()(
         // Enhanced state
         entries: [],
         total: 0,
-        dropdownOptions: { vendors: [], categories: [], subcategories: [] },
+        dropdownOptions: {
+          vendors: [],
+          wbsElements: [],
+          costCategories: []
+        },
         filters: {
           filterType: 'all',
           vendorFilter: undefined,
-          wbsCategoryFilter: undefined,
-          wbsSubcategoryFilter: undefined,
+          wbsElementFilter: undefined,
           search: '',
         },
         ui: {
@@ -256,7 +273,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
         // Initialization
         initialize: (programId: string, showAll = false) => {
           const currentState = get();
-          
+
           if (currentState.programId !== programId || currentState.showAll !== showAll) {
             set({ programId, showAll });
             get().fetchEntries();
@@ -281,21 +298,22 @@ export const useLedgerStore = create<LedgerStoreState>()(
             if (filters.search) params.append('search', filters.search);
             if (filters.filterType !== 'all') params.append('filterType', filters.filterType);
             if (filters.vendorFilter) params.append('vendorFilter', filters.vendorFilter);
-            if (filters.wbsCategoryFilter) params.append('wbsCategoryFilter', filters.wbsCategoryFilter);
-            if (filters.wbsSubcategoryFilter) params.append('wbsSubcategoryFilter', filters.wbsSubcategoryFilter);
+            if (filters.wbsElementFilter) params.append('wbsElementFilter', filters.wbsElementFilter);
 
             const response = await axios.get(`/api/programs/${programId}/ledger?${params}`);
-            
+
             if (response.data) {
               const { entries: newEntries, total: newTotal } = response.data as { entries: LedgerEntry[]; total: number };
-              
+
+
+
               // Don't update dropdown options from filtered results
               set({
                 entries: newEntries,
                 total: newTotal,
                 ui: { ...ui, loading: false },
               });
-              
+
               // Refresh potential and rejected match IDs after entries are loaded
               get().refreshPotentialMatchIds();
               get().refreshRejectedMatchIds();
@@ -318,14 +336,35 @@ export const useLedgerStore = create<LedgerStoreState>()(
           if (!programId) return;
 
           try {
-            const response = await axios.get(`/api/programs/${programId}/ledger/dropdown-options`);
-            if (response.data) {
-              const { vendors, categories, subcategories } = response.data as {
-                vendors: string[];
-                categories: string[];
-                subcategories: string[];
+            const dropdownResponse = await axios.get(`/api/programs/${programId}/ledger/dropdown-options`);
+
+            if (dropdownResponse.data) {
+              const { vendors, wbsElements, costCategories } = dropdownResponse.data as {
+                vendors: Vendor[];
+                wbsElements: Array<{
+                  id: string;
+                  code: string;
+                  name: string;
+                  description: string;
+                  level: number;
+                  parentId?: string;
+                }>;
+                costCategories: Array<{
+                  id: string;
+                  code: string;
+                  name: string;
+                  description: string;
+                  isActive: boolean;
+                }>;
               };
-              set({ dropdownOptions: { vendors, categories, subcategories } });
+
+              set({
+                dropdownOptions: {
+                  vendors,
+                  wbsElements,
+                  costCategories: costCategories || []
+                }
+              });
             }
           } catch (error) {
             console.error('Failed to fetch dropdown options:', error);
@@ -380,18 +419,18 @@ export const useLedgerStore = create<LedgerStoreState>()(
           }
         },
 
-        setWbsCategoryFilter: (cat) => {
+        setWbsElementFilter: (elementId: string | undefined) => {
           const currentFilters = get().filters;
-          if (currentFilters.wbsCategoryFilter !== cat) {
-            set({ filters: { ...currentFilters, wbsCategoryFilter: cat } });
+          if (currentFilters.wbsElementFilter !== elementId) {
+            set({ filters: { ...currentFilters, wbsElementFilter: elementId } });
             get().fetchEntries();
           }
         },
 
-        setWbsSubcategoryFilter: (subcat) => {
+        setCostCategoryFilter: (categoryId: string | undefined) => {
           const currentFilters = get().filters;
-          if (currentFilters.wbsSubcategoryFilter !== subcat) {
-            set({ filters: { ...currentFilters, wbsSubcategoryFilter: subcat } });
+          if (currentFilters.costCategoryFilter !== categoryId) {
+            set({ filters: { ...currentFilters, costCategoryFilter: categoryId } });
             get().fetchEntries();
           }
         },
@@ -468,6 +507,8 @@ export const useLedgerStore = create<LedgerStoreState>()(
           const entry = entries.find(e => e.id === rowId);
           if (!entry) return;
 
+
+
           const numberFields = ['baseline_amount', 'planned_amount', 'actual_amount'];
           let oldValue = entry[field as keyof LedgerEntry];
           let newValue = value;
@@ -487,7 +528,10 @@ export const useLedgerStore = create<LedgerStoreState>()(
               set({ ui: { ...ui, editingCell: null, cellEditValue: '' } });
               return;
             }
-            if (!requiredFields.includes(field) && (newValue === '' || newValue === undefined)) {
+            // For dropdown fields, treat empty string as null for consistency
+            if (['wbsElementId', 'costCategoryId'].includes(field) && (newValue === '' || newValue === undefined)) {
+              newValue = null;
+            } else if (!requiredFields.includes(field) && (newValue === '' || newValue === undefined)) {
               newValue = null;
             }
           }
@@ -499,14 +543,22 @@ export const useLedgerStore = create<LedgerStoreState>()(
           }
 
           try {
-            // Update local state immediately
-            const updatedEntries = entries.map(entry =>
-              entry.id === rowId ? { ...entry, [field]: newValue } : entry
-            );
-            set({ entries: updatedEntries });
+            console.log('Saving cell edit:', { rowId, field, newValue });
 
-            // Call API
+            // Call API first
             await axios.put(`/api/programs/${programId}/ledger/${rowId}`, { [field]: newValue });
+
+            // For dropdown fields, refresh the data to get updated relationships
+            if (['wbsElementId', 'costCategoryId'].includes(field)) {
+              console.log('Refreshing entries after dropdown update');
+              get().fetchEntries();
+            } else {
+              // For other fields, update local state immediately
+              const updatedEntries = entries.map(entry =>
+                entry.id === rowId ? { ...entry, [field]: newValue } : entry
+              );
+              set({ entries: updatedEntries });
+            }
 
             set({ ui: { ...ui, editingCell: null, cellEditValue: '' } });
           } catch (error: any) {
@@ -514,17 +566,17 @@ export const useLedgerStore = create<LedgerStoreState>()(
             const revertedEntries = entries.map(entry =>
               entry.id === rowId ? { ...entry, [field]: oldValue } : entry
             );
-            set({ 
+            set({
               entries: revertedEntries,
-              ui: { 
-                ...ui, 
-                editingCell: null, 
+              ui: {
+                ...ui,
+                editingCell: null,
                 cellEditValue: '',
                 error: error.response?.data?.message || 'Failed to save changes',
                 showErrorModal: true
               }
             });
-            
+
             // Also set a toast for immediate feedback
             set({ ui: { ...get().ui, toast: { message: error.response?.data?.message || 'Failed to save changes', type: 'error' } } });
           }
@@ -544,8 +596,15 @@ export const useLedgerStore = create<LedgerStoreState>()(
             id: tempId,
             vendor_name: '',
             expense_description: '',
-            wbs_category: '',
-            wbs_subcategory: '',
+            wbsElementId: '',
+            wbsElement: {
+              id: '',
+              code: '',
+              name: '',
+              description: '',
+              level: 1,
+              parentId: undefined
+            },
             baseline_date: '',
             baseline_amount: 0,
             planned_date: '',
@@ -561,7 +620,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
 
           set({
             entries: [newEntry, ...entries],
-            ui: { ...ui, newRowId: tempId, editingCell: { rowId: tempId, field: 'wbs_category' } }
+            ui: { ...ui, newRowId: tempId, editingCell: { rowId: tempId, field: 'wbsElementId' } }
           });
         },
 
@@ -575,7 +634,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
           try {
             const { id, program, ...entryData } = newEntry;
             await axios.post(`/api/programs/${programId}/ledger`, entryData);
-            
+
             set({ ui: { ...ui, newRowId: null, editingCell: null, cellEditValue: '' } });
             get().fetchEntries();
           } catch (error: any) {
@@ -630,7 +689,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
             for (const id of ids) {
               await axios.delete(`/api/programs/ledger/${id}`);
             }
-            
+
             // Clear selected rows and close modal after successful deletion
             set({
               ui: {
@@ -639,7 +698,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
                 showBulkDeleteModal: false
               }
             });
-            
+
             // Refresh the entries list
             get().fetchEntries();
           } catch (error) {
@@ -679,7 +738,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
         saveBulkEdit: async () => {
           const { ui } = get();
           const payload: any = {};
-          
+
           Object.entries(ui.bulkEditFields).forEach(([field, value]) => {
             if (ui.clearedFields[field]) {
               payload[field] = null;
@@ -753,16 +812,16 @@ export const useLedgerStore = create<LedgerStoreState>()(
             await axios.post(`/api/import/transaction/${transactionId}/confirm-match`, {
               ledgerEntryId
             });
-            
+
             // Fetch the updated ledger entry to get the actual data
             const updatedEntryResponse = await axios.get(`/api/programs/${programId}/ledger?limit=1000&showAll=true`);
             const responseData = updatedEntryResponse.data as { entries: LedgerEntry[]; total: number };
             const updatedEntry = responseData.entries.find((entry: LedgerEntry) => entry.id === ledgerEntryId);
-            
+
             if (!updatedEntry) {
               throw new Error('Updated ledger entry not found');
             }
-            
+
             // Update local state with the actual data from the backend
             const updatedEntries = entries.map(entry => {
               if (entry.id === ledgerEntryId) {
@@ -809,7 +868,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
             await axios.post(`/api/import/transaction/${transactionId}/reject`, {
               ledgerEntryId
             });
-            
+
             // Update local state
             set({
               ui: {
@@ -833,11 +892,11 @@ export const useLedgerStore = create<LedgerStoreState>()(
             await axios.post(`/api/import/transaction/${transactionId}/undo-reject`, {
               ledgerEntryId
             });
-            
+
             // Update local state
             const newRejectedMatches = new Set([...Array.from(ui.entriesWithRejectedMatches)].filter(id => id !== ledgerEntryId));
-            const newPotentialMatchIds = ui.potentialMatchIds.includes(ledgerEntryId) 
-              ? ui.potentialMatchIds 
+            const newPotentialMatchIds = ui.potentialMatchIds.includes(ledgerEntryId)
+              ? ui.potentialMatchIds
               : [...ui.potentialMatchIds, ledgerEntryId];
 
             set({
@@ -860,7 +919,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
 
           try {
             await axios.post(`/api/import/transaction/${transactionId}/remove-match`);
-            
+
             // Update local state to remove the actualsUploadTransaction
             const updatedEntries = entries.map(entry => {
               if (entry.actualsUploadTransaction?.id === transactionId) {
@@ -875,6 +934,10 @@ export const useLedgerStore = create<LedgerStoreState>()(
             });
 
             set({ entries: updatedEntries });
+
+            // Refresh potential match data from backend to show "Potential Match" button immediately
+            await get().refreshPotentialMatchIds();
+            await get().refreshRejectedMatchIds();
           } catch (error) {
             console.error('Remove match failed:', error);
           }
@@ -931,8 +994,8 @@ export const useLedgerRefreshRejectedMatchIds = () => useLedgerStore(state => st
 // Filter actions
 export const useLedgerSetFilterType = () => useLedgerStore(state => state.setFilterType);
 export const useLedgerSetVendorFilter = () => useLedgerStore(state => state.setVendorFilter);
-export const useLedgerSetWbsCategoryFilter = () => useLedgerStore(state => state.setWbsCategoryFilter);
-export const useLedgerSetWbsSubcategoryFilter = () => useLedgerStore(state => state.setWbsSubcategoryFilter);
+export const useLedgerSetWbsElementFilter = () => useLedgerStore(state => state.setWbsElementFilter);
+export const useLedgerSetCostCategoryFilter = () => useLedgerStore(state => state.setCostCategoryFilter);
 export const useLedgerSetSearch = () => useLedgerStore(state => state.setSearch);
 export const useLedgerSetPage = () => useLedgerStore(state => state.setPage);
 export const useLedgerSetShowAll = () => useLedgerStore(state => state.setShowAll);
@@ -996,8 +1059,7 @@ export const useLedgerActions = () => {
   const fetchEntries = useLedgerFetchEntries();
   const setFilterType = useLedgerSetFilterType();
   const setVendorFilter = useLedgerSetVendorFilter();
-  const setWbsCategoryFilter = useLedgerSetWbsCategoryFilter();
-  const setWbsSubcategoryFilter = useLedgerSetWbsSubcategoryFilter();
+  const setWbsElementFilter = useLedgerSetWbsElementFilter();
   const setSearch = useLedgerSetSearch();
   const setPage = useLedgerSetPage();
   const setShowAll = useLedgerSetShowAll();
@@ -1045,8 +1107,7 @@ export const useLedgerActions = () => {
     fetchEntries,
     setFilterType,
     setVendorFilter,
-    setWbsCategoryFilter,
-    setWbsSubcategoryFilter,
+    setWbsElementFilter,
     setSearch,
     setPage,
     setShowAll,
@@ -1093,8 +1154,7 @@ export const useLedgerActions = () => {
     fetchEntries,
     setFilterType,
     setVendorFilter,
-    setWbsCategoryFilter,
-    setWbsSubcategoryFilter,
+    setWbsElementFilter,
     setSearch,
     setPage,
     setShowAll,

@@ -167,8 +167,15 @@ export interface PotentialMatchData {
     expense_description: string;
     planned_amount: number;
     planned_date: string;
-    wbs_category: string;
-    wbs_subcategory: string;
+    wbsElementId: string;
+    wbsElement: {
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      level: number;
+      parentId?: string;
+    };
     actual_amount?: number;
     actual_date?: string;
     notes?: string;
@@ -199,8 +206,15 @@ export interface RejectedMatchData {
     expense_description: string;
     planned_amount: number;
     planned_date: string;
-    wbs_category: string;
-    wbs_subcategory: string;
+    wbsElementId: string;
+    wbsElement: {
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      level: number;
+      parentId?: string;
+    };
     actual_amount?: number;
     actual_date?: string;
     notes?: string;

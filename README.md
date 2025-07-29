@@ -1,6 +1,6 @@
 # LRE Manager
 
-A comprehensive tool for managing Laboratory Research Equipment (LRE) programs, tracking expenses, and maintaining financial records.
+A comprehensive tool for managing Latest Revised Estimate (LRE) programs, tracking expenses, and maintaining financial records.
 
 ## Features
 
@@ -39,6 +39,36 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:4000
 
+## AI Assistant Guidelines
+
+When working with AI assistants (like Claude in Cursor), follow these best practices for terminal commands:
+
+### Build and Compilation Commands (Use these for error checking)
+- Use `npm run build` for frontend compilation checks
+- Use `cd backend && npm run build` for backend compilation checks  
+- Use `npx tsc --noEmit` for TypeScript type checking
+- Use `npm test` for running tests (exits naturally)
+
+### Development Servers (Use is_background: true)
+- Use `is_background: true` for `npm start` (React dev server)
+- Use `is_background: true` for `npm run dev` (Backend dev server)
+- Use `is_background: true` for `docker-compose up`
+- Use `is_background: true` for any long-running watch processes
+
+### Log Monitoring (Use timeout or background)
+- Use `timeout 10s tail -f logs/app.log` for log viewing
+- Use `timeout 10s docker logs -f container_name` for Docker logs
+- Or use `is_background: true` for continuous log monitoring
+
+### Interactive Commands (Always append | cat)
+- Use `git log | cat` instead of `git log`
+- Use `less file.txt | cat` instead of `less file.txt`
+- Use `more file.txt | cat` instead of `more file.txt`
+- Use `head -n 50 file.txt | cat` instead of `head -n 50 file.txt`
+- Use `tail -n 50 file.txt | cat` instead of `tail -n 50 file.txt`
+
+**Remember**: Development servers and watch commands are designed to run indefinitely. Use `is_background: true` for these, not `is_background: false`.
+
 ## Key Features
 
 ### NetSuite Actuals Upload & Smart Matching
@@ -49,16 +79,25 @@ The application includes a sophisticated upload system that allows you to:
 - Review and confirm matches with confidence scoring
 - Track upload sessions and processing status
 
-For detailed information about the actuals upload feature, see [IMPORT_FEATURE.md](docs/IMPORT_FEATURE.md).
+For detailed information about the actuals upload feature, see [IMPORT_FEATURE.md](lre-docs/docs/IMPORT_FEATURE.md).
 
 ## Documentation
 
-For detailed documentation, see the [docs](docs/) directory:
-- [Setup Guide](docs/SETUP.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [API Examples](docs/API_EXAMPLES.md)
-- [NetSuite Actuals Upload Feature](docs/IMPORT_FEATURE.md)
-- [FAQ](docs/FAQ.md)
+For detailed documentation, see the [Docusaurus documentation site](lre-docs/):
+- [Setup Guide](lre-docs/docs/SETUP.md)
+- [Architecture](lre-docs/docs/ARCHITECTURE.md)
+- [API Examples](lre-docs/docs/API_EXAMPLES.md)
+- [NetSuite Actuals Upload Feature](lre-docs/docs/IMPORT_FEATURE.md)
+- [FAQ](lre-docs/docs/FAQ.md)
+
+### Project Management
+- [Project Management Overview](lre-docs/docs/PROJECT_MANAGEMENT.md) - Development workflow and tracking
+- [Feature Development Checklist](lre-docs/docs/FEATURE_DEVELOPMENT_CHECKLIST.md) - **Essential guide for feature development sessions**
+- [Feature Roadmap](lre-docs/docs/FEATURES.md) - Planned features and status
+- [Implementation Plans](lre-docs/docs/implementation-plans/) - Detailed technical plans
+- [Implementation Plans](lre-docs/docs/implementation-plans/) - Detailed technical plans
+- [Task Management](lre-docs/docs/tasks/) - Organized task tracking by category
+- [Legacy Task List](lre-docs/docs/archive/TODO-LEGACY.md) - Original task list (archived)
 
 ## Development
 
@@ -68,6 +107,7 @@ For detailed documentation, see the [docs](docs/) directory:
 - npm v8 or later
 - Docker and Docker Compose
 - PostgreSQL 14 or later (if running without Docker)
+- jq (JSON processor) - automatically installed in Docker containers, or run `./scripts/install-jq.sh` for local development
 
 ### Development Workflow
 

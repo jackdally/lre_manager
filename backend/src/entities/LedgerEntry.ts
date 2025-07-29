@@ -1,5 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Program } from './Program';
+import { WbsElement } from './WbsElement';
+import { CostCategory } from './CostCategory';
+import { Vendor } from './Vendor';
 
 @Entity()
 export class LedgerEntry {
@@ -12,11 +15,9 @@ export class LedgerEntry {
   @Column('text')
   expense_description!: string;
 
-  @Column()
-  wbs_category!: string;
-
-  @Column()
-  wbs_subcategory!: string;
+  // Hierarchical WBS reference
+  @Column({ nullable: true })
+  wbsElementId?: string;
 
   @Column({ type: 'date', nullable: true })
   baseline_date!: string | null;
@@ -47,4 +48,32 @@ export class LedgerEntry {
 
   @ManyToOne(() => Program, { onDelete: 'CASCADE' })
   program!: Program;
+
+  @ManyToOne(() => WbsElement, { nullable: true })
+  @JoinColumn({ name: 'wbsElementId' })
+  wbsElement?: WbsElement;
+
+  @Column({ name: 'cost_category_id', nullable: true })
+  costCategoryId?: string;
+
+  @ManyToOne(() => CostCategory, { nullable: true })
+  @JoinColumn({ name: 'cost_category_id' })
+  costCategory?: CostCategory;
+
+  @Column({ name: 'vendor_id', nullable: true })
+  vendorId?: string;
+
+  @ManyToOne(() => Vendor, { nullable: true })
+  @JoinColumn({ name: 'vendor_id' })
+  vendor?: Vendor;
+
+  // BOE Integration Fields
+  @Column('uuid', { nullable: true })
+  boeElementAllocationId?: string;
+
+  @Column('uuid', { nullable: true })
+  boeVersionId?: string;
+
+  @Column('boolean', { default: false })
+  createdFromBOE!: boolean;
 } 

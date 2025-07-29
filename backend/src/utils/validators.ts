@@ -15,8 +15,7 @@ export const programSchema = Joi.object({
 export const ledgerEntrySchema = Joi.object({
   vendor_name: Joi.string().required(),
   expense_description: Joi.string().required(),
-  wbs_category: Joi.string().required(),
-  wbs_subcategory: Joi.string().required(),
+  wbsElementCode: Joi.string().required(),
   baseline_date: Joi.date().optional(),
   baseline_amount: Joi.number().positive().optional(),
   planned_date: Joi.date().optional(),
@@ -35,3 +34,18 @@ export const paginationSchema = Joi.object({
   sortBy: Joi.string().optional(),
   sortOrder: Joi.string().valid("ASC", "DESC").default("ASC")
 });
+
+export const vendorSchema = Joi.object({
+  name: Joi.string().required().min(1).max(255),
+  isActive: Joi.boolean().default(true)
+});
+
+export const vendorUploadSchema = Joi.object({
+  vendorNameColumn: Joi.string().required().default('Vendor Name')
+});
+
+// UUID validation function
+export const isValidUUID = (uuid: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};

@@ -39,7 +39,7 @@ const ProgramDirectory: React.FC = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editProgramId, setEditProgramId] = useState<string | null>(null);
-  const [newProgram, setNewProgram] = useState<Partial<Program>>({
+  const [newProgram, setNewProgram] = useState<Partial<Program> & { wbsTemplateId?: string }>({
     type: 'Annual',
     status: 'Active',
   });
@@ -56,6 +56,10 @@ const ProgramDirectory: React.FC = () => {
   const [summariesLoading, setSummariesLoading] = useState(false);
   const navigate = useNavigate();
 
+  // WBS Templates
+  const [wbsTemplates, setWbsTemplates] = useState<any[]>([]);
+  const [wbsTemplatesLoading, setWbsTemplatesLoading] = useState(false);
+
   const fetchPrograms = async () => {
     try {
       const response = await axios.get('/api/programs');
@@ -65,8 +69,21 @@ const ProgramDirectory: React.FC = () => {
     }
   };
 
+  const fetchWbsTemplates = async () => {
+    try {
+      setWbsTemplatesLoading(true);
+      const response = await axios.get('/api/settings/wbs-templates');
+      setWbsTemplates(response.data as any[]);
+    } catch (error) {
+      console.error('Error fetching WBS templates:', error);
+    } finally {
+      setWbsTemplatesLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchPrograms();
+    fetchWbsTemplates();
   }, []);
 
   let filteredPrograms = programs.filter((program) =>
@@ -638,6 +655,31 @@ const ProgramDirectory: React.FC = () => {
                     onChange={handleInputChange}
                     className="input-field"
                   />
+                </div>
+                <div>
+                  <label className="form-label">WBS Template</label>
+                  <select
+                    name="wbsTemplateId"
+                    value={newProgram.wbsTemplateId || ''}
+                    onChange={handleInputChange}
+                    className="input-field"
+                  >
+                    <option value="">Select a WBS template (optional)</option>
+                    {wbsTemplatesLoading ? (
+                      <option value="" disabled>Loading templates...</option>
+                    ) : (
+                      wbsTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  {newProgram.wbsTemplateId && (
+                    <div className="text-sm text-gray-500 mt-1">
+                      {wbsTemplates.find(t => t.id === newProgram.wbsTemplateId)?.description}
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <button

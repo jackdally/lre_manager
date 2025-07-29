@@ -12,17 +12,33 @@ const LedgerPage: React.FC = () => {
   
   // New filter states for dropdown filters - initialize with undefined to match store
   const [vendorFilter, setVendorFilter] = useState<string | undefined>(undefined);
-  const [wbsCategoryFilter, setWbsCategoryFilter] = useState<string | undefined>(undefined);
-  const [wbsSubcategoryFilter, setWbsSubcategoryFilter] = useState<string | undefined>(undefined);
+  const [wbsElementFilter, setWbsElementFilter] = useState<string | undefined>(undefined);
+  const [costCategoryFilter, setCostCategoryFilter] = useState<string | undefined>(undefined);
   
   // Dropdown options state
   const [dropdownOptions, setDropdownOptions] = useState<{
     vendors: string[];
-    categories: string[];
-    subcategories: string[];
-  }>({ vendors: [], categories: [], subcategories: [] });
+    wbsElements: Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      level: number;
+      parentId?: string;
+    }>;
+  }>({ vendors: [], wbsElements: [] });
 
-  const handleOptionsUpdate = useCallback((options: { vendors: string[], categories: string[], subcategories: string[] }) => {
+  const handleOptionsUpdate = useCallback((options: { 
+    vendors: string[], 
+    wbsElements: Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      level: number;
+      parentId?: string;
+    }>
+  }) => {
     setDropdownOptions(options);
   }, []);
 
@@ -31,8 +47,7 @@ const LedgerPage: React.FC = () => {
 
   // Wrap setters to accept string | undefined - no need to convert empty strings
   const handleSetVendorFilter = (v: string | undefined) => setVendorFilter(v);
-  const handleSetWbsCategoryFilter = (v: string | undefined) => setWbsCategoryFilter(v);
-  const handleSetWbsSubcategoryFilter = (v: string | undefined) => setWbsSubcategoryFilter(v);
+  const handleSetWbsElementFilter = (v: string | undefined) => setWbsElementFilter(v);
 
 
 
@@ -49,12 +64,12 @@ const LedgerPage: React.FC = () => {
           showAll 
           filterType={filterType}
           vendorFilter={vendorFilter}
-          wbsCategoryFilter={wbsCategoryFilter}
-          wbsSubcategoryFilter={wbsSubcategoryFilter}
+          wbsElementFilter={wbsElementFilter}
+          costCategoryFilter={costCategoryFilter}
           setFilterType={setFilterType}
           setVendorFilter={handleSetVendorFilter}
-          setWbsCategoryFilter={handleSetWbsCategoryFilter}
-          setWbsSubcategoryFilter={handleSetWbsSubcategoryFilter}
+          setWbsElementFilter={handleSetWbsElementFilter}
+          setCostCategoryFilter={setCostCategoryFilter}
           onOptionsUpdate={handleOptionsUpdate}
         />
         

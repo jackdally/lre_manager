@@ -5,8 +5,21 @@ import swaggerUi from 'swagger-ui-express';
 import { AppDataSource } from './config/database';
 import { programRouter } from './routes/program';
 import { ledgerRouter } from './routes/ledger';
-import { wbsRouter } from './routes/wbs';
+import { vendorRouter } from './routes/vendor';
+import { currencyRouter } from './routes/currency';
+import fiscalYearRouter from './routes/fiscalYear';
+
+import wbsElementsRouter from './routes/wbsElements';
 import { importRouter } from './routes/import';
+import settingsRouter from './routes/settings';
+import wbsReportingRouter from './routes/wbsReporting';
+import costCategoriesRouter from './routes/costCategories';
+import boeRouter from './routes/boe';
+
+import boeElementAllocationRouter from './routes/boeElementAllocation';
+import ledgerAuditTrailRouter from './routes/ledgerAuditTrail';
+import { ledgerSplittingRouter } from './routes/ledgerSplitting';
+import { transactionAdjustmentRouter } from './routes/transactionAdjustment';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 
@@ -42,16 +55,29 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // Routes
 app.use('/api/programs', programRouter);
 app.use('/api/programs', ledgerRouter);
-app.use('/api/programs', wbsRouter);
+app.use('/api/vendors', vendorRouter);
+app.use('/api/currencies', currencyRouter);
+app.use('/api/fiscal-years', fiscalYearRouter);
+
+app.use('/api/programs', wbsElementsRouter);
+app.use('/api/programs', wbsReportingRouter);
 app.use('/api/import', importRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/cost-categories', costCategoriesRouter);
+app.use('/api', boeRouter);
+
+app.use('/api', boeElementAllocationRouter);
+app.use('/api/ledger-audit-trail', ledgerAuditTrailRouter);
+app.use('/api/ledger-splitting', ledgerSplittingRouter);
+app.use('/api/transaction-adjustment', transactionAdjustmentRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {
   const headers = [
     'vendor_name',
     'expense_description',
-    'wbs_category',
-    'wbs_subcategory',
+    'wbsElementCode',
+    'costCategoryCode',
     'baseline_date',
     'baseline_amount',
     'planned_date',
@@ -68,6 +94,9 @@ app.get('/api/ledger/template', (req, res) => {
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   res.setHeader('Content-Disposition', 'attachment; filename="ledger_template.xlsx"');
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.send(buffer);
 });
 

@@ -1,4 +1,6 @@
 import React from 'react';
+import VendorAutocomplete from '../../../common/VendorAutocomplete';
+import { Vendor } from '../../../../store/settingsStore';
 
 interface LedgerTableHeaderProps {
   search: string;
@@ -10,13 +12,26 @@ interface LedgerTableHeaderProps {
   onBulkDelete: () => void;
   vendorFilter: string | undefined;
   setVendorFilter: (v: string | undefined) => void;
-  wbsCategoryFilter: string | undefined;
-  setWbsCategoryFilter: (v: string | undefined) => void;
-  wbsSubcategoryFilter: string | undefined;
-  setWbsSubcategoryFilter: (v: string | undefined) => void;
-  vendorOptions: string[];
-  wbsCategoryOptions: string[];
-  wbsSubcategoryOptions: string[];
+  wbsElementFilter: string | undefined;
+  setWbsElementFilter: (v: string | undefined) => void;
+  costCategoryFilter: string | undefined;
+  setCostCategoryFilter: (v: string | undefined) => void;
+  vendorOptions: Vendor[];
+  wbsElementOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  }>;
+  costCategoryOptions: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
+  }>;
 }
 
 const LedgerTableHeader: React.FC<LedgerTableHeaderProps> = ({
@@ -29,48 +44,55 @@ const LedgerTableHeader: React.FC<LedgerTableHeaderProps> = ({
   onBulkDelete,
   vendorFilter,
   setVendorFilter,
-  wbsCategoryFilter,
-  setWbsCategoryFilter,
-  wbsSubcategoryFilter,
-  setWbsSubcategoryFilter,
+  wbsElementFilter,
+  setWbsElementFilter,
+  costCategoryFilter,
+  setCostCategoryFilter,
   vendorOptions,
-  wbsCategoryOptions,
-  wbsSubcategoryOptions,
+  wbsElementOptions,
+  costCategoryOptions,
 }) => {
   return (
     <div className="flex flex-col gap-4 mb-4">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium mb-1">Vendor</label>
-          <select
-            className="input input-sm w-full"
+          <VendorAutocomplete
+            vendors={vendorOptions}
             value={vendorFilter || ''}
-            onChange={e => setVendorFilter(e.target.value || undefined)}
+            onChange={(value) => setVendorFilter(value || undefined)}
+            placeholder="All Vendors"
+            className="input-sm"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium mb-1">WBS Element</label>
+          <select
+            className="input input-sm w-full"
+            value={wbsElementFilter || ''}
+            onChange={e => setWbsElementFilter(e.target.value || undefined)}
           >
-            <option value="">All Vendors</option>
-            {vendorOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            <option value="">All WBS Elements</option>
+            {(wbsElementOptions || []).map(element => (
+              <option key={element.id} value={element.id}>
+                {element.code} - {element.name}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium mb-1">WBS Category</label>
+          <label className="text-xs text-gray-500 font-medium mb-1">Cost Category</label>
           <select
             className="input input-sm w-full"
-            value={wbsCategoryFilter || ''}
-            onChange={e => setWbsCategoryFilter(e.target.value || undefined)}
+            value={costCategoryFilter || ''}
+            onChange={e => setCostCategoryFilter(e.target.value || undefined)}
           >
-            <option value="">All Categories</option>
-            {wbsCategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium mb-1">WBS Subcategory</label>
-          <select
-            className="input input-sm w-full"
-            value={wbsSubcategoryFilter || ''}
-            onChange={e => setWbsSubcategoryFilter(e.target.value || undefined)}
-          >
-            <option value="">All Subcategories</option>
-            {wbsSubcategoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            <option value="">All Cost Categories</option>
+            {(costCategoryOptions || []).map(category => (
+              <option key={category.id} value={category.id}>
+                {category.code} - {category.name}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex flex-col gap-1">

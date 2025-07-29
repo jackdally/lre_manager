@@ -2,8 +2,23 @@ export interface LedgerEntry {
   id: string;
   vendor_name: string;
   expense_description: string;
-  wbs_category: string;
-  wbs_subcategory: string;
+  wbsElementId: string;
+  wbsElement: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    level: number;
+    parentId?: string;
+  };
+  costCategoryId?: string;
+  costCategory?: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    isActive: boolean;
+  };
   baseline_date: string | null;
   baseline_amount: number | null;
   planned_date: string | null;
@@ -19,6 +34,10 @@ export interface LedgerEntry {
     code: string;
     name: string;
   };
+  // BOE Integration Fields
+  boeElementAllocationId?: string;
+  boeVersionId?: string;
+  createdFromBOE?: boolean;
   actualsUploadTransaction?: {
     id: string;
     vendorName: string;
@@ -38,8 +57,8 @@ export interface LedgerEntry {
 export interface LedgerEntryCreateRequest {
   vendor_name: string;
   expense_description: string;
-  wbs_category: string;
-  wbs_subcategory: string;
+  wbsElementId: string;
+  costCategoryId?: string;
   baseline_date?: string;
   baseline_amount?: number;
   planned_date?: string;

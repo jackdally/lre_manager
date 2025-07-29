@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../layout';
-import { 
+import {
   useActualsSessions,
   useActualsCurrentSession,
   useActualsTransactions,
@@ -230,7 +230,7 @@ const ActualsUploadPage: React.FC = () => {
   // Handle save config
   const handleSaveConfigWrapper = async () => {
     if (!configName.trim()) return;
-    
+
     try {
       await handleSaveConfig(config);
       setConfigName('');
@@ -246,7 +246,7 @@ const ActualsUploadPage: React.FC = () => {
   // Handle copy config
   const handleCopyConfigWrapper = async () => {
     if (!copyConfigName.trim() || !copyTargetProgramId) return;
-    
+
     try {
       await handleCopyConfig(config, copyTargetProgramId);
       setCopyConfigName('');
@@ -262,7 +262,7 @@ const ActualsUploadPage: React.FC = () => {
   // Handle upload
   const handleUpload = async () => {
     if (!file) return;
-    
+
     try {
       await performUpload(config, file, description);
       // Clear form after successful upload
@@ -276,7 +276,7 @@ const ActualsUploadPage: React.FC = () => {
   // Handle replace upload
   const handleReplaceUpload = async () => {
     if (!file) return;
-    
+
     try {
       await performReplaceUpload(config, file, description, selectedSessionToReplace);
       // Clear form after successful upload
@@ -308,35 +308,35 @@ const ActualsUploadPage: React.FC = () => {
       console.log('No programId, returning');
       return;
     }
-    
+
     if (!window.confirm('Are you sure you want to clear all upload data for this program? This action cannot be undone.')) {
       console.log('User cancelled the operation');
       return;
     }
-    
+
     try {
       console.log('Starting clear operation...');
       setLoading(true);
       const url = `/api/import/${programId}/clear-all`;
       console.log('Making request to:', url);
-      
+
       const response = await fetch(url, {
         method: 'DELETE',
       });
-      
+
       console.log('Response status:', response.status);
       console.log('Response ok:', response.ok);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.log('Error response:', errorText);
         throw new Error(`Failed to clear upload data: ${response.status} ${errorText}`);
       }
-      
+
       const result = await response.json();
       console.log('Success result:', result);
       setToast({ message: `Cleared ${result.deletedSessions} sessions and ${result.deletedFiles} files`, type: 'success' });
-      
+
       // Refresh the sessions list
       console.log('Refreshing sessions...');
       initialize(programId);
@@ -364,32 +364,29 @@ const ActualsUploadPage: React.FC = () => {
           <nav className="-mb-px flex space-x-8">
             <button
               onClick={() => setActiveTab('upload')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'upload'
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'upload'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               Upload
             </button>
             <button
               onClick={() => setActiveTab('sessions')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'sessions'
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'sessions'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               Upload Sessions
             </button>
             {currentSession && (
               <button
                 onClick={() => setActiveTab('matching')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'matching'
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'matching'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                  }`}
               >
                 Transaction Matching
               </button>
@@ -508,7 +505,7 @@ const ActualsUploadPage: React.FC = () => {
                 Session: {currentSession.description || currentSession.originalFilename}
               </p>
             </div>
-            
+
             <TransactionMatchingTable
               transactions={transactions}
               currentSession={currentSession}
@@ -518,8 +515,11 @@ const ActualsUploadPage: React.FC = () => {
         )}
 
         {/* Match Review Modal */}
-        <TransactionMatchModal sessionFilename={currentSession?.originalFilename} />
-        
+        <TransactionMatchModal
+          sessionFilename={currentSession?.originalFilename}
+          programId={programId!}
+        />
+
         {/* Add to Ledger Modal */}
         {showAddToLedgerModal && addToLedgerTransaction && (
           <AddToLedgerModal

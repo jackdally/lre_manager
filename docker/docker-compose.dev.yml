@@ -12,7 +12,8 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - REACT_APP_API_URL=http://localhost:4000
+      - REACT_APP_API_URL=http://localhost:4000/api
+      - REACT_APP_DOCS_URL=http://localhost:3001/lre_manager/docs/intro
     depends_on:
       - backend
 
@@ -36,6 +37,20 @@ services:
     depends_on:
       - db
 
+  docs:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.docs.dev
+    ports:
+      - "3001:3000"
+    volumes:
+      - ../lre-docs:/app
+      - docs_node_modules:/app/node_modules
+      - docs_cache:/app/.docusaurus
+    environment:
+      - NODE_ENV=development
+    command: [ "npm", "start", "--", "--host", "0.0.0.0" ]
+
   db:
     image: postgres:15-alpine
     ports:
@@ -48,4 +63,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_data: 
+  postgres_data:
+  docs_node_modules:
+  docs_cache:

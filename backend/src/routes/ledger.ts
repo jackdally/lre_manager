@@ -14,55 +14,59 @@ const ledgerRepo = AppDataSource.getRepository(LedgerEntry);
 const programRepo = AppDataSource.getRepository(Program);
 const upload = multer({ dest: '/tmp' });
 
-// Get all unique dropdown options for a program (vendors, categories, subcategories)
+// Get all unique dropdown options for a program (vendors, wbs elements)
 router.get('/:programId/ledger/dropdown-options', async (req, res) => {
   const { programId } = req.params;
   
   console.log('Dropdown options endpoint called with programId:', programId);
   
   try {
-    // Get all unique vendors
-    const vendors = await ledgerRepo
-      .createQueryBuilder('ledger')
-      .leftJoin('ledger.program', 'program')
-      .where('program.id = :programId', { programId })
-      .andWhere('ledger.vendor_name IS NOT NULL')
-      .andWhere('ledger.vendor_name != :emptyString', { emptyString: '' })
-      .select('ledger.vendor_name', 'vendor_name')
-      .distinct()
-      .orderBy('ledger.vendor_name', 'ASC')
-      .getRawMany();
+    // Get all active vendors from the vendor table
+    const vendorRepo = AppDataSource.getRepository(require('../entities/Vendor').Vendor);
+    const vendors = await vendorRepo.find({
+      where: { isActive: true },
+      order: { name: 'ASC' }
+    });
 
-    // Get all unique categories
-    const categories = await ledgerRepo
-      .createQueryBuilder('ledger')
-      .leftJoin('ledger.program', 'program')
-      .where('program.id = :programId', { programId })
-      .andWhere('ledger.wbs_category IS NOT NULL')
-      .andWhere('ledger.wbs_category != :emptyString', { emptyString: '' })
-      .select('ledger.wbs_category', 'wbs_category')
-      .distinct()
-      .orderBy('ledger.wbs_category', 'ASC')
-      .getRawMany();
+    // Get all WBS elements (hierarchical structure)
+    const wbsElementRepo = AppDataSource.getRepository(require('../entities/WbsElement').WbsElement);
+    const wbsElements = await wbsElementRepo.find({
+      where: { program: { id: programId } },
+      order: { code: 'ASC' }
+    });
 
-    // Get all unique subcategories
-    const subcategories = await ledgerRepo
-      .createQueryBuilder('ledger')
-      .leftJoin('ledger.program', 'program')
-      .where('program.id = :programId', { programId })
-      .andWhere('ledger.wbs_subcategory IS NOT NULL')
-      .andWhere('ledger.wbs_subcategory != :emptyString', { emptyString: '' })
-      .select('ledger.wbs_subcategory', 'wbs_subcategory')
-      .distinct()
-      .orderBy('ledger.wbs_subcategory', 'ASC')
-      .getRawMany();
+    // Get all active cost categories
+    const costCategoryRepo = AppDataSource.getRepository(require('../entities/CostCategory').CostCategory);
+    const costCategories = await costCategoryRepo.find({
+      where: { isActive: true },
+      order: { code: 'ASC' }
+    });
 
-    console.log('Found vendors:', vendors.length, 'categories:', categories.length, 'subcategories:', subcategories.length);
+    console.log('Found vendors:', vendors.length, 'wbs elements:', wbsElements.length, 'cost categories:', costCategories.length);
 
     res.json({
-      vendors: vendors.map(v => v.vendor_name),
-      categories: categories.map(c => c.wbs_category),
-      subcategories: subcategories.map(s => s.wbs_subcategory)
+      vendors: vendors.map(vendor => ({
+        id: vendor.id,
+        name: vendor.name,
+        isActive: vendor.isActive,
+        createdAt: vendor.createdAt,
+        updatedAt: vendor.updatedAt
+      })),
+      wbsElements: wbsElements.map(el => ({
+        id: el.id,
+        code: el.code,
+        name: el.name,
+        description: el.description,
+        level: el.level,
+        parentId: el.parentId
+      })),
+      costCategories: costCategories.map(category => ({
+        id: category.id,
+        code: category.code,
+        name: category.name,
+        description: category.description,
+        isActive: category.isActive
+      }))
     });
   } catch (err) {
     console.error('Error in dropdown-options endpoint:', err);
@@ -73,13 +77,15 @@ router.get('/:programId/ledger/dropdown-options', async (req, res) => {
 // List ledger entries for a program (with pagination/filter)
 router.get('/:programId/ledger', async (req, res) => {
   const { programId } = req.params;
-  const { page = 1, limit = 20, search = '', filterType = 'all', vendorFilter, wbsCategoryFilter, wbsSubcategoryFilter } = req.query;
+  const { page = 1, limit = 20, search = '', filterType = 'all', vendorFilter } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
   
   try {
     // Use query builder for more complex filtering
     const queryBuilder = ledgerRepo.createQueryBuilder('ledger')
       .leftJoinAndSelect('ledger.program', 'program')
+      .leftJoinAndSelect('ledger.wbsElement', 'wbsElement')
+      .leftJoinAndSelect('ledger.costCategory', 'costCategory')
       .where('program.id = :programId', { programId });
 
     // Add search filter
@@ -108,14 +114,14 @@ router.get('/:programId/ledger', async (req, res) => {
       queryBuilder.andWhere('ledger.vendor_name = :vendorFilter', { vendorFilter });
     }
 
-    // Add WBS category filter
-    if (wbsCategoryFilter) {
-      queryBuilder.andWhere('ledger.wbs_category = :wbsCategoryFilter', { wbsCategoryFilter });
+    // Add WBS element filter
+    if (req.query.wbsElementFilter) {
+      queryBuilder.andWhere('ledger.wbsElementId = :wbsElementFilter', { wbsElementFilter: req.query.wbsElementFilter });
     }
 
-    // Add WBS subcategory filter
-    if (wbsSubcategoryFilter) {
-      queryBuilder.andWhere('ledger.wbs_subcategory = :wbsSubcategoryFilter', { wbsSubcategoryFilter });
+    // Add cost category filter
+    if (req.query.costCategoryFilter) {
+      queryBuilder.andWhere('ledger.costCategoryId = :costCategoryFilter', { costCategoryFilter: req.query.costCategoryFilter });
     }
 
     // Add ordering and pagination
@@ -172,13 +178,36 @@ router.get('/:programId/ledger', async (req, res) => {
 router.post('/:programId/ledger', async (req, res) => {
   const { programId } = req.params;
   try {
-    const requiredFields = ['vendor_name', 'expense_description', 'wbs_category', 'wbs_subcategory'];
+    const requiredFields = ['vendor_name', 'expense_description', 'wbsElementId'];
     const missingFields = requiredFields.filter(field => req.body[field] === undefined || req.body[field] === null || req.body[field] === '');
+    
     if (missingFields.length > 0) {
       return res.status(400).json({ message: 'Missing required fields', missingFields });
     }
+    
     const program = await programRepo.findOneBy({ id: programId });
     if (!program) return res.status(404).json({ message: 'Program not found' });
+    
+    // Validate WBS element exists and belongs to this program
+    const wbsElementRepo = AppDataSource.getRepository(require('../entities/WbsElement').WbsElement);
+    const wbsElement = await wbsElementRepo.findOne({
+      where: { id: req.body.wbsElementId, program: { id: programId } }
+    });
+    if (!wbsElement) {
+      return res.status(400).json({ message: 'Invalid WBS element ID or element does not belong to this program' });
+    }
+    
+    // Validate cost category if provided
+    if (req.body.costCategoryId) {
+      const costCategoryRepo = AppDataSource.getRepository(require('../entities/CostCategory').CostCategory);
+      const costCategory = await costCategoryRepo.findOne({
+        where: { id: req.body.costCategoryId, isActive: true }
+      });
+      if (!costCategory) {
+        return res.status(400).json({ message: 'Invalid cost category ID or category is not active' });
+      }
+    }
+    
     const entry = ledgerRepo.create({ ...req.body, program });
     const saved = await ledgerRepo.save(entry);
     res.status(201).json(saved);
@@ -195,6 +224,18 @@ router.put('/:programId/ledger/:id', async (req, res) => {
     ['baseline_date', 'planned_date', 'actual_date'].forEach(field => {
       if (req.body[field] === '') req.body[field] = null;
     });
+    
+    // Validate cost category if provided
+    if (req.body.costCategoryId) {
+      const costCategoryRepo = AppDataSource.getRepository(require('../entities/CostCategory').CostCategory);
+      const costCategory = await costCategoryRepo.findOne({
+        where: { id: req.body.costCategoryId, isActive: true }
+      });
+      if (!costCategory) {
+        return res.status(400).json({ message: 'Invalid cost category ID or category is not active' });
+      }
+    }
+    
     const entry = await ledgerRepo.findOne({
       where: { id, program: { id: programId } },
       relations: ['program'],
@@ -419,42 +460,16 @@ router.post('/:programId/import/ledger', upload.single('file'), async (req: Requ
   }
 });
 
-// Download ledger template (Excel)
-router.get('/template', async (req, res) => {
-  // Define all possible columns for the ledger
-  const headers = [
-    'vendor_name',
-    'expense_description',
-    'wbs_category',
-    'wbs_subcategory',
-    'baseline_date',
-    'baseline_amount',
-    'planned_date',
-    'planned_amount',
-    'actual_date',
-    'actual_amount',
-    'notes',
-    'invoice_link_text',
-    'invoice_link_url',
-  ];
-  // Create a worksheet with just the headers
-  const ws = XLSX.utils.aoa_to_sheet([headers]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'LedgerTemplate');
-  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-  res.setHeader('Content-Disposition', 'attachment; filename="ledger_template.xlsx"');
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.send(buffer);
-});
+
 
 // Download import template
 router.get('/import/template', (req, res) => {
-  // Update the template columns to include invoice_link_text and invoice_link_url
+  // Update the template columns to include cost categories
   const columns = [
     'vendor_name',
     'expense_description',
-    'wbs_category',
-    'wbs_subcategory',
+    'wbsElementCode',
+    'costCategoryCode',
     'baseline_date',
     'baseline_amount',
     'planned_date',
@@ -472,6 +487,9 @@ router.get('/import/template', (req, res) => {
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   res.setHeader('Content-Disposition', 'attachment; filename="ledger_template.xlsx"');
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.send(buffer);
 });
 
