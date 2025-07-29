@@ -563,14 +563,6 @@
   - [x] Provide clear justification for baseline exceedance
   - [x] Add approval workflow for significant baseline exceedance
 
-- [ ] **BOE-082**: Create AllocationForecastView component (Baseline vs. Actuals)
-  - [ ] Display baseline vs actual allocations by month
-  - [ ] Show allocation variance analysis (BOE baseline vs. actual spending)
-  - [ ] Create re-forecasting suggestions based on variance trends
-  - [ ] Add allocation status indicators (on-track, over-budget, under-budget)
-  - [ ] Integrate with existing ProgramDashboard charts for consistency
-  - [ ] Provide Program Manager insights on BOE accuracy vs. actual performance
-
 ### Management Reserve System (Phase 3C - Week 7) ✅ **COMPLETED**
 - [x] **BOE-083**: Create ManagementReserveCalculator component ✅ **COMPLETED**
   - [x] Implement MR calculation algorithms (Standard, Risk-Based, Custom)
@@ -835,20 +827,28 @@
   - [ ] Create CSV export for data analysis
   - [ ] Add custom report templates
 
+- [ ] **BOE-082**: Create AllocationForecastView component (Baseline vs. Actuals)
+  - [ ] Display baseline vs actual allocations by month
+  - [ ] Show allocation variance analysis (BOE baseline vs. actual spending)
+  - [ ] Create re-forecasting suggestions based on variance trends
+  - [ ] Add allocation status indicators (on-track, over-budget, under-budget)
+  - [ ] Integrate with existing ProgramDashboard charts for consistency
+  - [ ] Provide Program Manager insights on BOE accuracy vs. actual performance
+
 ## Phase 4: Integration & Testing (Week 8-9)
 
 ### System Integration
-- [ ] **BOE-098**: Integrate with ledger system
-  - [ ] Connect BOE to ledger entries
-  - [ ] Implement actuals comparison
-  - [ ] Add variance reporting
-  - [ ] Create data synchronization
+- [x] **BOE-098**: Integrate with ledger system  ✅ **COMPLETED** (July 28, 2025)
+  - [x] Connect BOE to ledger entries
+  - [x] Implement actuals comparison
+  - [x] Add variance reporting
+  - [x] Create data synchronization
 
-- [ ] **BOE-099**: Integrate with program management
-  - [ ] Connect BOE to program lifecycle
-  - [ ] Add program status updates
-  - [ ] Implement program-level reporting
-  - [ ] Create program dashboard integration
+- [x] **BOE-099**: Integrate with program management ✅ **COMPLETED** (July 28, 2025)
+  - [x] Connect BOE to program lifecycle
+  - [x] Add program status updates
+  - [x] Implement program-level reporting
+  - [x] Create program dashboard integration
 
 ### Performance & Optimization
 - [ ] **BOE-100**: Implement performance optimizations
