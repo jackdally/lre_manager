@@ -5,6 +5,7 @@ export interface LedgerAuditTrail {
   source: string;
   userId?: string;
   sessionId?: string;
+  description?: string;
   previousValues?: Record<string, any>;
   newValues?: Record<string, any>;
   metadata?: Record<string, any>;
@@ -21,7 +22,7 @@ export interface AuditTrailSummary {
   relatedEntries?: string[];
 }
 
-export type AuditSource = 
+export type AuditSource =
   | 'manual'
   | 'boe_allocation'
   | 'boe_push'
@@ -29,7 +30,7 @@ export type AuditSource =
   | 'ledger_split'
   | 're_forecasting';
 
-export type AuditAction = 
+export type AuditAction =
   | 'created'
   | 'updated'
   | 'deleted'

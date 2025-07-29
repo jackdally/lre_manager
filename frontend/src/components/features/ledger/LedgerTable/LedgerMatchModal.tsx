@@ -1,44 +1,43 @@
 import React, { useState } from 'react';
-import { 
+import {
   MatchModal,
   LedgerEntryPanel,
   UploadTransactionMatchPanel
 } from '../../../shared/MatchModal';
 import BOEContextPanel from '../../actuals/BOEContextPanel';
-import LedgerSplitModal from '../LedgerSplitModal';
-import LedgerReForecastModal from '../LedgerReForecastModal';
+import AllocationTransactionAdjustmentModal from '../../../shared/AllocationTransactionAdjustmentModal';
 import type { LedgerEntry } from '../../../../types/ledger';
 import type { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
 
 interface LedgerMatchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  
+
   // Ledger entry data
   ledgerEntry: LedgerEntry | null;
-  
+
   // Match data
   currentTab: 'matched' | 'rejected'; // Use the actual tab type from Table component
   currentIndex: number;
   potentialMatches: PotentialMatchData[];
   rejectedMatches: RejectedMatchData[];
-  
+
   // Actions
   onTabChange: (tab: 'matched' | 'rejected') => void; // Use the actual tab type
   onIndexChange: (index: number) => void;
   onConfirm: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   onReject: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
   onUndoReject: (transactionId: string, ledgerEntryId: string) => Promise<{ success: boolean; error?: string }>;
-  
+
   // State management - CRITICAL: Preserve all state update functions
   setPotentialMatchIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   setEntriesWithRejectedMatches: (set: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setPotentialMatched: (matches: PotentialMatchData[] | ((prev: PotentialMatchData[]) => PotentialMatchData[])) => void;
   setPotentialRejected: (matches: RejectedMatchData[] | ((prev: RejectedMatchData[]) => RejectedMatchData[])) => void;
-  
+
   // State setters
   setToast: (toast: any) => void;
-  
+
   // Utils
   formatCurrency: (val: any) => string;
   ledgerEntryId: string;
@@ -67,116 +66,84 @@ const LedgerMatchModal: React.FC<LedgerMatchModalProps> = ({
   ledgerEntryId,
   programId
 }) => {
-  // Local state for split/re-forecast modals
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [showReForecastModal, setShowReForecastModal] = useState(false);
+  // Local state for unified adjustment modal
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
 
   // Determine current matches based on tab
   const currentMatches = currentTab === 'matched' ? potentialMatches : rejectedMatches;
   const currentMatch = currentMatches[currentIndex];
 
   // Mismatch detection (similar to TransactionMatchModal)
-  const hasAmountMismatch = !!(ledgerEntry && currentMatch && 
+  const hasAmountMismatch = !!(ledgerEntry && currentMatch &&
     Math.abs((currentMatch.amount || 0) - (ledgerEntry.planned_amount || 0)) > 0.01);
-  
-  const hasDateMismatch = !!(ledgerEntry && currentMatch && 
+
+  const hasDateMismatch = !!(ledgerEntry && currentMatch &&
     currentMatch.transactionDate !== ledgerEntry.planned_date);
-  
-  const canSplit = !!(ledgerEntry && currentMatch && hasAmountMismatch && 
+
+  const canSplit = !!(ledgerEntry && currentMatch && hasAmountMismatch &&
     (currentMatch.amount || 0) < (ledgerEntry.planned_amount || 0));
-  
+
   const canReForecast = !!(ledgerEntry && currentMatch && (hasAmountMismatch || hasDateMismatch));
 
   // Action handlers - PRESERVE: All atomic state updates from original implementation
   const handleConfirm = async () => {
     if (!currentMatch || !ledgerEntryId) return;
-    
+
     const result = await onConfirm(currentMatch.id, ledgerEntryId);
-    
+
     if (result.success) {
       // Remove this ledger entry from potential match IDs
       setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(ledgerEntryId)));
       setToast({ message: 'Match confirmed successfully.', type: 'success' });
       onClose();
     } else {
-      setToast({ message: result.error || 'Failed to confirm match.', type: 'error' });
+      setToast({ message: result?.error || 'Failed to confirm match', type: 'error' });
     }
   };
 
   const handleReject = async () => {
     if (!currentMatch || !ledgerEntryId) return;
-    
+
     const result = await onReject(currentMatch.id, ledgerEntryId);
-    
+
     if (result.success) {
-      const rejectedMatch = currentMatch;
-      
-      // Mark this ledger entry as having rejected matches
+      // Move from potential to rejected
+      setPotentialMatched(prev => prev.filter(match => match.id !== currentMatch.id));
+      setPotentialRejected(prev => [...prev, { ...currentMatch, status: 'rejected' }]);
+
+      // Add to rejected matches set
       setEntriesWithRejectedMatches(prev => new Set([...Array.from(prev), ledgerEntryId]));
-      
-      // If no more potential matches for this ledger entry, remove it from potential match IDs
-      const newMatched = potentialMatches.filter(match => match.id !== rejectedMatch.id);
-      if (newMatched.length === 0) {
-        setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(ledgerEntryId)));
-      }
-      
-      setToast({ message: 'Match rejected.', type: 'success', undoId: rejectedMatch.id });
-      
-      // If no more potential matches, close modal
-      if (newMatched.length === 0) {
-        onClose();
-      }
+
+      setToast({ message: 'Match rejected successfully.', type: 'success' });
+
+      // Switch to rejected tab and reset index
+      onTabChange('rejected');
+      onIndexChange(0);
     } else {
-      setToast({ message: result.error || 'Failed to reject match.', type: 'error' });
+      setToast({ message: result?.error || 'Failed to reject match', type: 'error' });
     }
   };
 
   const handleUndoReject = async () => {
     if (!currentMatch || !ledgerEntryId) return;
-    
+
     const result = await onUndoReject(currentMatch.id, ledgerEntryId);
-    
-    if (result?.success) {
-      // PRESERVE: Atomic state updates from original implementation
-      try {
-        const [potentialRes, rejectedRes] = await Promise.all([
-          fetch(`/api/programs/${programId}/ledger/potential-match-ids`),
-          fetch(`/api/programs/${programId}/ledger/rejected-match-ids`)
-        ]);
-        
-        if (potentialRes.ok && rejectedRes.ok) {
-          const potentialIds = await potentialRes.json();
-          const rejectedIds = await rejectedRes.json();
-          
-          // Update both states atomically with fresh data from backend
-          setPotentialMatchIds(potentialIds);
-          setEntriesWithRejectedMatches(new Set(rejectedIds));
-        }
-      } catch (error) {
-        console.error('Failed to refresh match IDs after undo:', error);
-        // PRESERVE: Fallback to local state updates if API calls fail
-        setEntriesWithRejectedMatches(prev => {
-          const newSet = new Set(prev);
-          const remainingRejectedForEntry = rejectedMatches.filter(m => 
-            m.ledgerEntry?.id === ledgerEntryId && m.id !== currentMatch.id
-          );
-          if (remainingRejectedForEntry.length === 0) {
-            newSet.delete(ledgerEntryId);
-          }
-          return newSet;
-        });
-        
-        setPotentialMatchIds(prev => {
-          if (!prev.includes(ledgerEntryId)) {
-            return [...prev, ledgerEntryId];
-          }
-          return prev;
-        });
-      }
-      
-      setToast({ message: 'Rejection undone successfully', type: 'success' });
-      
-      // Switch to matched tab to show the restored match
+
+    if (result.success) {
+      // Move from rejected back to potential
+      setPotentialRejected(prev => prev.filter(match => match.id !== currentMatch.id));
+      setPotentialMatched(prev => [...prev, { ...currentMatch, status: 'potential' }]);
+
+      // Remove from rejected matches set
+      setEntriesWithRejectedMatches(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(ledgerEntryId);
+        return newSet;
+      });
+
+      setToast({ message: 'Rejection undone successfully.', type: 'success' });
+
+      // Switch back to matched tab and reset index
       onTabChange('matched');
       onIndexChange(0);
     } else {
@@ -184,22 +151,20 @@ const LedgerMatchModal: React.FC<LedgerMatchModalProps> = ({
     }
   };
 
-  // Split and Re-forecast handlers
-  const handleSplit = () => {
-    setShowSplitModal(true);
+  // Unified adjustment handler - replaces both split and re-forecast
+  const handleAdjustment = () => {
+    setShowAdjustmentModal(true);
   };
 
-  const handleReForecast = () => {
-    setShowReForecastModal(true);
-  };
+  const handleAdjustmentComplete = () => {
+    setShowAdjustmentModal(false);
 
-  const handleSplitComplete = () => {
-    setShowSplitModal(false);
-    onClose();
-  };
+    // Remove this ledger entry from potential match IDs (same as handleConfirm)
+    if (ledgerEntryId) {
+      setPotentialMatchIds(prev => prev.filter(id => String(id) !== String(ledgerEntryId)));
+    }
 
-  const handleReForecastComplete = () => {
-    setShowReForecastModal(false);
+    setToast({ message: 'Match confirmed and adjustment applied successfully.', type: 'success' });
     onClose();
   };
 
@@ -240,7 +205,7 @@ const LedgerMatchModal: React.FC<LedgerMatchModalProps> = ({
 
   // Additional content (BOE Context Panel)
   const additionalContent = ledgerEntry?.createdFromBOE && (
-    <BOEContextPanel 
+    <BOEContextPanel
       ledgerEntryId={ledgerEntry.id}
       transactionAmount={Number(currentMatch?.amount) || 0}
       isVisible={true}
@@ -263,8 +228,8 @@ const LedgerMatchModal: React.FC<LedgerMatchModalProps> = ({
         onConfirm={handleConfirm}
         onReject={handleReject}
         onUndoReject={handleUndoReject}
-        onSplit={handleSplit}
-        onReForecast={handleReForecast}
+        onSplit={handleAdjustment}
+        onReForecast={handleAdjustment}
         hasAmountMismatch={hasAmountMismatch}
         hasDateMismatch={hasDateMismatch}
         plannedAmount={ledgerEntry?.planned_amount || undefined}
@@ -282,33 +247,19 @@ const LedgerMatchModal: React.FC<LedgerMatchModalProps> = ({
         additionalContent={additionalContent}
       />
 
-      {/* Split Modal */}
-      {showSplitModal && currentMatch && ledgerEntry && (
-        <LedgerSplitModal
-          isOpen={showSplitModal}
-          onClose={() => setShowSplitModal(false)}
+      {/* Unified Adjustment Modal */}
+      {showAdjustmentModal && currentMatch && ledgerEntry && (
+        <AllocationTransactionAdjustmentModal
+          isOpen={showAdjustmentModal}
+          onClose={() => setShowAdjustmentModal(false)}
           ledgerEntry={ledgerEntry}
           actualTransaction={{
             amount: Number(currentMatch.amount),
             date: currentMatch.transactionDate,
             description: currentMatch.description
           }}
-          onSplitComplete={handleSplitComplete}
-        />
-      )}
-
-      {/* Re-forecast Modal */}
-      {showReForecastModal && currentMatch && ledgerEntry && (
-        <LedgerReForecastModal
-          isOpen={showReForecastModal}
-          onClose={() => setShowReForecastModal(false)}
-          ledgerEntry={ledgerEntry}
-          actualTransaction={{
-            amount: Number(currentMatch.amount),
-            date: currentMatch.transactionDate,
-            description: currentMatch.description
-          }}
-          onReForecastComplete={handleReForecastComplete}
+          transactionId={currentMatch.id}
+          onAdjustmentComplete={handleAdjustmentComplete}
         />
       )}
     </>

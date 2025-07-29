@@ -6,7 +6,7 @@ WORKDIR /app
 COPY lre-docs/package*.json ./
 RUN npm install
 
-# Copy source code
+# Copy source code (node_modules will be overridden by volume mount)
 COPY lre-docs/ ./
 
 # Expose port for the development server

@@ -1,5 +1,5 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
+import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
@@ -91,7 +91,7 @@ const config: Config = {
           position: 'left',
           label: 'Features & Implementation',
         },
-        {to: '/blog', label: 'Updates', position: 'left'},
+        { to: '/blog', label: 'Updates', position: 'left' },
         {
           href: 'https://github.com/jackdally/lre_manager',
           label: 'GitHub',
@@ -111,11 +111,11 @@ const config: Config = {
             },
             {
               label: 'Features',
-              to: '/docs/features',
+              to: '/docs/FEATURES',
             },
             {
               label: 'Project Management',
-              to: '/docs/project-management',
+              to: '/docs/PROJECT_MANAGEMENT',
             },
           ],
         },
@@ -132,7 +132,7 @@ const config: Config = {
             },
             {
               label: 'Feature Development',
-              to: '/docs/feature-development-checklist',
+              to: '/docs/FEATURE_DEVELOPMENT_CHECKLIST',
             },
           ],
         },

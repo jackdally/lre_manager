@@ -31,23 +31,16 @@ const MatchModalMismatchWarning: React.FC<MatchModalMismatchWarningProps> = ({
     const actualNum = Number(actualAmount) || 0;
     const plannedNum = Number(plannedAmount) || 0;
     
-    if (hasAmountMismatch && hasDateMismatch) {
-      if (actualNum < plannedNum) {
-        return "Partial delivery with schedule change. Consider splitting for delivered portion and re-forecasting remaining amount.";
-      } else if (actualNum > plannedNum) {
-        return "Overrun with schedule change. Re-forecast to pull additional funds from future months.";
-      }
-    } else if (hasAmountMismatch) {
-      if (actualNum < plannedNum) {
-        return "Partial delivery detected. Split to create separate entries for delivered and remaining portions, or re-forecast to move remaining amount to future months.";
-      } else if (actualNum > plannedNum) {
-        return "Overrun detected. Re-forecast to pull additional funds from future months to cover the overrun.";
-      }
-    } else if (hasDateMismatch) {
-      return "Schedule change detected. Re-forecast to move planned amount to the new date.";
+    // Match the same logic as the modal's getRecommendedScenario()
+    if (plannedNum === actualNum && plannedDate !== actualDate) {
+      return "Schedule change detected. Use 'Split/Re-forecast Ledger' to adjust the planned date.";
+    } else if (actualNum > plannedNum) {
+      return "Cost overrun detected. Use 'Split/Re-forecast Ledger' to pull additional funds from future months to cover the overrun.";
+    } else if (actualNum < plannedNum) {
+      return "Cost underspend detected. Use 'Split/Re-forecast Ledger' to re-allocate remaining costs to future months.";
     }
     
-    return "Mismatch detected. Consider using Split Entry or Re-forecast to resolve differences.";
+    return "Mismatch detected. Use 'Split/Re-forecast Ledger' to resolve differences.";
   };
 
   const showBothOptions = canSplit && canReForecast;
@@ -72,16 +65,15 @@ const MatchModalMismatchWarning: React.FC<MatchModalMismatchWarningProps> = ({
             {/* Guidance */}
             <div className="bg-yellow-100 rounded p-3 border border-yellow-300">
               <p className="font-medium text-yellow-800 mb-1">
-                {showBothOptions ? "Available Actions:" : "Recommended Action:"}
+                Recommended Action:
               </p>
               <p className="text-yellow-700">{getGuidanceText()}</p>
               
-              {showBothOptions && (
-                <div className="mt-2 text-xs text-yellow-600">
-                  <p><strong>Split Entry:</strong> Create separate entries for delivered and remaining portions</p>
-                  <p><strong>Re-forecast:</strong> Adjust planned amounts and dates for future planning</p>
-                </div>
-              )}
+              <div className="mt-3 p-2 bg-purple-50 border border-purple-200 rounded">
+                <p className="text-xs text-purple-800 font-medium">
+                  💡 <strong>Tip:</strong> Click the "Split/Re-forecast Ledger" button below to open the adjustment wizard
+                </p>
+              </div>
             </div>
           </div>
         </div>

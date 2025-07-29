@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -84,6 +84,14 @@ const sidebars: SidebarsConfig = {
           items: [
             'implementation-plans/user-preferences',
             'tasks/active/user-preferences',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Transaction Matching Upgrades',
+          items: [
+            'implementation-plans/transaction-matching-upgrades',
+            'tasks/active/transaction-matching-upgrades',
           ],
         },
         {

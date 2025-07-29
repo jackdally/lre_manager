@@ -2,6 +2,12 @@
 
 This directory contains detailed implementation plans for major features and system components. Each plan follows a standardized template and provides comprehensive guidance for development teams.
 
+## Overview
+
+This directory contains detailed implementation plans for major features and system components. Each plan follows a standardized template and provides comprehensive guidance for development teams.
+
+For the complete feature roadmap, see [Features & Implementation](/docs/FEATURES).
+
 ## Directory Structure
 
 ```
@@ -176,7 +182,6 @@ Each implementation plan follows this structure:
 ## Related Documents
 
 - [`docs/FEATURES.md`](../../FEATURES.md) - Feature requirements and status
-- [`docs/archive/TODO-LEGACY.md`](../../archive/TODO-LEGACY.md) - Legacy task tracking (archived)
 - [`PROJECT_MANAGEMENT.md`](../PROJECT_MANAGEMENT.md) - Project management overview
 - [`docs/tasks/`](../tasks/) - Task management and tracking
 - [`ARCHIVE.md`](ARCHIVE.md) - Guidelines for archiving completed implementations

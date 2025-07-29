@@ -13,13 +13,13 @@ Tasks are now organized by feature in the main sidebar under **Features & Implem
 ### Feature-Specific Tasks
 Each active feature now has its tasks grouped with its implementation plan:
 - **BOE System**
-  - [Implementation Plan](../../implementation-plans/boe-system.md)
+  - [Implementation Plan](../../docs/implementation-plans/boe-system)
   - [Tasks](active/boe-system.md)
 - **Risk & Opportunity System**
-  - [Implementation Plan](../../implementation-plans/risk-opportunity-system.md)
+  - [Implementation Plan](../../docs/implementation-plans/risk-opportunity-system)
   - [Tasks](active/risk-opportunity-system.md)
 - **User Preferences**
-  - [Implementation Plan](../../implementation-plans/user-preferences.md)
+  - [Implementation Plan](../../docs/implementation-plans/user-preferences)
   - [Tasks](active/user-preferences.md)
 
 ### Planned Features

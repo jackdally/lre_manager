@@ -1,6 +1,6 @@
 # LRE Manager Documentation
 
-[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](/LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/jackdally/lre_manager/actions)
 [![Issues](https://img.shields.io/github/issues/jackdally/lre_manager.svg)](https://github.com/jackdally/lre_manager/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/jackdally/lre_manager.svg)](https://github.com/jackdally/lre_manager/pulls)
@@ -136,7 +136,7 @@ For additional help:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the /LICENSE file for details.
 
 > **Note:** If you change backend TypeScript files, always run `npm run build` in the backend directory and restart the backend container to see your changes take effect.
 

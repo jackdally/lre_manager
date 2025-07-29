@@ -19,6 +19,7 @@ import boeRouter from './routes/boe';
 import boeElementAllocationRouter from './routes/boeElementAllocation';
 import ledgerAuditTrailRouter from './routes/ledgerAuditTrail';
 import { ledgerSplittingRouter } from './routes/ledgerSplitting';
+import { transactionAdjustmentRouter } from './routes/transactionAdjustment';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 
@@ -68,6 +69,7 @@ app.use('/api', boeRouter);
 app.use('/api', boeElementAllocationRouter);
 app.use('/api/ledger-audit-trail', ledgerAuditTrailRouter);
 app.use('/api/ledger-splitting', ledgerSplittingRouter);
+app.use('/api/transaction-adjustment', transactionAdjustmentRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {

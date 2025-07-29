@@ -45,10 +45,11 @@ services:
       - "3001:3000"
     volumes:
       - ../lre-docs:/app
-      - /app/node_modules
+      - docs_node_modules:/app/node_modules
+      - docs_cache:/app/.docusaurus
     environment:
       - NODE_ENV=development
-    command: ["npm", "start", "--", "--host", "0.0.0.0"]
+    command: [ "npm", "start", "--", "--host", "0.0.0.0" ]
 
   db:
     image: postgres:15-alpine
@@ -62,4 +63,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_data: 
+  postgres_data:
+  docs_node_modules:
+  docs_cache:

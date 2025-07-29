@@ -1,0 +1,93 @@
+# Cursor Instructions for LRE Manager Development
+
+## Core Development Principles
+
+1. **Always reference Implementation Plan and Tasks for this Feature**
+   - Make updates to both as we go along
+   - Confirm the current date to help with any updates when adding items to documentation
+
+2. **Slow down during implementation**
+   - Sometimes you move too quick and I can't follow
+   - This means I cannot provide oversight and approve work
+   - Take time to explain steps and wait for confirmation
+
+3. **Docker Development Environment**
+   - I am working in a docker container that hot reloads
+   - Always remember this during our development
+   - Please refer to my docker directory for the development docker files
+
+4. **Game Plan First Approach**
+   - I appreciate when you lay out game plans first before diving into implementation
+   - Always present a clear plan before starting code changes
+
+5. **Reference Existing Files for Consistency**
+   - Always refer to already existing files for formatting and code structuring tips
+   - You have generally tried to solve the same problem dozens of times, even though you already solved it on a previous file
+   - This leads to terrible inefficiencies
+   - This is especially true with TypeScript and other linter errors
+
+6. **Check Console Logs and Compilation Errors**
+   - Always check console logs for compilation errors on the frontend and backend
+   - Check for other console errors before proceeding to next implementation steps
+
+7. **GitHub Checkpoints**
+   - Always push checkpoints up to GitHub after implementing certain steps in Feature Development
+
+## Terminal Command Best Practices for LRE Manager
+
+### Build and Compilation Commands (Use these for error checking)
+- Use `npm run build` for frontend compilation checks
+- Use `cd backend && npm run build` for backend compilation checks  
+- Use `npx tsc --noEmit` for TypeScript type checking
+- Use `npm test` for running tests (exits naturally)
+
+### Development Servers (Use is_background: true)
+- Use `is_background: true` for `npm start` (React dev server)
+- Use `is_background: true` for `npm run dev` (Backend dev server)
+- Use `is_background: true` for `docker-compose up`
+- Use `is_background: true` for any long-running watch processes
+
+### Log Monitoring (Use timeout or background)
+- Use `timeout 10s tail -f logs/app.log` for log viewing
+- Use `timeout 10s docker logs -f container_name` for Docker logs
+- Or use `is_background: true` for continuous log monitoring
+
+### Interactive Commands (Always append | cat)
+- Use `git log | cat` instead of `git log`
+- Use `less file.txt | cat` instead of `less file.txt`
+- Use `more file.txt | cat` instead of `more file.txt`
+- Use `head -n 50 file.txt | cat` instead of `head -n 50 file.txt`
+- Use `tail -n 50 file.txt | cat` instead of `tail -n 50 file.txt`
+
+### Working Directory
+- Always ensure working directory is `/home/jac/lre_manager_take2` before running commands
+- Use `cd frontend` or `cd backend` as needed for specific commands
+
+### Project Structure
+- Frontend: React/TypeScript with Material-UI and Tailwind CSS
+- Backend: Node.js/Express with TypeORM and PostgreSQL
+- Uses Docker for containerization
+- Has both frontend and backend package.json files
+
+### Common Commands Reference
+```bash
+# Build checks
+npm run build                    # Frontend build
+cd backend && npm run build      # Backend build
+npx tsc --noEmit                 # TypeScript check
+
+# Development (use background)
+npm start                        # Frontend dev server
+cd backend && npm run dev        # Backend dev server
+docker-compose up                # Docker services
+
+# Testing
+npm test                         # Frontend tests
+cd backend && npm test           # Backend tests
+
+# Logs (use timeout)
+timeout 10s tail -f logs/app.log
+timeout 10s docker logs -f container_name
+```
+
+Remember: Development servers and watch commands are designed to run indefinitely. Use `is_background: true` for these, not `is_background: false`.

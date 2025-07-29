@@ -10,7 +10,8 @@ export enum AuditAction {
   MERGED = 'merged',
   RE_FORECASTED = 're_forecasted',
   MATCHED_TO_INVOICE = 'matched_to_invoice',
-  UNMATCHED_FROM_INVOICE = 'unmatched_from_invoice'
+  UNMATCHED_FROM_INVOICE = 'unmatched_from_invoice',
+  SCHEDULE_CHANGE = 'schedule_change'
 }
 
 export enum AuditSource {
@@ -19,7 +20,8 @@ export enum AuditSource {
   BOE_PUSH = 'boe_push',
   INVOICE_MATCH = 'invoice_match',
   RE_FORECASTED = 're_forecasted',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
+  TRANSACTION_ADJUSTMENT = 'transaction_adjustment'
 }
 
 @Entity('ledger_audit_trail')

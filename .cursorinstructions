@@ -1,0 +1,35 @@
+# LRE Manager Development Instructions
+
+## Development Workflow
+
+### Before Starting Any Feature:
+1. **Check Implementation Plan**: Review `lre-docs/docs/implementation-plans/` for existing plans
+2. **Check Tasks**: Review `lre-docs/docs/tasks/` for current task status
+3. **Check Feature Development Checklist**: Review `lre-docs/docs/FEATURE_DEVELOPMENT_CHECKLIST.md`
+4. **Present Game Plan**: Always lay out the implementation approach before coding
+
+### During Development:
+1. **Reference Existing Code**: Look at similar components/files for patterns
+2. **Check Compilation**: Run build checks after each significant change
+3. **Docker Environment**: Remember hot-reload is active in Docker containers
+4. **Slow Pace**: Explain steps clearly and wait for confirmation
+5. **GitHub Checkpoints**: Commit and push after completing major steps
+
+### Code Quality:
+1. **TypeScript Errors**: Fix all TypeScript/linter errors before proceeding
+2. **Console Logs**: Check both frontend and backend console for errors
+3. **Existing Patterns**: Follow established code structure and formatting
+4. **Documentation**: Update implementation plans and tasks as we progress
+
+### Docker Development:
+- Frontend: http://localhost:3000 (hot reload enabled)
+- Backend: http://localhost:4000 (hot reload enabled)
+- Database: PostgreSQL in Docker container
+- All services managed via `docker/docker-compose.dev.yml`
+
+### Key Directories:
+- `frontend/src/` - React/TypeScript frontend
+- `backend/src/` - Node.js/Express backend
+- `lre-docs/docs/` - Project documentation
+- `docker/` - Docker configuration files
+- `scripts/` - Development helper scripts

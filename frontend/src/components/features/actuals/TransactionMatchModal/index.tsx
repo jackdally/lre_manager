@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { ActualsUploadTransaction } from '../../../../types/actuals';
-import { 
-  useActualsUI, 
-  useActualsSetModalTab, 
-  useActualsSetModalIndex, 
-  useActualsConfirmMatch, 
-  useActualsRejectMatch, 
-  useActualsUndoReject, 
-  useActualsCloseMatchModal 
+import {
+  useActualsUI,
+  useActualsSetModalTab,
+  useActualsSetModalIndex,
+  useActualsConfirmMatch,
+  useActualsRejectMatch,
+  useActualsUndoReject,
+  useActualsCloseMatchModal,
+  useActualsOpenMatchModal,
+  useActualsLoadSessionDetails,
+  useActualsCurrentSession
 } from '../../../../store/actualsStore';
 import BOEContextPanel from '../BOEContextPanel';
-import LedgerSplitModal from '../../ledger/LedgerSplitModal';
-import LedgerReForecastModal from '../../ledger/LedgerReForecastModal';
-import { 
+import AllocationTransactionAdjustmentModal from '../../../shared/AllocationTransactionAdjustmentModal';
+import {
   MatchModal,
   UploadTransactionPanel,
   LedgerEntryPanel
@@ -36,14 +38,17 @@ interface LedgerEntry {
 
 interface TransactionMatchModalProps {
   sessionFilename?: string;
+  onLedgerRefresh?: () => void; // Add callback to refresh ledger table
+  programId?: string; // Add programId for ledger link
 }
 
 const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
   sessionFilename,
+  onLedgerRefresh,
+  programId
 }) => {
-  // Local state for split/re-forecast modals
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [showReForecastModal, setShowReForecastModal] = useState(false);
+  // Local state for unified adjustment modal
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
 
   // Get state from store
   const ui = useActualsUI();
@@ -53,6 +58,9 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
   const rejectMatch = useActualsRejectMatch();
   const undoReject = useActualsUndoReject();
   const closeMatchModal = useActualsCloseMatchModal();
+  const openMatchModal = useActualsOpenMatchModal();
+  const loadSessionDetails = useActualsLoadSessionDetails();
+  const currentSession = useActualsCurrentSession();
 
   const {
     showMatchModal,
@@ -73,15 +81,15 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
   const total = ledgerEntries.length;
 
   // Mismatch detection
-  const hasAmountMismatch = ledgerEntry && modalTransaction && 
+  const hasAmountMismatch = ledgerEntry && modalTransaction &&
     Math.abs((modalTransaction.amount || 0) - (ledgerEntry.planned_amount || 0)) > 0.01;
-  
-  const hasDateMismatch = ledgerEntry && modalTransaction && 
+
+  const hasDateMismatch = ledgerEntry && modalTransaction &&
     modalTransaction.transactionDate !== ledgerEntry.planned_date;
-  
-  const canSplit = ledgerEntry && modalTransaction && hasAmountMismatch && 
+
+  const canSplit = ledgerEntry && modalTransaction && hasAmountMismatch &&
     (modalTransaction.amount || 0) < (ledgerEntry.planned_amount || 0);
-  
+
   const canReForecast = ledgerEntry && modalTransaction && (hasAmountMismatch || hasDateMismatch);
 
   // Handlers
@@ -103,18 +111,25 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
       await undoReject(ledgerEntry);
     }
   };
-  const handleSplit = () => {
-    setShowSplitModal(true);
+
+  // Unified adjustment handler - replaces both split and re-forecast
+  const handleAdjustment = () => {
+    setShowAdjustmentModal(true);
   };
-  const handleReForecast = () => {
-    setShowReForecastModal(true);
-  };
-  const handleSplitComplete = () => {
-    setShowSplitModal(false);
-    closeMatchModal();
-  };
-  const handleReForecastComplete = () => {
-    setShowReForecastModal(false);
+
+  const handleAdjustmentComplete = async () => {
+    setShowAdjustmentModal(false);
+
+    // Refresh modal data to show updated state
+    if (modalTransaction) {
+      await openMatchModal(modalTransaction);
+    }
+
+    // Refresh session details
+    if (currentSession) {
+      loadSessionDetails(currentSession.id);
+    }
+
     closeMatchModal();
   };
 
@@ -145,7 +160,7 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
 
   // Additional content (BOE Context Panel)
   const additionalContent = ledgerEntry?.createdFromBOE && (
-    <BOEContextPanel 
+    <BOEContextPanel
       ledgerEntryId={ledgerEntry.id}
       transactionAmount={Number(modalTransaction?.amount) || 0}
       isVisible={true}
@@ -168,8 +183,8 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
         onConfirm={handleConfirm}
         onReject={handleReject}
         onUndoReject={handleUndoReject}
-        onSplit={handleSplit}
-        onReForecast={handleReForecast}
+        onSplit={handleAdjustment}
+        onReForecast={handleAdjustment}
         hasAmountMismatch={hasAmountMismatch}
         hasDateMismatch={hasDateMismatch}
         plannedAmount={ledgerEntry?.planned_amount}
@@ -187,33 +202,21 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
         additionalContent={additionalContent}
       />
 
-      {/* Split Modal */}
-      {showSplitModal && modalTransaction && ledgerEntry && (
-        <LedgerSplitModal
-          isOpen={showSplitModal}
-          onClose={() => setShowSplitModal(false)}
+      {/* Unified Adjustment Modal */}
+      {showAdjustmentModal && modalTransaction && ledgerEntry && (
+        <AllocationTransactionAdjustmentModal
+          isOpen={showAdjustmentModal}
+          onClose={() => setShowAdjustmentModal(false)}
           ledgerEntry={ledgerEntry}
           actualTransaction={{
             amount: Number(modalTransaction.amount),
             date: modalTransaction.transactionDate,
             description: modalTransaction.description
           }}
-          onSplitComplete={handleSplitComplete}
-        />
-      )}
-
-      {/* Re-forecast Modal */}
-      {showReForecastModal && modalTransaction && ledgerEntry && (
-        <LedgerReForecastModal
-          isOpen={showReForecastModal}
-          onClose={() => setShowReForecastModal(false)}
-          ledgerEntry={ledgerEntry}
-          actualTransaction={{
-            amount: Number(modalTransaction.amount),
-            date: modalTransaction.transactionDate,
-            description: modalTransaction.description
-          }}
-          onReForecastComplete={handleReForecastComplete}
+          transactionId={modalTransaction.id}
+          onAdjustmentComplete={handleAdjustmentComplete}
+          onLedgerRefresh={onLedgerRefresh}
+          programId={programId}
         />
       )}
     </>

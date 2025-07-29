@@ -83,11 +83,11 @@ export class LedgerAuditTrailService {
     userId?: string,
     sessionId?: string
   ): Promise<LedgerAuditTrail> {
-    const description = source === AuditSource.BOE_PUSH 
+    const description = source === AuditSource.BOE_PUSH
       ? 'Ledger entry created from BOE allocation'
       : source === AuditSource.BOE_ALLOCATION
-      ? 'Ledger entry created from BOE element allocation'
-      : 'Ledger entry created manually';
+        ? 'Ledger entry created from BOE element allocation'
+        : 'Ledger entry created manually';
 
     return await this.createAuditEntry(
       ledgerEntry.id,
@@ -240,7 +240,7 @@ export class LedgerAuditTrailService {
     sessionId?: string
   ): Promise<LedgerAuditTrail> {
     const action = isMatched ? AuditAction.MATCHED_TO_INVOICE : AuditAction.UNMATCHED_FROM_INVOICE;
-    const description = isMatched 
+    const description = isMatched
       ? `Ledger entry matched to invoice ${invoiceId}`
       : `Ledger entry unmatched from invoice ${invoiceId}`;
 
@@ -256,6 +256,27 @@ export class LedgerAuditTrailService {
           isMatched
         },
         sessionId
+      }
+    );
+  }
+
+  /**
+   * Log an action for audit trail (simplified interface for transaction adjustments)
+   */
+  static async logAction(options: {
+    ledgerEntryId: string;
+    action: AuditAction;
+    description: string;
+    userId?: string;
+    source: AuditSource;
+  }): Promise<LedgerAuditTrail> {
+    return await this.createAuditEntry(
+      options.ledgerEntryId,
+      options.action,
+      options.source,
+      {
+        userId: options.userId,
+        description: options.description
       }
     );
   }

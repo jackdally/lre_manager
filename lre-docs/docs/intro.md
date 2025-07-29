@@ -119,7 +119,7 @@ This documentation is organized into several sections:
 
 ## Contributing
 
-This is currently a one-person project, but contributions are welcome! Please see the [Project Management](project-management) section for development guidelines and processes.
+This is currently a one-person project, but contributions are welcome! Please see the [Project Management](PROJECT_MANAGEMENT) section for development guidelines and processes.
 
 ## Support
 

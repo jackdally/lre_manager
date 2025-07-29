@@ -44,7 +44,7 @@ const LedgerAuditTrailSidebar: React.FC<LedgerAuditTrailSidebarProps> = ({
 
     try {
       const response: AuditTrailResponse = await AuditTrailService.getAuditTrailForLedgerEntry(ledgerEntryId);
-      
+
       if (response.success) {
         setAuditTrail(response.data);
       } else {
@@ -228,7 +228,13 @@ const LedgerAuditTrailSidebar: React.FC<LedgerAuditTrailSidebarProps> = ({
                   </div>
                   <span className="text-xs text-gray-500">{formatDate(entry.createdAt)}</span>
                 </div>
-                
+
+                {entry.description && (
+                  <div className="mb-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                    {entry.description}
+                  </div>
+                )}
+
                 <div className="space-y-1 text-xs text-gray-600">
                   <div className="flex items-center gap-1">
                     <span className="font-medium">Source:</span>
@@ -236,14 +242,14 @@ const LedgerAuditTrailSidebar: React.FC<LedgerAuditTrailSidebarProps> = ({
                       {getSourceLabel(entry.source)}
                     </span>
                   </div>
-                  
+
                   {entry.userId && (
                     <div className="flex items-center gap-1">
                       <UserIcon className="h-3 w-3" />
                       <span>User: {entry.userId}</span>
                     </div>
                   )}
-                  
+
                   {entry.sessionId && (
                     <div className="text-xs text-gray-500">
                       Session: {entry.sessionId.substring(0, 8)}...
@@ -259,9 +265,9 @@ const LedgerAuditTrailSidebar: React.FC<LedgerAuditTrailSidebarProps> = ({
                       {Object.keys(entry.newValues).map(key => {
                         const oldValue = entry.previousValues?.[key];
                         const newValue = entry.newValues?.[key];
-                        
+
                         if (oldValue === newValue) return null;
-                        
+
                         return (
                           <div key={key} className="flex justify-between">
                             <span className="text-gray-600">{key}:</span>

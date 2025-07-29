@@ -32,6 +32,21 @@ This document provides a high-level roadmap of planned, in-progress, and complet
 **Implementation Plan**: [docs/implementation-plans/boe-system.md](implementation-plans/boe-system.md)  
 **Estimated Completion**: Q1 2026
 
+### Transaction Matching Upgrades (High Priority)
+- [~] Transaction matching modal improvements and bug fixes
+- [~] Transaction allocation adjustment modal enhancements
+- [~] Ledger table updates and actuals updates for transaction operations (confirm, reject, split, reforecast)
+- [~] View Upload Modal improvements and fixes
+- [~] Backend optimization of matching algorithms and data structure redesign
+- [~] Performance improvements to matching logic and algorithm intelligence
+- [~] Enhanced matching algorithm with better confidence scoring
+- [~] Optimized database structure for potential_matches, rejected_matches, and confirmed matches
+- [~] Real-time ledger and actuals synchronization improvements
+
+**Implementation Plan**: [docs/implementation-plans/transaction-matching-upgrades.md](implementation-plans/transaction-matching-upgrades.md)  
+**Task Tracking**: [docs/tasks/active/transaction-matching-upgrades.md](tasks/active/transaction-matching-upgrades.md)  
+**Estimated Completion**: Q4 2025
+
 ### User Preference Management (Medium Priority)
 - [~] User interface customization (theme, layout, dashboard preferences)
 - [~] Default currency and date format settings

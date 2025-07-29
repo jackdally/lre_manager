@@ -1,9 +1,9 @@
 import React from 'react';
-import { 
-  CheckCircleIcon, 
-  XCircleIcon, 
+import {
+  CheckCircleIcon,
+  XCircleIcon,
   ArrowPathIcon,
-  ScissorsIcon
+  AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 
 interface MatchModalActionsProps {
@@ -31,15 +31,18 @@ const MatchModalActions: React.FC<MatchModalActionsProps> = ({
   canReForecast = false,
   showSplitReForecast = false
 }) => {
-  // Determine if we should show both options
-  const showBothOptions = showSplitReForecast && canSplit && canReForecast && onSplit && onReForecast;
+  // Determine if we should show the unified adjustment button
+  const showAdjustmentButton = showSplitReForecast && (canSplit || canReForecast) && (onSplit || onReForecast);
+
+  // Use either onSplit or onReForecast as the unified handler (they should be the same now)
+  const handleAdjustment = onSplit || onReForecast;
 
   return (
     <div className="flex flex-wrap gap-3">
       {currentTab === 'potential' ? (
         <>
           {onConfirm && (
-            <button 
+            <button
               className="flex-1 px-4 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
               onClick={onConfirm}
             >
@@ -48,7 +51,7 @@ const MatchModalActions: React.FC<MatchModalActionsProps> = ({
             </button>
           )}
           {onReject && (
-            <button 
+            <button
               className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
               onClick={onReject}
             >
@@ -56,61 +59,17 @@ const MatchModalActions: React.FC<MatchModalActionsProps> = ({
               Reject Match
             </button>
           )}
-          
-          {/* Split/Re-forecast Options - Updated Logic */}
-          {showSplitReForecast && (
-            <>
-              {/* Show both options when applicable */}
-              {showBothOptions && (
-                <div className="w-full space-y-3">
-                  <div className="text-sm text-gray-600 font-medium">
-                    Choose your approach:
-                  </div>
-                  <div className="flex gap-3">
-                    <button 
-                      className="flex-1 px-4 py-2.5 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors flex items-center justify-center gap-2"
-                      onClick={onSplit}
-                      title="Split ledger entry for partial delivery"
-                    >
-                      <ScissorsIcon className="h-4 w-4" />
-                      Split Entry
-                    </button>
-                    <button 
-                      className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                      onClick={onReForecast}
-                      title="Re-forecast planned amount or date"
-                    >
-                      <ArrowPathIcon className="h-4 w-4" />
-                      Re-forecast
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* Show only split when only split is applicable */}
-              {!showBothOptions && canSplit && onSplit && (
-                <button 
-                  className="px-4 py-2.5 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors flex items-center gap-2"
-                  onClick={onSplit}
-                  title="Split ledger entry for partial delivery"
-                >
-                  <ScissorsIcon className="h-4 w-4" />
-                  Split Entry
-                </button>
-              )}
-              
-              {/* Show only re-forecast when only re-forecast is applicable */}
-              {!showBothOptions && canReForecast && !canSplit && onReForecast && (
-                <button 
-                  className="px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                  onClick={onReForecast}
-                  title="Re-forecast planned amount or date"
-                >
-                  <ArrowPathIcon className="h-4 w-4" />
-                  Re-forecast
-                </button>
-              )}
-            </>
+
+          {/* Unified Adjustment Button */}
+          {showAdjustmentButton && handleAdjustment && (
+            <button
+              className="px-4 py-2.5 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+              onClick={handleAdjustment}
+              title="Confirm match and split or re-forecast ledger entries associated with this BOE allocation"
+            >
+              <AdjustmentsHorizontalIcon className="h-4 w-4" />
+              Confirm & Adjust
+            </button>
           )}
         </>
       ) : (
@@ -124,8 +83,8 @@ const MatchModalActions: React.FC<MatchModalActionsProps> = ({
           </button>
         )
       )}
-      
-      <button 
+
+      <button
         className="px-4 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
         onClick={onCancel}
       >

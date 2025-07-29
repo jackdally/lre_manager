@@ -39,6 +39,36 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:4000
 
+## AI Assistant Guidelines
+
+When working with AI assistants (like Claude in Cursor), follow these best practices for terminal commands:
+
+### Build and Compilation Commands (Use these for error checking)
+- Use `npm run build` for frontend compilation checks
+- Use `cd backend && npm run build` for backend compilation checks  
+- Use `npx tsc --noEmit` for TypeScript type checking
+- Use `npm test` for running tests (exits naturally)
+
+### Development Servers (Use is_background: true)
+- Use `is_background: true` for `npm start` (React dev server)
+- Use `is_background: true` for `npm run dev` (Backend dev server)
+- Use `is_background: true` for `docker-compose up`
+- Use `is_background: true` for any long-running watch processes
+
+### Log Monitoring (Use timeout or background)
+- Use `timeout 10s tail -f logs/app.log` for log viewing
+- Use `timeout 10s docker logs -f container_name` for Docker logs
+- Or use `is_background: true` for continuous log monitoring
+
+### Interactive Commands (Always append | cat)
+- Use `git log | cat` instead of `git log`
+- Use `less file.txt | cat` instead of `less file.txt`
+- Use `more file.txt | cat` instead of `more file.txt`
+- Use `head -n 50 file.txt | cat` instead of `head -n 50 file.txt`
+- Use `tail -n 50 file.txt | cat` instead of `tail -n 50 file.txt`
+
+**Remember**: Development servers and watch commands are designed to run indefinitely. Use `is_background: true` for these, not `is_background: false`.
+
 ## Key Features
 
 ### NetSuite Actuals Upload & Smart Matching
