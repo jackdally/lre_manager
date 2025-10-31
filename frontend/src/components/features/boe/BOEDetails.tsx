@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
+import { useSettingsStore } from '../../../store/settingsStore';
 import { boeVersionsApi, boeElementsApi, elementAllocationApi } from '../../../services/boeApi';
 import BOECalculationService, { BOECalculationResult } from '../../../services/boeCalculationService';
 import BOEForm from './BOEForm';
@@ -41,7 +42,6 @@ interface BOETreeItemProps {
   onAddChild: (parentId: string) => void;
   isReadOnly?: boolean;
   costCategories: any[];
-  vendors: any[];
   elementAllocations: BOEElementAllocation[];
 }
 
@@ -141,7 +141,6 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
   onAddChild,
   isReadOnly,
   costCategories,
-  vendors,
   elementAllocations
 }) => {
   const isExpanded = expandedItems.has(element.id);
@@ -161,9 +160,8 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
     onElementSelect(element);
   };
 
-  // Get cost category and vendor names
+  // Get cost category name
   const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
-  const vendor = vendors.find(v => v.id === element.vendorId);
 
   // Enhanced allocation status indicator with parent aggregation
   const getAllocationStatusIcon = () => {
@@ -279,19 +277,89 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
           {getStatusSummary()}
         </div>
 
-        {/* Estimated Cost */}
-        <span className="text-sm text-gray-600 mr-3 min-w-[80px] text-right">
-          {formatCurrency(element.estimatedCost)}
+        {/* Estimated Cost - show actual estimated cost (not allocation-based), aggregated for parents */}
+        <span className="text-sm text-gray-600 mr-4 min-w-[100px] text-right">
+          {(() => {
+            if (hasChildren) {
+              // Parent: sum estimated costs from all leaf descendants
+              let total = 0;
+              const sumLeafEstimates = (children: BOEElement[]) => {
+                children.forEach(child => {
+                  const isLeaf = !child.childElements || child.childElements.length === 0;
+                  if (isLeaf) {
+                    total += safeNumber(child.estimatedCost);
+                  } else {
+                    sumLeafEstimates(child.childElements!);
+                  }
+                });
+              };
+              sumLeafEstimates(element.childElements!);
+              return (
+                <>
+                  {formatCurrency(total)}
+                  <span className="ml-1 text-gray-400" aria-label="Sum of children" title="Sum of children">
+                    Σ
+                  </span>
+                </>
+              );
+            }
+            return formatCurrency(element.estimatedCost || 0);
+          })()}
+        </span>
+
+        {/* Allocated Cost - sum of allocations, aggregated for parents */}
+        <span className="text-sm text-gray-600 mr-4 min-w-[100px] text-right">
+          {(() => {
+            // Calculate allocated cost for this element
+            const getElementAllocatedCost = (el: BOEElement): number => {
+              const hasChildren = el.childElements && el.childElements.length > 0;
+              
+              if (!hasChildren) {
+                // Leaf: sum allocations for this element
+                const elementAllocs = elementAllocations.filter(a => a.boeElementId === el.id);
+                return elementAllocs.reduce((sum, a) => sum + (a.totalAmount || 0), 0);
+              }
+              
+              // Parent: sum allocated costs from all leaf descendants
+              let total = 0;
+              const sumLeafAllocations = (children: BOEElement[]) => {
+                children.forEach(child => {
+                  const isLeaf = !child.childElements || child.childElements.length === 0;
+                  if (isLeaf) {
+                    const childAllocs = elementAllocations.filter(a => a.boeElementId === child.id);
+                    total += childAllocs.reduce((sum, a) => sum + (a.totalAmount || 0), 0);
+                  } else {
+                    sumLeafAllocations(child.childElements!);
+                  }
+                });
+              };
+              sumLeafAllocations(el.childElements!);
+              return total;
+            };
+            
+            const allocated = getElementAllocatedCost(element);
+            if (allocated > 0) {
+              return (
+                <>
+                  {formatCurrency(allocated)}
+                  {hasChildren && (
+                    <span className="ml-1 text-gray-400" aria-label="Sum of allocated children" title="Sum of allocated children">
+                      Σ
+                    </span>
+                  )}
+                </>
+              );
+            }
+            return <span className="text-gray-400">—</span>;
+          })()}
         </span>
 
         {/* Cost Category */}
-        <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
-          {costCategory?.name || 'Unassigned'}
-        </span>
-
-        {/* Vendor */}
-        <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
-          {vendor?.name || 'Unassigned'}
+        <span className="text-xs text-gray-500 mr-4 min-w-[120px]">
+          {hasChildren 
+            ? <span className="text-gray-400">N/A</span>
+            : (costCategory?.name || 'Unassigned')
+          }
         </span>
 
         {/* Click indicator */}
@@ -355,7 +423,6 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
               onAddChild={onAddChild}
               isReadOnly={isReadOnly}
               costCategories={costCategories}
-              vendors={vendors}
               elementAllocations={elementAllocations}
             />
           ))}
@@ -384,8 +451,9 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [selectedElement, setSelectedElement] = useState<BOEElement | null>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [costCategories, setCostCategories] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
+  
+  // Load cost categories from settings store
+  const { costCategories, fetchCostCategories } = useSettingsStore();
   
   // Modal state management
   const [modalOpen, setModalOpen] = useState(false);
@@ -397,12 +465,16 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    // Calculate responsive default width based on screen size
-    const screenWidth = window.innerWidth;
-    if (screenWidth >= 1920) return 500; // Large screens
-    if (screenWidth >= 1440) return 450; // Medium-large screens
-    if (screenWidth >= 1024) return 400; // Medium screens
-    return 350; // Small screens
+    // Default to 700px, but check saved value first
+    const savedWidth = localStorage.getItem('sidebarWidth');
+    if (savedWidth) {
+      const width = parseInt(savedWidth, 10);
+      // Use saved width if it's reasonable (between 300 and 1200)
+      if (width >= 300 && width <= 1200) {
+        return width;
+      }
+    }
+    return 700; // Default to 700px
   });
   const [expandedBreakdowns, setExpandedBreakdowns] = useState<Set<string>>(new Set(['cost-category'])); // Default to cost category expanded
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -412,8 +484,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     if (!elements || elements.length === 0) {
       return {
         totalEstimatedCost: 0,
-        totalActualCost: 0,
-        totalVariance: 0,
+        totalAllocatedCost: 0,
         managementReserveAmount: 0,
         managementReservePercentage: 10,
         totalWithMR: 0,
@@ -421,14 +492,19 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
         requiredElementCount: 0,
         optionalElementCount: 0,
         costCategoryBreakdown: [],
-        levelBreakdown: []
+        levelBreakdown: [],
+        reconciliationIssues: []
       };
     }
     
     // Build hierarchical structure for calculations
     const hierarchicalElements = BOECalculationService.buildHierarchicalStructure(elements);
-    return BOECalculationService.calculateBOETotals(hierarchicalElements, currentBOE?.managementReservePercentage || 10);
-  }, [elements, currentBOE?.managementReservePercentage]);
+    return BOECalculationService.calculateBOETotals(
+      hierarchicalElements, 
+      currentBOE?.managementReservePercentage || 10,
+      elementAllocations || []
+    );
+  }, [elements, currentBOE?.managementReservePercentage, elementAllocations]);
 
   // Validate BOE structure
   const validationResult = useMemo(() => {
@@ -444,6 +520,11 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
   useEffect(() => {
     setValidationErrors(validationResult.errors);
   }, [validationResult]);
+
+  // Load cost categories on mount
+  useEffect(() => {
+    fetchCostCategories();
+  }, [fetchCostCategories]);
 
   // Load BOE data when component mounts
   useEffect(() => {
@@ -494,7 +575,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     const handleResize = () => {
       const screenWidth = window.innerWidth;
       const currentMinWidth = screenWidth >= 1024 ? 350 : 300;
-      const currentMaxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
+      const currentMaxWidth = Math.max(screenWidth * 0.9, 1200); // Allow up to 90% of screen or 1200px, whichever is larger
       
       // Adjust sidebar width if it's outside the new bounds
       if (sidebarWidth < currentMinWidth) {
@@ -510,21 +591,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
     };
   }, [sidebarWidth]);
 
-  // Persist sidebar width to localStorage
-  useEffect(() => {
-    const savedWidth = localStorage.getItem('sidebarWidth');
-    if (savedWidth) {
-      const width = parseInt(savedWidth, 10);
-      const screenWidth = window.innerWidth;
-      const minWidth = screenWidth >= 1024 ? 350 : 300;
-      const maxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
-      
-      // Only use saved width if it's within current screen bounds
-      if (width >= minWidth && width <= maxWidth) {
-        setSidebarWidth(width);
-      }
-    }
-  }, []);
+  // Note: Sidebar width initialization now happens in useState above
 
   useEffect(() => {
     localStorage.setItem('sidebarWidth', sidebarWidth.toString());
@@ -684,6 +751,9 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
       setModalOpen(false);
       setEditingElement(null);
       setAddingToParentId(null);
+      
+      // Reload BOE data to ensure cost categories and vendors are reflected
+      await loadBOEData();
     } catch (error) {
       console.error('Error saving element:', error);
       setElementsError('Failed to save element');
@@ -746,17 +816,6 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
 
 
 
-  const getVarianceColor = (variance: number) => {
-    if (variance > 0) return 'text-red-600';
-    if (variance < 0) return 'text-green-600';
-    return 'text-gray-600';
-  };
-
-  const getVarianceIcon = (variance: number) => {
-    if (variance > 0) return <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />;
-    if (variance < 0) return <CheckCircleIcon className="h-6 w-6 text-green-600" />;
-    return <CurrencyDollarIcon className="h-6 w-6 text-gray-600" />;
-  };
 
   const toggleBreakdown = (breakdownId: string) => {
     const newExpanded = new Set(expandedBreakdowns);
@@ -875,39 +934,26 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
       )}
 
       {/* Real-time Calculation Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center">
             <CurrencyDollarIcon className="h-6 w-6 text-green-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Estimated</p>
+              <p className="text-sm font-medium text-gray-500">
+                Estimated Total
+              </p>
               <p className="text-lg font-bold text-gray-900">
                 {formatCurrency(calculationResult.totalEstimatedCost)}
               </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center">
-            <BuildingOfficeIcon className="h-6 w-6 text-blue-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Actual</p>
-              <p className="text-lg font-bold text-gray-900">
-                {formatCurrency(calculationResult.totalActualCost)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center">
-            {getVarianceIcon(calculationResult.totalVariance)}
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Variance</p>
-              <p className={`text-lg font-bold ${getVarianceColor(calculationResult.totalVariance)}`}>
-                {formatCurrency(calculationResult.totalVariance)}
-              </p>
+              {calculationResult.totalAllocatedCost > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {calculationResult.reconciliationIssues.length > 0 && (
+                    <span className="text-yellow-600">
+                      {calculationResult.reconciliationIssues.length} reconciliation issue{calculationResult.reconciliationIssues.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -923,7 +969,51 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
             </div>
           </div>
         </div>
+
+        {calculationResult.totalAllocatedCost > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center">
+              <BuildingOfficeIcon className="h-6 w-6 text-blue-600" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Allocations Total</p>
+                <p className="text-lg font-bold text-blue-600">
+                  {formatCurrency(calculationResult.totalAllocatedCost)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Reconciliation Issues Alert */}
+      {calculationResult.reconciliationIssues.length > 0 && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-yellow-800">Reconciliation Issues</h3>
+              <p className="mt-1 text-sm text-yellow-700">
+                Some elements have allocation totals that differ from their initial estimates:
+              </p>
+              <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside space-y-1">
+                {calculationResult.reconciliationIssues.slice(0, 5).map((issue, index) => (
+                  <li key={index}>
+                    <strong>{issue.elementCode} {issue.elementName}</strong>: 
+                    {' '}Est. {formatCurrency(issue.estimatedCost)} → 
+                    {' '}Allocated {formatCurrency(issue.allocatedTotal)} 
+                    ({issue.difference > 0 ? '+' : ''}{formatCurrency(issue.difference)})
+                  </li>
+                ))}
+                {calculationResult.reconciliationIssues.length > 5 && (
+                  <li className="text-yellow-600 italic">
+                    ...and {calculationResult.reconciliationIssues.length - 5} more
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* WBS Section */}
       <div className="mb-8">
@@ -970,12 +1060,12 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
             {/* WBS Tree Header */}
             <div className="flex items-center py-2 px-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
               <div className="w-6 mr-2" />
-              <div className="w-16 mr-2 text-center">Status</div> {/* Allocation status - wider for aggregated display */}
-              <span className="mr-3 min-w-[60px]">Code</span>
-              <span className="flex-1">Name</span>
-              <span className="mr-3 min-w-[80px] text-right">Est. Cost</span>
-              <span className="mr-3 min-w-[100px]">Category</span>
-              <span className="mr-3 min-w-[100px]">Vendor</span>
+              <div className="w-16 mr-2 text-center">Status</div>
+              <span className="mr-4 min-w-[60px]">Code</span>
+              <span className="flex-1 min-w-[200px]">Name</span>
+              <span className="mr-4 min-w-[100px] text-right">Est. Cost</span>
+              <span className="mr-4 min-w-[100px] text-right">Allocated</span>
+              <span className="mr-4 min-w-[120px]">Category</span>
             </div>
 
             {/* WBS Tree */}
@@ -999,7 +1089,6 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                     onAddChild={handleAddChild}
                     isReadOnly={!isEditing}
                     costCategories={costCategories}
-                    vendors={vendors}
                     elementAllocations={elementAllocations}
                   />
                 ))
@@ -1026,7 +1115,7 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                 const deltaX = startX - moveEvent.clientX;
                 const screenWidth = window.innerWidth;
                 const minWidth = screenWidth >= 1024 ? 350 : 300;
-                const maxWidth = screenWidth >= 1920 ? 700 : screenWidth >= 1440 ? 600 : 500;
+                const maxWidth = Math.max(screenWidth * 0.9, 1200); // Allow up to 90% of screen or 1200px, whichever is larger
                 const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
                 setSidebarWidth(newWidth);
               };
@@ -1049,9 +1138,6 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
               <div className="flex-1 min-w-0">
                 <h4 className="text-lg font-medium text-gray-900 truncate">Element Allocations</h4>
-                <p className="text-sm text-gray-600 mt-1 truncate">
-                  {selectedElement ? `Allocation details for ${selectedElement.name}` : 'Select an element to view allocations'}
-                </p>
               </div>
               <div className="flex items-center space-x-2 ml-2">
                 {/* Resize Indicator */}
@@ -1154,13 +1240,10 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                               Elements
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Estimated
+                              Estimated Costs
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actual
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Variance
+                              Allocated
                             </th>
                           </tr>
                         </thead>
@@ -1176,13 +1259,11 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {formatCurrency(category.estimatedCost)}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatCurrency(category.actualCost)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <span className={getVarianceColor(category.variance)}>
-                                  {formatCurrency(category.variance)}
-                                </span>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {category.allocatedCost > 0 
+                                  ? formatCurrency(category.allocatedCost)
+                                  : <span className="text-gray-400">—</span>
+                                }
                               </td>
                             </tr>
                           ))}
@@ -1228,13 +1309,10 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                               Elements
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Estimated
+                              Estimated Costs
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actual
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Variance
+                              Allocated
                             </th>
                           </tr>
                         </thead>
@@ -1250,13 +1328,11 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {formatCurrency(level.estimatedCost)}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatCurrency(level.actualCost)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <span className={getVarianceColor(level.variance)}>
-                                  {formatCurrency(level.variance)}
-                                </span>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {level.allocatedCost > 0 
+                                  ? formatCurrency(level.allocatedCost)
+                                  : <span className="text-gray-400">—</span>
+                                }
                               </td>
                             </tr>
                           ))}

@@ -3,8 +3,8 @@ import { useBOEStore } from '../../../store/boeStore';
 import BOETemplateSelector from './BOETemplateSelector';
 import { BOETemplate, BOEElementAllocation, BOEElement } from '../../../store/boeStore';
 import { formatCurrency } from '../../../utils/currencyUtils';
-import { elementAllocationApi } from '../../../services/boeApi';
-import { 
+import { elementAllocationApi, boeTemplatesApi } from '../../../services/boeApi';
+import {
   ClockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -64,8 +64,9 @@ interface WBSWizardTreeItemProps {
   onDelete: (element: BOEElement) => void;
   onAddChild: (parentId: string) => void;
   costCategories: any[];
-  vendors: any[];
 }
+
+// (Reordering controls will be added with drag-and-drop in a follow-up.)
 
 const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
   element,
@@ -75,8 +76,7 @@ const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
   onEdit,
   onDelete,
   onAddChild,
-  costCategories,
-  vendors
+  costCategories
 }) => {
   const isExpanded = expandedItems.has(element.id);
   const hasChildren = element.childElements && element.childElements.length > 0;
@@ -87,13 +87,23 @@ const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
     }
   };
 
-  // Get cost category and vendor names
+  // Compute display cost for an element: leaves use own cost; parents sum descendants
+  const getElementTotalCost = (el: BOEElement): number => {
+    const hasChildren = Array.isArray(el.childElements) && el.childElements.length > 0;
+    if (!hasChildren) {
+      return typeof el.estimatedCost === 'string'
+        ? (parseFloat(el.estimatedCost) || 0)
+        : (el.estimatedCost || 0);
+    }
+    return el.childElements!.reduce((sum, c) => sum + getElementTotalCost(c), 0);
+  };
+
+  // Get cost category name
   const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
-  const vendor = vendors.find(v => v.id === element.vendorId);
 
   return (
     <div className="boe-tree-item">
-      <div 
+      <div
         className="flex items-center py-2 px-3 hover:bg-blue-50 cursor-pointer border-l-4 transition-all duration-200 group border-transparent hover:border-blue-300 hover:shadow-sm"
         style={{ paddingLeft: `${level * 24 + 8}px` }}
       >
@@ -128,9 +138,17 @@ const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
           </span>
         </div>
 
-        {/* Estimated Cost */}
-        <span className="text-sm text-gray-600 w-24 flex-shrink-0 text-right mr-12">
-          {formatCurrency(element.estimatedCost)}
+        {/* Estimated Cost (leaf or aggregated for parents) */}
+        <span
+          className="text-sm text-gray-600 w-24 flex-shrink-0 text-right mr-12 inline-flex items-center justify-end"
+          title={hasChildren ? 'Sum of all descendant element costs' : 'Element estimated cost'}
+        >
+          {formatCurrency(getElementTotalCost(element))}
+          {hasChildren && (
+            <span className="ml-1 text-gray-400" aria-label="Sum of children" title="Sum of children">
+              Σ
+            </span>
+          )}
         </span>
 
         {/* Cost Category */}
@@ -138,10 +156,6 @@ const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
           {costCategory?.name || 'Unassigned'}
         </span>
 
-        {/* Vendor */}
-        <span className="text-xs text-gray-500 w-32 flex-shrink-0 mr-3">
-          {vendor?.name || 'Unassigned'}
-        </span>
 
         {/* Actions */}
         <div className="flex items-center space-x-1 ml-2">
@@ -192,7 +206,6 @@ const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
               onDelete={onDelete}
               onAddChild={onAddChild}
               costCategories={costCategories}
-              vendors={vendors}
             />
           ))}
         </div>
@@ -203,11 +216,11 @@ const WBSWizardTreeItem: React.FC<WBSWizardTreeItemProps> = ({
 
 const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, sourceBOE, currentBOE }) => {
   const { wizardStep, setWizardStep } = useBOEStore();
-  
 
-  
 
-  
+
+
+
   // Function to calculate next version number
   const calculateNextVersionNumber = (currentVersion: string): string => {
     // Extract the version number (e.g., "v6" -> 6)
@@ -237,17 +250,17 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         review: false,
       };
     }
-    
+
     return {
-    basicInfo: {
-      name: '',
-      description: '',
-      versionNumber: 'v1',
-    },
-    wbsStructure: [],
-    costEstimates: [],
-    allocations: [],
-    review: false,
+      basicInfo: {
+        name: '',
+        description: '',
+        versionNumber: 'v1',
+      },
+      wbsStructure: [],
+      costEstimates: [],
+      allocations: [],
+      review: false,
     };
   });
 
@@ -255,17 +268,17 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
   const [allocationExpandedItems, setAllocationExpandedItems] = useState<Set<string>>(new Set());
   const [expandedAllocationIndex, setExpandedAllocationIndex] = useState<number | null>(null);
   const [showAllocationSidebar, setShowAllocationSidebar] = useState(false);
-  const [selectedAllocationForSidebar, setSelectedAllocationForSidebar] = useState<{elementId: string, allocationIndex: number} | null>(null);
+  const [selectedAllocationForSidebar, setSelectedAllocationForSidebar] = useState<{ elementId: string, allocationIndex: number } | null>(null);
   const [creationMethod, setCreationMethod] = useState<'template' | 'copy' | 'manual' | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [changeSummary, setChangeSummary] = useState('');
-  
+
   // WBS Tree state
   const [expandedWBSItems, setExpandedWBSItems] = useState<Set<string>>(new Set());
   const [showWBSElementModal, setShowWBSElementModal] = useState(false);
   const [editingWBSElement, setEditingWBSElement] = useState<BOEElement | null>(null);
   const [editingWBSElementParentId, setEditingWBSElementParentId] = useState<string | null>(null);
-  
+
   // Settings store for cost categories and vendors
   const { costCategories, vendors, fetchCostCategories, fetchVendors } = useSettingsStore();
 
@@ -280,17 +293,17 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     const loadSourceAllocations = async () => {
       if (sourceBOE?.id) {
         try {
-  
+
           const allocations = await elementAllocationApi.getElementAllocations(sourceBOE.id);
-          
-          
+
+
           if (allocations.length > 0) {
             // Convert allocations to AllocationSetupData format
             const convertedAllocations = allocations.map((allocation: any) => {
               // Handle date formatting - convert Date objects to YYYY-MM-DD strings
               let startDate = '';
               let endDate = '';
-              
+
               if (allocation.startDate) {
                 if (typeof allocation.startDate === 'string') {
                   startDate = allocation.startDate;
@@ -298,7 +311,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                   startDate = allocation.startDate.toISOString().split('T')[0];
                 }
               }
-              
+
               if (allocation.endDate) {
                 if (typeof allocation.endDate === 'string') {
                   endDate = allocation.endDate;
@@ -306,7 +319,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                   endDate = allocation.endDate.toISOString().split('T')[0];
                 }
               }
-              
+
               return {
                 elementId: allocation.boeElementId,
                 elementName: allocation.boeElement?.name || '',
@@ -318,7 +331,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 notes: allocation.notes || '',
               };
             });
-            
+
 
             setAllocationSetup(convertedAllocations);
           }
@@ -374,7 +387,9 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     }
   }, [creationMethod, currentBOE, currentData.template]);
 
-  const steps = [
+  // Structure-first flow: if creating a brand new BOE (no currentBOE provided),
+  // skip allocation planning inside the wizard. Allocation happens later on the Details tab.
+  const steps = currentBOE ? [
     { id: 0, title: 'Creation Method', description: 'Choose how to create your BOE' },
     { id: 1, title: 'Template Selection', description: 'Choose a BOE template' },
     { id: 2, title: 'Basic Information', description: 'Enter BOE details' },
@@ -382,10 +397,92 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     { id: 4, title: 'Cost Verification', description: 'Review and verify costs' },
     { id: 5, title: 'Allocation Planning', description: 'Plan monthly allocations' },
     { id: 6, title: 'Review & Create', description: 'Review and create BOE' },
+  ] : [
+    { id: 0, title: 'Creation Method', description: 'Choose how to create your BOE' },
+    { id: 1, title: 'Template Selection', description: 'Choose a BOE template' },
+    { id: 2, title: 'Basic Information', description: 'Enter BOE details' },
+    { id: 3, title: 'WBS Structure', description: 'Define work breakdown structure' },
+    { id: 4, title: 'Review & Create', description: 'Review and create BOE' },
   ];
 
   const handleTemplateSelect = (template: BOETemplate) => {
     setCurrentData(prev => ({ ...prev, template }));
+  };
+
+  // When a template is selected, load its elements and build a WBS tree for preview
+  useEffect(() => {
+    const loadTemplateStructure = async () => {
+      if (!currentData.template?.id) return;
+      try {
+        const tmpl = await boeTemplatesApi.getTemplate(currentData.template.id);
+        const elements = Array.isArray(tmpl?.elements) ? tmpl.elements : [];
+
+        // Build hierarchical tree from flat elements using parentElementId
+        const nodeMap: Record<string, any> = {};
+        elements.forEach((e: any) => {
+          nodeMap[e.id] = {
+            id: e.id,
+            code: e.code,
+            name: e.name,
+            description: e.description || '',
+            level: e.level || 1,
+            costCategoryId: e.costCategoryId || undefined,
+            vendorId: undefined,
+            estimatedCost: typeof e.estimatedCost === 'number' ? e.estimatedCost : 0,
+            isRequired: e.isRequired !== false,
+            isOptional: !!e.isOptional,
+            notes: e.notes || '',
+            childElements: [] as any[],
+            parentElementId: e.parentElementId || undefined,
+          };
+        });
+        // Link children
+        const roots: any[] = [];
+        elements.forEach((e: any) => {
+          const n = nodeMap[e.id];
+          if (e.parentElementId && nodeMap[e.parentElementId]) {
+            nodeMap[e.parentElementId].childElements.push(n);
+          } else {
+            roots.push(n);
+          }
+        });
+
+        // Recalculate standardized WBS codes
+        const recalc = recalcWBSCodes(roots);
+        setCurrentData(prev => ({
+          ...prev,
+          wbsStructure: recalc,
+        }));
+      } catch (err) {
+        console.error('Failed to load template structure', err);
+        // leave structure as-is
+      }
+    };
+    loadTemplateStructure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentData.template?.id]);
+
+  // Utility: Recalculate WBS codes based on position
+  const recalcWBSCodes = (nodes: BOEElement[]): BOEElement[] => {
+    const clone = (n: any): BOEElement => ({ ...n, childElements: n.childElements ? n.childElements.map(clone) : [] });
+    const copy = nodes.map(clone);
+
+    const assignChildren = (children: any[], base: string) => {
+      children.forEach((child, idx) => {
+        child.code = `${base}.${idx + 1}`;
+        if (child.childElements && child.childElements.length) {
+          assignChildren(child.childElements, child.code);
+        }
+      });
+    };
+
+    copy.forEach((root, idx) => {
+      root.code = `${idx + 1}.0`;
+      if (root.childElements && root.childElements.length) {
+        assignChildren(root.childElements, `${idx + 1}`);
+      }
+    });
+    return copy as any;
   };
 
   const handleBasicInfoChange = (field: keyof typeof currentData.basicInfo, value: string) => {
@@ -399,21 +496,48 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     setAllocationSetup(prev => {
       const elementAllocations = prev.filter(a => a.elementId === elementId);
       const otherAllocations = prev.filter(a => a.elementId !== elementId);
-      
+
       if (allocationIndex < elementAllocations.length) {
         const updatedAllocation = { ...elementAllocations[allocationIndex], [field]: value };
         const updatedElementAllocations = [...elementAllocations];
         updatedElementAllocations[allocationIndex] = updatedAllocation;
         return [...otherAllocations, ...updatedElementAllocations];
       }
-      
+
       return prev;
     });
   }, []);
 
   // WBS Tree functions
+  const getNextRootCode = (roots: BOEElement[]): string => {
+    const nextIndex = roots.length + 1;
+    return `${nextIndex}.0`;
+  };
+
+  const getNextChildCode = (parent: BOEElement): string => {
+    const count = (parent.childElements?.length || 0) + 1;
+    const base = parent.code.endsWith('.0') ? parent.code.slice(0, -2) : parent.code;
+    return `${base}.${count}`;
+  };
+
   const handleAddWBSRoot = () => {
-    setEditingWBSElement(null);
+    setEditingWBSElement({
+      id: `temp-${Date.now()}`,
+      code: getNextRootCode(currentData.wbsStructure),
+      name: '',
+      description: '',
+      level: 1,
+      estimatedCost: 0,
+      actualCost: 0,
+      variance: 0,
+      isRequired: true,
+      isOptional: false,
+      managementReserveAmount: 0,
+      boeVersionId: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      childElements: []
+    } as any);
     setEditingWBSElementParentId(null);
     setShowWBSElementModal(true);
   };
@@ -446,15 +570,33 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         return true;
       });
     };
-    
+
     setCurrentData(prev => ({
       ...prev,
-      wbsStructure: removeElementAndChildren(prev.wbsStructure, element.id)
+      wbsStructure: recalcWBSCodes(removeElementAndChildren(prev.wbsStructure, element.id))
     }));
   };
 
   const handleAddWBSChild = (parentId: string) => {
-    setEditingWBSElement(null);
+    const parent = findElementById(currentData.wbsStructure, parentId);
+    const defaultCode = parent ? getNextChildCode(parent) : '';
+    setEditingWBSElement({
+      id: `temp-${Date.now()}`,
+      code: defaultCode,
+      name: '',
+      description: '',
+      level: (parent?.level || 1) + 1,
+      estimatedCost: 0,
+      actualCost: 0,
+      variance: 0,
+      isRequired: true,
+      isOptional: false,
+      managementReserveAmount: 0,
+      boeVersionId: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      childElements: []
+    } as any);
     setEditingWBSElementParentId(parentId);
     setShowWBSElementModal(true);
   };
@@ -463,58 +605,63 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
   const calculateTotalCost = (): number => {
     const calculateElementCost = (elements: BOEElement[]): number => {
       return elements.reduce((total, element) => {
-        // Convert string to number if needed
-        const elementCost = typeof element.estimatedCost === 'string' 
-          ? parseFloat(element.estimatedCost) || 0 
-          : (element.estimatedCost || 0);
         const childCost = element.childElements ? calculateElementCost(element.childElements) : 0;
+        // Only sum cost for leaf nodes (no children)
+        const isLeaf = !element.childElements || element.childElements.length === 0;
+        const elementCost = isLeaf
+          ? (typeof element.estimatedCost === 'string' ? (parseFloat(element.estimatedCost) || 0) : (element.estimatedCost || 0))
+          : 0;
         return total + elementCost + childCost;
       }, 0);
     };
-    
     return calculateElementCost(currentData.wbsStructure);
   };
 
   const getCostBreakdownByCategory = (): Array<{ name: string; total: number }> => {
     const categoryTotals: Record<string, number> = {};
-    
+
     const processElements = (elements: BOEElement[]) => {
       elements.forEach(element => {
-        const categoryName = costCategories.find(cat => cat.id === element.costCategoryId)?.name || 'Unassigned';
-        categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + (element.estimatedCost || 0);
-        
+        const isLeaf = !element.childElements || element.childElements.length === 0;
+        if (isLeaf) {
+          const categoryName = costCategories.find(cat => cat.id === element.costCategoryId)?.name || 'Unassigned';
+          categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + (element.estimatedCost || 0);
+        }
+
         if (element.childElements) {
           processElements(element.childElements);
         }
       });
     };
-    
+
     processElements(currentData.wbsStructure);
-    
+
     return Object.entries(categoryTotals).map(([name, total]) => ({ name, total }));
   };
 
   const getElementsWithCosts = (): number => {
     const countElementsWithCosts = (elements: BOEElement[]): number => {
       return elements.reduce((count, element) => {
-        const hasCost = (element.estimatedCost || 0) > 0;
+        const isLeaf = !element.childElements || element.childElements.length === 0;
+        const hasCost = isLeaf && (element.estimatedCost || 0) > 0;
         const childCount = element.childElements ? countElementsWithCosts(element.childElements) : 0;
         return count + (hasCost ? 1 : 0) + childCount;
       }, 0);
     };
-    
+
     return countElementsWithCosts(currentData.wbsStructure);
   };
 
   const getElementsMissingCosts = (): number => {
     const countElementsMissingCosts = (elements: BOEElement[]): number => {
       return elements.reduce((count, element) => {
-        const missingCost = (element.estimatedCost || 0) === 0;
+        const isLeaf = !element.childElements || element.childElements.length === 0;
+        const isRequired = element.isRequired !== false; // default required unless explicitly unchecked
+        const missingCost = isLeaf && isRequired && (element.estimatedCost || 0) === 0;
         const childCount = element.childElements ? countElementsMissingCosts(element.childElements) : 0;
         return count + (missingCost ? 1 : 0) + childCount;
       }, 0);
     };
-    
     return countElementsMissingCosts(currentData.wbsStructure);
   };
 
@@ -528,6 +675,17 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     return countElements(currentData.wbsStructure);
   };
 
+  const getTotalLeafElementsCount = (): number => {
+    const countLeaves = (elements: BOEElement[]): number => {
+      return elements.reduce((count, element) => {
+        const isLeaf = !element.childElements || element.childElements.length === 0;
+        const childCount = element.childElements ? countLeaves(element.childElements) : 0;
+        return count + (isLeaf ? 1 : 0) + childCount;
+      }, 0);
+    };
+    return countLeaves(currentData.wbsStructure);
+  };
+
   const getTotalElementCosts = (): number => {
     // Use the existing calculateTotalCost function
     return calculateTotalCost();
@@ -535,46 +693,46 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
 
   const getTotalAllocatedAmount = (): number => {
     // Only count allocations that have valid dates and amounts
-    const validAllocations = allocationSetup.filter(a => 
+    const validAllocations = allocationSetup.filter(a =>
       a.startDate && a.endDate && a.totalAmount > 0
     );
-    
+
     const totalAllocated = validAllocations.reduce((total, allocation) => {
       // Convert string to number if needed
-      const amount = typeof allocation.totalAmount === 'string' 
-        ? parseFloat(allocation.totalAmount) || 0 
+      const amount = typeof allocation.totalAmount === 'string'
+        ? parseFloat(allocation.totalAmount) || 0
         : (allocation.totalAmount || 0);
       return total + amount;
     }, 0);
-    
+
     return totalAllocated;
   };
 
   const getProperlyAllocatedElementsCount = (): number => {
     const checkElementAllocation = (element: BOEElement): boolean => {
       const elementAllocations = allocationSetup.filter(a => a.elementId === element.id);
-      
+
       // Only count allocations that have valid dates and amounts
-      const validAllocations = elementAllocations.filter(a => 
+      const validAllocations = elementAllocations.filter(a =>
         a.startDate && a.endDate && a.totalAmount > 0
       );
-      
+
       const totalAllocated = validAllocations.reduce((sum, a) => {
         // Convert string to number if needed
-        const amount = typeof a.totalAmount === 'string' 
-          ? parseFloat(a.totalAmount) || 0 
+        const amount = typeof a.totalAmount === 'string'
+          ? parseFloat(a.totalAmount) || 0
           : (a.totalAmount || 0);
         return sum + amount;
       }, 0);
-      
+
       // Convert string to number if needed
-      const elementCost = typeof element.estimatedCost === 'string' 
-        ? parseFloat(element.estimatedCost) || 0 
+      const elementCost = typeof element.estimatedCost === 'string'
+        ? parseFloat(element.estimatedCost) || 0
         : (element.estimatedCost || 0);
-      
+
       // Element is properly allocated if valid allocations sum to element cost
       const isProperlyAllocated = totalAllocated === elementCost && validAllocations.length > 0;
-      
+
       return isProperlyAllocated;
     };
 
@@ -593,40 +751,40 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     // Check if all elements with costs are properly allocated
     const totalElements = getTotalElementsCount();
     const properlyAllocatedElements = getProperlyAllocatedElementsCount();
-    
+
     // Also check if total allocated amount equals total element costs
     const totalAllocated = getTotalAllocatedAmount();
     const totalCosts = getTotalElementCosts();
-    
-    return totalElements > 0 && 
-           properlyAllocatedElements === totalElements && 
-           Math.abs(totalAllocated - totalCosts) < 0.01;
+
+    return totalElements > 0 &&
+      properlyAllocatedElements === totalElements &&
+      Math.abs(totalAllocated - totalCosts) < 0.01;
   };
 
   const handleAutoAllocateAll = () => {
     const autoAllocateElement = (element: BOEElement, startDate: string = '') => {
       const elementAllocations = allocationSetup.filter(a => a.elementId === element.id);
-      
+
       // Convert element cost to number
-      const elementCost = typeof element.estimatedCost === 'string' 
-        ? parseFloat(element.estimatedCost) || 0 
+      const elementCost = typeof element.estimatedCost === 'string'
+        ? parseFloat(element.estimatedCost) || 0
         : (element.estimatedCost || 0);
-      
+
       if (elementCost > 0) {
         // Calculate total already allocated (only valid allocations)
-        const validAllocations = elementAllocations.filter(a => 
+        const validAllocations = elementAllocations.filter(a =>
           a.startDate && a.endDate && a.totalAmount > 0
         );
         const totalAllocated = validAllocations.reduce((sum, a) => {
-          const amount = typeof a.totalAmount === 'string' 
-            ? parseFloat(a.totalAmount) || 0 
+          const amount = typeof a.totalAmount === 'string'
+            ? parseFloat(a.totalAmount) || 0
             : (a.totalAmount || 0);
           return sum + amount;
         }, 0);
-        
+
         // Calculate remaining amount to allocate
         const remainingAmount = elementCost - totalAllocated;
-        
+
         if (remainingAmount > 0) {
           // Create new allocation for remaining amount
           const newAllocation: AllocationSetupData = {
@@ -639,15 +797,15 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             totalAmount: remainingAmount,
             notes: ''
           };
-          
+
           // Set end date (3-month duration from start)
           const endDate = new Date(newAllocation.startDate);
           endDate.setMonth(endDate.getMonth() + 3);
           newAllocation.endDate = endDate.toISOString().split('T')[0];
-          
+
           // Add the new allocation
           setAllocationSetup(prev => [...prev, newAllocation]);
-          
+
           // Expand the element to show the new allocation
           setAllocationExpandedItems(prev => {
             const newSet = new Set(prev);
@@ -656,7 +814,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
           });
         }
       }
-      
+
       // Process children with staggered start dates
       if (element.childElements) {
         element.childElements.forEach((child, index) => {
@@ -666,7 +824,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         });
       }
     };
-    
+
     currentData.wbsStructure.forEach((element, index) => {
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() + index);
@@ -706,7 +864,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         notes: ''
       };
       setAllocationSetup(prev => [...prev, newAllocation]);
-      
+
       // Expand the element to show the allocation form
       setAllocationExpandedItems(prev => {
         const newSet = new Set(prev);
@@ -736,24 +894,35 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     return null;
   };
 
+  // Removed duplicate moveElement (defined earlier)
+
   const getValidationWarnings = (): string[] => {
     const warnings: string[] = [];
-    
+
     if (currentData.wbsStructure.length === 0) {
       warnings.push('No WBS elements found. Please add elements in the WBS Structure step.');
       return warnings;
     }
-    
+
     const missingCosts = getElementsMissingCosts();
     if (missingCosts > 0) {
       warnings.push(`${missingCosts} element(s) are missing cost estimates.`);
     }
-    
-    const totalCost = calculateTotalCost();
-    if (totalCost === 0) {
-      warnings.push('No cost estimates found. Please add costs to your WBS elements.');
+
+    // Warn only if all required leaves have zero cost
+    const sumRequiredLeafCosts = (elements: BOEElement[]): number => {
+      return elements.reduce((sum, el) => {
+        const isLeaf = !el.childElements || el.childElements.length === 0;
+        const isRequired = el.isRequired !== false;
+        const thisCost = isLeaf && isRequired ? (typeof el.estimatedCost === 'string' ? (parseFloat(el.estimatedCost) || 0) : (el.estimatedCost || 0)) : 0;
+        const child = el.childElements ? sumRequiredLeafCosts(el.childElements) : 0;
+        return sum + thisCost + child;
+      }, 0);
+    };
+    if (sumRequiredLeafCosts(currentData.wbsStructure) === 0) {
+      warnings.push('No cost estimates found for required elements. Please add costs to required WBS leaves.');
     }
-    
+
     return warnings;
   };
 
@@ -775,6 +944,8 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         if (el.id === parentId) {
           return {
             ...el,
+            // Parent becomes an aggregator: zero out its direct cost
+            estimatedCost: 0,
             childElements: [...(el.childElements || []), newElement]
           };
         }
@@ -798,22 +969,22 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         id: `temp-${Date.now()}`,
         childElements: []
       };
-      
+
       if (editingWBSElementParentId) {
         // Add as child
         setCurrentData(prev => ({
           ...prev,
-          wbsStructure: addChildToParent(prev.wbsStructure, editingWBSElementParentId, newElement)
+          wbsStructure: recalcWBSCodes(addChildToParent(prev.wbsStructure, editingWBSElementParentId, newElement))
         }));
       } else {
         // Add as root
         setCurrentData(prev => ({
           ...prev,
-          wbsStructure: [...prev.wbsStructure, newElement]
+          wbsStructure: recalcWBSCodes([...prev.wbsStructure, newElement])
         }));
       }
     }
-    
+
     setShowWBSElementModal(false);
     setEditingWBSElement(null);
     setEditingWBSElementParentId(null);
@@ -822,14 +993,14 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
   const handleNext = () => {
     if (wizardStep < steps.length - 1) {
       let nextStep = wizardStep + 1;
-      
+
       // Skip template step if copying from existing BOE or creating manually
       if (wizardStep === 0 && (creationMethod === 'copy' || creationMethod === 'manual')) {
         nextStep = 2; // Skip to basic info step
       }
-      
+
       setWizardStep(nextStep);
-      
+
       // No automatic allocation initialization - users must create allocations manually or use Auto-Allocate All
     }
   };
@@ -837,19 +1008,19 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
   const handlePrevious = () => {
     if (wizardStep > 0) {
       let previousStep = wizardStep - 1;
-      
+
       // Skip template step when going backwards if copying from existing BOE or creating manually
       if (previousStep === 1 && (creationMethod === 'copy' || creationMethod === 'manual')) {
         previousStep = 0; // Go back to creation method step
       }
-      
+
       setWizardStep(previousStep);
     }
   };
 
   const handleComplete = async () => {
     setIsCreating(true);
-    
+
     try {
       const boeData = {
         programId,
@@ -863,9 +1034,9 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
         costEstimates: currentData.costEstimates,
         allocations: allocationSetup.filter(a => a.startDate && a.endDate && a.totalAmount > 0),
       };
-      
+
       await onComplete(boeData);
-      
+
     } catch (error) {
       console.error('Error creating BOE:', error);
     } finally {
@@ -904,15 +1075,15 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const months = (end.getFullYear() - start.getFullYear()) * 12 + 
-                   (end.getMonth() - start.getMonth());
+    const months = (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
     return Math.max(1, months + 1);
   };
 
   const getMonthlyAmount = (totalAmount: number, startDate: string, endDate: string, allocationType: string): number => {
     const months = calculateNumberOfMonths(startDate, endDate);
     if (months === 0) return 0;
-    
+
     switch (allocationType) {
       case 'Linear':
         return totalAmount / months;
@@ -936,7 +1107,6 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     onToggleExpand: (elementId: string) => void;
     expandedItems: Set<string>;
     costCategories: any[];
-    vendors: any[];
   }
 
   interface CompactWBSAllocationItemProps {
@@ -960,41 +1130,40 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     onToggleExpand,
     onToggleAllocationDetail
   }) => {
-    // Get cost category and vendor names
+    // Get cost category name
     const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
-    const vendor = vendors.find(v => v.id === element.vendorId);
-    
+
     const getAllocationStatus = () => {
       if (allocations.length === 0) return 'not-allocated';
-      
+
       // Check if all allocations are complete (have dates and amounts)
-      const completeAllocations = allocations.filter(a => 
+      const completeAllocations = allocations.filter(a =>
         a.startDate && a.endDate && a.totalAmount > 0
       );
-      
+
       if (completeAllocations.length === 0) return 'not-allocated';
       if (completeAllocations.length < allocations.length) return 'partially-allocated';
-      
+
       // Check if allocations sum to element cost
       const totalAllocated = completeAllocations.reduce((sum, a) => {
         // Convert string to number if needed
-        const amount = typeof a.totalAmount === 'string' 
-          ? parseFloat(a.totalAmount) || 0 
+        const amount = typeof a.totalAmount === 'string'
+          ? parseFloat(a.totalAmount) || 0
           : (a.totalAmount || 0);
         return sum + amount;
       }, 0);
-      
+
       // Convert string to number if needed
-      const elementCost = typeof element.estimatedCost === 'string' 
-        ? parseFloat(element.estimatedCost) || 0 
+      const elementCost = typeof element.estimatedCost === 'string'
+        ? parseFloat(element.estimatedCost) || 0
         : (element.estimatedCost || 0);
-      
+
       if (Math.abs(totalAllocated - elementCost) < 0.01) { // Allow for small floating point differences
         return 'allocated';
       } else if (totalAllocated > 0) {
         return 'partially-allocated';
       }
-      
+
       return 'not-allocated';
     };
 
@@ -1015,17 +1184,17 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
       const allocationCount = allocations.length;
       const totalAllocated = allocations.reduce((sum, a) => {
         // Convert string to number if needed
-        const amount = typeof a.totalAmount === 'string' 
-          ? parseFloat(a.totalAmount) || 0 
+        const amount = typeof a.totalAmount === 'string'
+          ? parseFloat(a.totalAmount) || 0
           : (a.totalAmount || 0);
         return sum + amount;
       }, 0);
-      
+
       // Convert string to number if needed
-      const elementCost = typeof element.estimatedCost === 'string' 
-        ? parseFloat(element.estimatedCost) || 0 
+      const elementCost = typeof element.estimatedCost === 'string'
+        ? parseFloat(element.estimatedCost) || 0
         : (element.estimatedCost || 0);
-      
+
       switch (status) {
         case 'allocated':
           return allocationCount > 1 ? `${allocationCount} Allocations` : 'Allocated';
@@ -1039,7 +1208,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     return (
       <div className="compact-wbs-allocation-item">
         {/* Compact Element Header */}
-        <div 
+        <div
           className="flex items-center py-4 px-3 hover:bg-gray-50 cursor-pointer transition-colors"
           onClick={onToggleExpand}
         >
@@ -1068,10 +1237,6 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             {costCategory?.name || 'Unassigned'}
           </span>
 
-          {/* Vendor */}
-          <span className="w-40 ml-4 text-xs text-gray-500 truncate">
-            {vendor?.name || 'Unassigned'}
-          </span>
 
           {/* Allocation Status */}
           <span className="w-32 ml-4 text-xs font-medium text-right">
@@ -1080,8 +1245,8 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
 
           {/* Expand/Collapse Icon */}
           <div className="w-6 ml-2 flex justify-center">
-            <ChevronRightIcon 
-              className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
+            <ChevronRightIcon
+              className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             />
           </div>
         </div>
@@ -1120,124 +1285,123 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                     <div className="w-24 mr-4 text-right">Monthly</div>
                     <div className="flex-1 text-right">Actions</div>
                   </div>
-                  
+
                   {/* Allocation Rows */}
                   <div className="space-y-1">
                     {allocations.map((allocation: any, index: number) => {
-                    const isDetailExpanded = expandedAllocationIndex === index;
-                    return (
-                      <div key={`${element.id}-${index}`}>
-                        {/* Inline-Editable Allocation Line */}
-                        <div 
-                          key={`allocation-${element.id}-${index}`}
-                          className={`flex items-center py-2 px-3 border rounded transition-colors relative ${
-                            showAllocationSidebar && 
-                            selectedAllocationForSidebar && 
-                            selectedAllocationForSidebar.elementId === element.id && 
-                            selectedAllocationForSidebar.allocationIndex === index
+                      const isDetailExpanded = expandedAllocationIndex === index;
+                      return (
+                        <div key={`${element.id}-${index}`}>
+                          {/* Inline-Editable Allocation Line */}
+                          <div
+                            key={`allocation-${element.id}-${index}`}
+                            className={`flex items-center py-2 px-3 border rounded transition-colors relative ${showAllocationSidebar &&
+                              selectedAllocationForSidebar &&
+                              selectedAllocationForSidebar.elementId === element.id &&
+                              selectedAllocationForSidebar.allocationIndex === index
                               ? 'bg-blue-50 border-blue-300 shadow-sm'
                               : 'bg-white border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          {/* Selection Indicator */}
-                          {showAllocationSidebar && 
-                           selectedAllocationForSidebar && 
-                           selectedAllocationForSidebar.elementId === element.id && 
-                           selectedAllocationForSidebar.allocationIndex === index && (
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l"></div>
-                          )}
-                          {/* Allocation Type - Inline Editable */}
-                          <div className="w-24 mr-4">
-                            <select
-                              className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 cursor-pointer font-medium text-gray-700"
-                              value={allocation.allocationType}
-                              onChange={(e) => onAllocationChange(element.id, 'allocationType', e.target.value, index)}
-                            >
-                              <option value="Linear">Linear</option>
-                              <option value="Front-Loaded">Front-Loaded</option>
-                              <option value="Back-Loaded">Back-Loaded</option>
-                              <option value="Custom">Custom</option>
-                            </select>
-                          </div>
-                          
-                          {/* Amount - Inline Editable */}
-                          <div className="w-28 mr-4">
-                            <input
-                              type="number"
-                              className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-900 font-medium"
-                              defaultValue={allocation.totalAmount || ''}
-                              onBlur={(e) => {
-                                const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                                onAllocationChange(element.id, 'totalAmount', value, index);
-                              }}
-                              placeholder="0.00"
-                              step="0.01"
-                              min="0"
-                            />
-                          </div>
-                          
-                          {/* Start Date - Inline Editable */}
-                          <div className="w-32 mr-3 relative">
-                            <input
-                              type="date"
-                              className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-600 pr-6"
-                              defaultValue={allocation.startDate || ''}
-                              onBlur={(e) => onAllocationChange(element.id, 'startDate', e.target.value, index)}
-                              style={{
-                                backgroundImage: 'none',
-                                paddingRight: '1.5rem'
-                              }}
-                            />
-                          </div>
-                          
-                          {/* End Date - Inline Editable */}
-                          <div className="w-32 mr-4 relative">
-                            <input
-                              type="date"
-                              className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-600 pr-6"
-                              defaultValue={allocation.endDate || ''}
-                              onBlur={(e) => onAllocationChange(element.id, 'endDate', e.target.value, index)}
-                              style={{
-                                backgroundImage: 'none',
-                                paddingRight: '1.5rem'
-                              }}
-                            />
-                          </div>
-                          
-                          {/* Monthly Preview */}
-                          {allocation.startDate && allocation.endDate && allocation.totalAmount > 0 && (
-                            <div className="w-24 text-xs text-gray-500 text-right mr-4">
-                              {formatCurrency(getMonthlyAmount(allocation.totalAmount, allocation.startDate, allocation.endDate, allocation.allocationType))}/mo
+                              }`}
+                          >
+                            {/* Selection Indicator */}
+                            {showAllocationSidebar &&
+                              selectedAllocationForSidebar &&
+                              selectedAllocationForSidebar.elementId === element.id &&
+                              selectedAllocationForSidebar.allocationIndex === index && (
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l"></div>
+                              )}
+                            {/* Allocation Type - Inline Editable */}
+                            <div className="w-24 mr-4">
+                              <select
+                                className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 cursor-pointer font-medium text-gray-700"
+                                value={allocation.allocationType}
+                                onChange={(e) => onAllocationChange(element.id, 'allocationType', e.target.value, index)}
+                              >
+                                <option value="Linear">Linear</option>
+                                <option value="Front-Loaded">Front-Loaded</option>
+                                <option value="Back-Loaded">Back-Loaded</option>
+                                <option value="Custom">Custom</option>
+                              </select>
                             </div>
-                          )}
-                          
-                          {/* Actions */}
-                          <div className="flex-1 flex justify-end space-x-2">
-                            {/* Details Button */}
-                            <button
-                              onClick={() => onToggleAllocationDetail(element.id, index)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                              title="View details"
-                            >
-                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                            </button>
-                            
-                            {/* Remove Button */}
-                            <button
-                              onClick={() => onRemoveAllocation(element.id, index)}
-                              className="p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors"
-                              title="Remove allocation"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
+
+                            {/* Amount - Inline Editable */}
+                            <div className="w-28 mr-4">
+                              <input
+                                type="number"
+                                className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-900 font-medium"
+                                defaultValue={allocation.totalAmount || ''}
+                                onBlur={(e) => {
+                                  const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                                  onAllocationChange(element.id, 'totalAmount', value, index);
+                                }}
+                                placeholder="0.00"
+                                step="0.01"
+                                min="0"
+                              />
+                            </div>
+
+                            {/* Start Date - Inline Editable */}
+                            <div className="w-32 mr-3 relative">
+                              <input
+                                type="date"
+                                className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-600 pr-6"
+                                defaultValue={allocation.startDate || ''}
+                                onBlur={(e) => onAllocationChange(element.id, 'startDate', e.target.value, index)}
+                                style={{
+                                  backgroundImage: 'none',
+                                  paddingRight: '1.5rem'
+                                }}
+                              />
+                            </div>
+
+                            {/* End Date - Inline Editable */}
+                            <div className="w-32 mr-4 relative">
+                              <input
+                                type="date"
+                                className="w-full text-xs border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-600 pr-6"
+                                defaultValue={allocation.endDate || ''}
+                                onBlur={(e) => onAllocationChange(element.id, 'endDate', e.target.value, index)}
+                                style={{
+                                  backgroundImage: 'none',
+                                  paddingRight: '1.5rem'
+                                }}
+                              />
+                            </div>
+
+                            {/* Monthly Preview */}
+                            {allocation.startDate && allocation.endDate && allocation.totalAmount > 0 && (
+                              <div className="w-24 text-xs text-gray-500 text-right mr-4">
+                                {formatCurrency(getMonthlyAmount(allocation.totalAmount, allocation.startDate, allocation.endDate, allocation.allocationType))}/mo
+                              </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex-1 flex justify-end space-x-2">
+                              {/* Details Button */}
+                              <button
+                                onClick={() => onToggleAllocationDetail(element.id, index)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                title="View details"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+
+                              {/* Remove Button */}
+                              <button
+                                onClick={() => onRemoveAllocation(element.id, index)}
+                                className="p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors"
+                                title="Remove allocation"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1257,48 +1421,46 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     onRemoveAllocation,
     onToggleExpand,
     expandedItems,
-    costCategories,
-    vendors
+    costCategories
   }) => {
     const elementAllocations = allocationSetup.filter(a => a.elementId === element.id);
     const hasChildren = element.childElements && element.childElements.length > 0;
     const isExpanded = expandedItems.has(element.id);
-    
-    // Get cost category and vendor names
+
+    // Get cost category name
     const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
-    const vendor = vendors.find(v => v.id === element.vendorId);
 
     const getAllocationStatus = () => {
       if (elementAllocations.length === 0) return 'not-allocated';
-      
+
       // Check if all allocations are complete (have dates and amounts)
-      const completeAllocations = elementAllocations.filter(a => 
+      const completeAllocations = elementAllocations.filter(a =>
         a.startDate && a.endDate && a.totalAmount > 0
       );
-      
+
       if (completeAllocations.length === 0) return 'not-allocated';
       if (completeAllocations.length < elementAllocations.length) return 'partially-allocated';
-      
+
       // Check if allocations sum to element cost
       const totalAllocated = completeAllocations.reduce((sum, a) => {
         // Convert string to number if needed
-        const amount = typeof a.totalAmount === 'string' 
-          ? parseFloat(a.totalAmount) || 0 
+        const amount = typeof a.totalAmount === 'string'
+          ? parseFloat(a.totalAmount) || 0
           : (a.totalAmount || 0);
         return sum + amount;
       }, 0);
-      
+
       // Convert string to number if needed
-      const elementCost = typeof element.estimatedCost === 'string' 
-        ? parseFloat(element.estimatedCost) || 0 
+      const elementCost = typeof element.estimatedCost === 'string'
+        ? parseFloat(element.estimatedCost) || 0
         : (element.estimatedCost || 0);
-      
+
       if (Math.abs(totalAllocated - elementCost) < 0.01) { // Allow for small floating point differences
         return 'allocated';
       } else if (totalAllocated > 0) {
         return 'partially-allocated';
       }
-      
+
       return 'not-allocated';
     };
 
@@ -1319,17 +1481,17 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
       const allocationCount = elementAllocations.length;
       const totalAllocated = elementAllocations.reduce((sum, a) => {
         // Convert string to number if needed
-        const amount = typeof a.totalAmount === 'string' 
-          ? parseFloat(a.totalAmount) || 0 
+        const amount = typeof a.totalAmount === 'string'
+          ? parseFloat(a.totalAmount) || 0
           : (a.totalAmount || 0);
         return sum + amount;
       }, 0);
-      
+
       // Convert string to number if needed
-      const elementCost = typeof element.estimatedCost === 'string' 
-        ? parseFloat(element.estimatedCost) || 0 
+      const elementCost = typeof element.estimatedCost === 'string'
+        ? parseFloat(element.estimatedCost) || 0
         : (element.estimatedCost || 0);
-      
+
       switch (status) {
         case 'allocated':
           return allocationCount > 1 ? `${allocationCount} Allocations` : 'Allocated';
@@ -1343,7 +1505,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     return (
       <div className="wbs-allocation-item">
         {/* Element Header */}
-        <div 
+        <div
           className="flex items-center py-3 px-4 hover:bg-gray-50 border border-gray-200 rounded-lg transition-all duration-200"
           style={{ paddingLeft: `${level * 24 + 16}px` }}
         >
@@ -1389,10 +1551,6 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             {costCategory?.name || 'Unassigned'}
           </span>
 
-          {/* Vendor */}
-          <span className="text-xs text-gray-500 mr-3 min-w-[100px]">
-            {vendor?.name || 'Unassigned'}
-          </span>
 
           {/* Allocation Status Text */}
           <span className="text-xs font-medium mr-3 min-w-[120px]">
@@ -1449,7 +1607,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                         <option value="Custom">Custom</option>
                       </select>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                       <input
@@ -1459,7 +1617,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                         onChange={(e) => onAllocationChange(element.id, 'startDate', e.target.value, index)}
                       />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                       <input
@@ -1469,7 +1627,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                         onChange={(e) => onAllocationChange(element.id, 'endDate', e.target.value, index)}
                       />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
                       <input
@@ -1481,7 +1639,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                       />
                     </div>
                   </div>
-                  
+
                   {allocation.startDate && allocation.endDate && allocation.totalAmount > 0 && (
                     <div className="mt-3 p-3 bg-white rounded-md border border-gray-200">
                       <div className="flex items-center justify-between text-sm">
@@ -1498,7 +1656,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="mt-3">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
                     <textarea
@@ -1530,7 +1688,6 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 onToggleExpand={onToggleExpand}
                 expandedItems={expandedItems}
                 costCategories={costCategories}
-                vendors={vendors}
               />
             ))}
           </div>
@@ -1548,23 +1705,21 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             <p className="text-muted mb-4">
               Select how you'd like to create your new BOE.
             </p>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Template Option */}
-              <div 
-                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
-                  creationMethod === 'template' 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+              <div
+                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${creationMethod === 'template'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300'
+                  }`}
                 onClick={() => setCreationMethod('template')}
               >
                 <div className="flex items-center mb-4">
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${
-                    creationMethod === 'template' 
-                      ? 'border-blue-500 bg-blue-500' 
-                      : 'border-gray-300'
-                  }`}>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${creationMethod === 'template'
+                    ? 'border-blue-500 bg-blue-500'
+                    : 'border-gray-300'
+                    }`}>
                     {creationMethod === 'template' && (
                       <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -1585,20 +1740,18 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
               </div>
 
               {/* Copy Option */}
-              <div 
-                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
-                  creationMethod === 'copy' 
-                    ? 'border-green-500 bg-green-50' 
-                    : 'border-gray-200 hover:border-gray-300'
-                } ${!currentBOE ? 'opacity-50 cursor-not-allowed' : ''}`}
+              <div
+                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${creationMethod === 'copy'
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-gray-200 hover:border-gray-300'
+                  } ${!currentBOE ? 'opacity-50 cursor-not-allowed' : ''}`}
                 onClick={() => currentBOE && setCreationMethod('copy')}
               >
                 <div className="flex items-center mb-4">
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${
-                    creationMethod === 'copy' 
-                      ? 'border-green-500 bg-green-500' 
-                      : 'border-gray-300'
-                  }`}>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${creationMethod === 'copy'
+                    ? 'border-green-500 bg-green-500'
+                    : 'border-gray-300'
+                    }`}>
                     {creationMethod === 'copy' && (
                       <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -1629,20 +1782,18 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
               </div>
 
               {/* Manual Option */}
-              <div 
-                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${
-                  creationMethod === 'manual' 
-                    ? 'border-purple-500 bg-purple-50' 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+              <div
+                className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${creationMethod === 'manual'
+                  ? 'border-purple-500 bg-purple-50'
+                  : 'border-gray-200 hover:border-gray-300'
+                  }`}
                 onClick={() => setCreationMethod('manual')}
               >
                 <div className="flex items-center mb-4">
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${
-                    creationMethod === 'manual' 
-                      ? 'border-purple-500 bg-purple-500' 
-                      : 'border-gray-300'
-                  }`}>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${creationMethod === 'manual'
+                    ? 'border-purple-500 bg-purple-500'
+                    : 'border-gray-300'
+                    }`}>
                     {creationMethod === 'manual' && (
                       <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -1662,7 +1813,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 </div>
               </div>
             </div>
-            
+
             {/* Change Summary Input for Version Creation */}
             {currentBOE && creationMethod && (
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1750,7 +1901,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             <p className="text-muted mb-4">
               Define the hierarchical structure of your project work elements.
             </p>
-            
+
             {/* WBS Tree Editor */}
             <div className="bg-white border border-gray-200 rounded-lg">
               <div className="p-4 border-b border-gray-200 bg-gray-50">
@@ -1765,7 +1916,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                   </button>
                 </div>
               </div>
-              
+
               <div className="p-4">
                 {currentData.wbsStructure.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
@@ -1787,14 +1938,13 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                         onDelete={handleDeleteWBSElement}
                         onAddChild={handleAddWBSChild}
                         costCategories={costCategories}
-                        vendors={vendors}
                       />
                     ))}
                   </div>
                 )}
+              </div>
             </div>
-            </div>
-            
+
           </div>
         );
 
@@ -1805,7 +1955,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             <p className="text-muted mb-4">
               Review and verify your cost estimates before proceeding to allocation planning.
             </p>
-            
+
             {/* Cost Summary */}
             <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
@@ -1819,7 +1969,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                   </div>
                 </div>
               </div>
-              
+
               {/* Cost Breakdown */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -1833,7 +1983,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                     ))}
                   </div>
                 </div>
-                
+
                 <div>
                   <h6 className="text-sm font-medium text-gray-700 mb-3">WBS Elements</h6>
                   <div className="space-y-2">
@@ -1847,13 +1997,13 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-600">Total Elements</span>
-                      <span className="font-medium">{currentData.wbsStructure.length}</span>
+                      <span className="font-medium">{getTotalLeafElementsCount()}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             {/* Validation Warnings */}
             {getValidationWarnings().length > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
@@ -1868,7 +2018,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 </ul>
               </div>
             )}
-            
+
             {/* Success State */}
             {getValidationWarnings().length === 0 && currentData.wbsStructure.length > 0 && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
@@ -1881,7 +2031,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 </p>
               </div>
             )}
-            
+
             {/* Action Buttons */}
             <div className="flex justify-center space-x-4">
               <button
@@ -1891,7 +2041,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 <PencilIcon className="h-4 w-4 mr-2" />
                 Edit WBS Elements
               </button>
-              
+
               {currentData.wbsStructure.length === 0 && (
                 <button
                   onClick={() => setWizardStep(3)} // Go back to WBS Structure
@@ -1912,7 +2062,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             <p className="text-muted mb-4">
               Plan monthly allocations for your BOE elements. This helps with cash flow planning and project scheduling.
             </p>
-            
+
             {currentData.wbsStructure.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <ClockIcon className="mx-auto h-12 w-12 mb-4" />
@@ -1921,38 +2071,33 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             ) : (
               <div className="space-y-4">
                 {/* Compact Allocation Summary */}
-                <div className={`border rounded-lg p-4 ${
-                  isAllocationComplete() 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-blue-50 border-blue-200'
-                }`}>
+                <div className={`border rounded-lg p-4 ${isAllocationComplete()
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-blue-50 border-blue-200'
+                  }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-6">
                       <div>
-                        <h6 className={`font-medium text-sm ${
-                          isAllocationComplete() ? 'text-green-900' : 'text-blue-900'
-                        }`}>
+                        <h6 className={`font-medium text-sm ${isAllocationComplete() ? 'text-green-900' : 'text-blue-900'
+                          }`}>
                           {isAllocationComplete() ? 'Allocation Complete!' : 'Allocation Progress'}
                         </h6>
-                        <p className={`text-xs ${
-                          isAllocationComplete() ? 'text-green-700' : 'text-blue-700'
-                        }`}>
-                          {isAllocationComplete() 
+                        <p className={`text-xs ${isAllocationComplete() ? 'text-green-700' : 'text-blue-700'
+                          }`}>
+                          {isAllocationComplete()
                             ? `All ${getTotalElementsCount()} elements fully allocated`
                             : `${getProperlyAllocatedElementsCount()} of ${getTotalElementsCount()} elements configured`
                           }
                         </p>
                       </div>
                       <div className="text-right">
-                        <div className={`text-lg font-bold ${
-                          isAllocationComplete() ? 'text-green-900' : 'text-blue-900'
-                        }`}>
+                        <div className={`text-lg font-bold ${isAllocationComplete() ? 'text-green-900' : 'text-blue-900'
+                          }`}>
                           {formatCurrency(getTotalAllocatedAmount())}
                         </div>
-                        <div className={`text-xs ${
-                          isAllocationComplete() ? 'text-green-700' : 'text-blue-700'
-                        }`}>
-                          {isAllocationComplete() 
+                        <div className={`text-xs ${isAllocationComplete() ? 'text-green-700' : 'text-blue-700'
+                          }`}>
+                          {isAllocationComplete()
                             ? 'Fully allocated!'
                             : `Allocated of ${formatCurrency(getTotalElementCosts())} Total`
                           }
@@ -1991,7 +2136,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                       </button>
                     </div>
                   </div>
-                  
+
                   {/* Column Headers */}
                   <div className="px-3 py-3 bg-gray-50 border-b border-gray-200">
                     <div className="flex items-center text-xs font-medium text-gray-600">
@@ -2005,14 +2150,14 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                       <div className="w-6 ml-2"></div>
                     </div>
                   </div>
-                  
+
                   <div className="divide-y divide-gray-200">
                     {currentData.wbsStructure.map((element) => {
                       const elementAllocations = allocationSetup.filter(a => a.elementId === element.id);
                       const isExpanded = allocationExpandedItems.has(element.id);
-                      
-              
-                      
+
+
+
                       return (
                         <CompactWBSAllocationItem
                           key={element.id}
@@ -2041,7 +2186,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
             <p className="text-muted mb-4">
               Review your BOE information before creating.
             </p>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <h6 className="text-gray-900 font-medium mb-3">Basic Information</h6>
@@ -2051,7 +2196,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                   <div><span className="font-medium">Description:</span> {currentData.basicInfo.description}</div>
                 </div>
               </div>
-              
+
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <h6 className="text-gray-900 font-medium mb-3">Creation Method</h6>
                 <div className="space-y-2 text-sm">
@@ -2079,7 +2224,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
               <h6 className="text-gray-900 font-medium mb-3">Allocation Summary</h6>
               <div className="space-y-2 text-sm">
@@ -2103,7 +2248,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center">
                 <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
@@ -2132,30 +2277,31 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
       </div>
 
       {/* Step Indicators */}
-      <div className="grid grid-cols-7 gap-4 mb-8">
-        {steps.map((step, index) => (
-          <div key={step.id} className="text-center">
-            <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full mb-2 ${
-              index < wizardStep 
-                ? 'bg-green-500 text-white' 
-                : index === wizardStep 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-200 text-gray-500'
-            }`}>
-              {index < wizardStep ? (
-                <CheckCircleIcon className="h-5 w-5" />
-              ) : (
-                <span className="text-sm font-medium">{step.id + 1}</span>
-              )}
-            </div>
-            <div className="text-xs">
-              <div className={`font-medium ${index <= wizardStep ? 'text-gray-900' : 'text-gray-500'}`}>
-                {step.title}
+      <div className="mb-8">
+        <div className="flex justify-center items-start gap-6 flex-wrap">
+          {steps.map((step, index) => (
+            <div key={step.id} className="text-center min-w-[140px]">
+              <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full mb-2 ${index < wizardStep
+                ? 'bg-green-500 text-white'
+                : index === wizardStep
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-500'
+                }`}>
+                {index < wizardStep ? (
+                  <CheckCircleIcon className="h-5 w-5" />
+                ) : (
+                  <span className="text-sm font-medium">{step.id + 1}</span>
+                )}
               </div>
-              <div className="text-gray-400">{step.description}</div>
+              <div className="text-xs">
+                <div className={`font-medium ${index <= wizardStep ? 'text-gray-900' : 'text-gray-500'}`}>
+                  {step.title}
+                </div>
+                <div className="text-gray-400">{step.description}</div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Step Content */}
@@ -2181,7 +2327,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
           >
             Cancel
           </button>
-          
+
           {wizardStep === steps.length - 1 ? (
             <button
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2251,24 +2397,24 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                 </button>
               </div>
             </div>
-            
+
             <div className="p-4">
               {(() => {
                 const { elementId, allocationIndex } = selectedAllocationForSidebar;
                 const elementAllocations = allocationSetup.filter(a => a.elementId === elementId);
                 const allocation = elementAllocations[allocationIndex];
                 const element = currentData.wbsStructure.find(e => e.id === elementId);
-                
+
                 if (!allocation || !element) return null;
-                
+
                 // Calculate monthly breakdown
                 const monthlyBreakdown = (() => {
                   if (!allocation.startDate || !allocation.endDate || allocation.totalAmount <= 0) return {};
-                  
+
                   const months = calculateNumberOfMonths(allocation.startDate, allocation.endDate);
                   const monthlyAmount = getMonthlyAmount(allocation.totalAmount, allocation.startDate, allocation.endDate, allocation.allocationType);
                   const breakdown: { [month: string]: { amount: number; date: string } } = {};
-                  
+
                   const startDate = new Date(allocation.startDate);
                   for (let i = 0; i < months; i++) {
                     const currentDate = new Date(startDate);
@@ -2279,10 +2425,10 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                       date: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                     };
                   }
-                  
+
                   return breakdown;
                 })();
-                
+
                 return (
                   <div className="space-y-4">
                     {/* Element Info */}
@@ -2290,7 +2436,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                       <h4 className="font-medium text-gray-900">{element.name}</h4>
                       <p className="text-sm text-gray-600">WBS Code: {element.code}</p>
                     </div>
-                    
+
                     {/* Allocation Form */}
                     <div className="space-y-4">
                       <div>
@@ -2306,7 +2452,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                           <option value="Custom">Custom</option>
                         </select>
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
                         <input
@@ -2319,7 +2465,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                           min="0"
                         />
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
@@ -2330,7 +2476,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                             onChange={(e) => handleAllocationChange(elementId, 'startDate', e.target.value, allocationIndex)}
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                           <input
@@ -2341,7 +2487,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                           />
                         </div>
                       </div>
-                      
+
                       {/* Monthly Breakdown Preview */}
                       {Object.keys(monthlyBreakdown).length > 0 && (
                         <div>
@@ -2369,7 +2515,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Additional Fields */}
                       <div className="grid grid-cols-1 gap-4">
                         <div>

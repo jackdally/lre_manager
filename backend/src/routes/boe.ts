@@ -101,7 +101,7 @@ router.get('/programs/:id/boe', async (req, res) => {
     if (program.currentBOEVersionId) {
       currentBOE = await boeVersionRepository.findOne({
         where: { id: program.currentBOEVersionId },
-        relations: ['elements', 'elements.allocations', 'approvals']
+        relations: ['elements', 'elements.allocations', 'elements.costCategory', 'elements.vendor', 'approvals']
       });
     }
 
@@ -314,6 +314,31 @@ router.get('/boe-templates', async (req, res) => {
 
 /**
  * @swagger
+ * /api/boe-templates/{id}:
+ *   get:
+ *     summary: Get a BOE template by ID (with elements)
+ */
+router.get('/boe-templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid template ID' });
+    }
+
+    const template = await boeTemplateRepository.findOne({ where: { id }, relations: ['elements'] });
+    if (!template) {
+      return res.status(404).json({ message: 'Template not found' });
+    }
+    res.json(template);
+  } catch (error) {
+    console.error('Error fetching BOE template:', error);
+    res.status(500).json({ message: 'Error fetching BOE template', error });
+  }
+});
+
+/**
+ * @swagger
  * /api/boe-templates:
  *   post:
  *     summary: Create new BOE template
@@ -343,7 +368,34 @@ router.post('/boe-templates', async (req, res) => {
 
     const savedTemplate = await boeTemplateRepository.save(template);
 
-    res.status(201).json(savedTemplate);
+    // Optionally persist elements if provided
+    if (Array.isArray(req.body.elements) && req.body.elements.length > 0) {
+      const flattenAndInsert = async (nodes: any[], parentId?: string) => {
+        for (const n of nodes) {
+          const el = new BOETemplateElement();
+          el.code = n.code || '';
+          el.name = n.name || '';
+          el.description = n.description || '';
+          el.level = n.level || (parentId ? 2 : 1);
+          el.parentElementId = parentId;
+          el.costCategoryId = n.costCategoryId || null;
+          el.estimatedCost = n.estimatedCost ?? null;
+          el.managementReservePercentage = n.managementReservePercentage ?? null;
+          el.isRequired = n.isRequired !== undefined ? n.isRequired : true;
+          el.isOptional = n.isOptional !== undefined ? n.isOptional : false;
+          el.notes = n.notes ?? null;
+          el.template = savedTemplate as any;
+          const saved = await boeTemplateElementRepository.save(el);
+          if (Array.isArray(n.childElements) && n.childElements.length > 0) {
+            await flattenAndInsert(n.childElements, saved.id);
+          }
+        }
+      };
+
+      await flattenAndInsert(req.body.elements);
+    }
+
+    res.status(201).json(await boeTemplateRepository.findOne({ where: { id: savedTemplate.id }, relations: ['elements'] }));
   } catch (error) {
     console.error('Error creating BOE template:', error);
     res.status(500).json({ message: 'Error creating BOE template', error });
@@ -351,6 +403,76 @@ router.post('/boe-templates', async (req, res) => {
 });
 
 // Note: Complex versioning routes have been removed as part of BOE-078F template simplification
+/**
+ * @swagger
+ * /api/boe-templates/{id}:
+ *   put:
+ *     summary: Update BOE template and its elements
+ */
+router.put('/boe-templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ message: 'Invalid template ID' });
+    }
+
+    const template = await boeTemplateRepository.findOne({ where: { id } });
+    if (!template) {
+      return res.status(404).json({ message: 'Template not found' });
+    }
+
+    // Update basic fields
+    if (req.body.name) template.name = req.body.name;
+    if (req.body.description) template.description = req.body.description;
+    if (req.body.category) template.category = req.body.category;
+    if (req.body.version) template.version = req.body.version;
+    if (req.body.isDefault !== undefined) template.isDefault = !!req.body.isDefault;
+    if (req.body.isActive !== undefined) template.isActive = !!req.body.isActive;
+    template.updatedBy = (req.body.userId || (req.headers['user-id'] as string)) || null;
+
+    await boeTemplateRepository.save(template);
+
+    // If elements provided, replace existing elements
+    if (Array.isArray(req.body.elements)) {
+      // Remove existing elements for this template
+      const existing = await boeTemplateElementRepository.find({ where: { template: { id } } });
+      if (existing.length > 0) {
+        await boeTemplateElementRepository.remove(existing);
+      }
+
+      const flattenAndInsert = async (nodes: any[], parentId?: string) => {
+        for (const n of nodes) {
+          const el = new BOETemplateElement();
+          el.code = n.code || '';
+          el.name = n.name || '';
+          el.description = n.description || '';
+          el.level = n.level || (parentId ? 2 : 1);
+          el.parentElementId = parentId;
+          el.costCategoryId = n.costCategoryId || null;
+          el.estimatedCost = n.estimatedCost ?? null;
+          el.managementReservePercentage = n.managementReservePercentage ?? null;
+          el.isRequired = n.isRequired !== undefined ? n.isRequired : true;
+          el.isOptional = n.isOptional !== undefined ? n.isOptional : false;
+          el.notes = n.notes ?? null;
+          el.template = template as any;
+          const saved = await boeTemplateElementRepository.save(el);
+          if (Array.isArray(n.childElements) && n.childElements.length > 0) {
+            await flattenAndInsert(n.childElements, saved.id);
+          }
+        }
+      };
+
+      await flattenAndInsert(req.body.elements);
+    }
+
+    const updated = await boeTemplateRepository.findOne({ where: { id }, relations: ['elements'] });
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating BOE template:', error);
+    res.status(500).json({ message: 'Error updating BOE template', error });
+  }
+});
 
 // Note: Accessible templates route removed as part of BOE-078F template simplification
 
@@ -661,8 +783,14 @@ router.put('/boe-elements/:id', async (req, res) => {
     element.updatedAt = new Date();
     
     const updatedElement = await boeElementRepository.save(element);
+    
+    // Reload with relations to include costCategory and vendor
+    const elementWithRelations = await boeElementRepository.findOne({
+      where: { id: updatedElement.id },
+      relations: ['costCategory', 'vendor', 'boeVersion']
+    });
 
-    res.json(updatedElement);
+    res.json(elementWithRelations);
   } catch (error) {
     console.error('Error updating BOE element:', error);
     res.status(500).json({ message: 'Error updating BOE element', error });

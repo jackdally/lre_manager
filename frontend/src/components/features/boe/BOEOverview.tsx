@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
-import { boeVersionsApi } from '../../../services/boeApi';
+import { boeVersionsApi, elementAllocationApi } from '../../../services/boeApi';
 import { useManagementReserve } from '../../../hooks/useManagementReserve';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
 import BOEWizardModal from './BOEWizardModal';
 import { formatCurrency, safeNumber } from '../../../utils/currencyUtils';
+import BOECalculationService from '../../../services/boeCalculationService';
+import { BOEElementAllocation } from '../../../store/boeStore';
 import { 
   CurrencyDollarIcon, 
   DocumentArrowUpIcon, 
@@ -28,10 +30,8 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
   // Load Management Reserve data
   const { managementReserve: mrData } = useManagementReserve(currentBOE?.id);
   
-
-  
-
-
+  const [elementAllocations, setElementAllocations] = useState<BOEElementAllocation[]>([]);
+  const [allocationsLoading, setAllocationsLoading] = useState(false);
 
   const [showDraftOverwriteModal, setShowDraftOverwriteModal] = useState(false);
 
@@ -56,6 +56,25 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
       loadBOE();
     }
   }, [programId, setCurrentBOE, setBOELoading, setBOEError]);
+
+  // Load element allocations
+  useEffect(() => {
+    const loadAllocations = async () => {
+      if (!currentBOE?.id) return;
+      
+      try {
+        setAllocationsLoading(true);
+        const allocations = await elementAllocationApi.getElementAllocations(currentBOE.id);
+        setElementAllocations(allocations);
+      } catch (error) {
+        console.error('Error loading allocations:', error);
+      } finally {
+        setAllocationsLoading(false);
+      }
+    };
+
+    loadAllocations();
+  }, [currentBOE?.id]);
 
   const handleCreateNewBOE = () => {
     // Check if there's already a draft BOE
@@ -106,6 +125,84 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const elements = currentBOE?.elements || [];
+  
+  // Calculate totals using the same service as Details tab (must be before early returns)
+  const calculationResult = useMemo(() => {
+    if (!elements || elements.length === 0) {
+      return {
+        totalEstimatedCost: 0,
+        totalAllocatedCost: 0,
+        managementReserveAmount: 0,
+        managementReservePercentage: 0,
+        totalWithMR: 0,
+        elementCount: 0,
+        requiredElementCount: 0,
+        optionalElementCount: 0,
+        costCategoryBreakdown: [],
+        levelBreakdown: [],
+        reconciliationIssues: []
+      };
+    }
+    
+    // Build hierarchical structure for calculations
+    const hierarchicalElements = BOECalculationService.buildHierarchicalStructure(elements);
+    // Use MR from hook/data ONLY; default to 0 if not set
+    const mrAmountRecord = Number(mrData?.adjustedAmount ?? mrData?.baselineAmount ?? 0);
+    const mrPercentRecord = Number(mrData?.adjustedPercentage ?? mrData?.baselinePercentage ?? 0);
+    const mrPercentage = mrAmountRecord > 0 ? mrPercentRecord : 0;
+    return BOECalculationService.calculateBOETotals(
+      hierarchicalElements, 
+      mrPercentage,
+      elementAllocations || []
+    );
+  }, [elements, mrData, currentBOE?.managementReservePercentage, elementAllocations]);
+
+  // Use calculated values
+  const totalEstimatedCost = calculationResult.totalEstimatedCost;
+  const totalAllocatedCost = calculationResult.totalAllocatedCost;
+  const totalElements = calculationResult.elementCount; // Leaf elements only
+  const requiredElements = calculationResult.requiredElementCount;
+  const optionalElements = calculationResult.optionalElementCount;
+  
+  // MR: Only show if there's a real MR record with positive amount
+  const mrAmountRecord = Number(mrData?.adjustedAmount ?? mrData?.baselineAmount ?? 0);
+  const mrPercentRecord = Number(mrData?.adjustedPercentage ?? mrData?.baselinePercentage ?? 0);
+  const hasMRSet = mrAmountRecord > 0;
+  const managementReserveAmount = hasMRSet ? mrAmountRecord : 0;
+  const managementReservePercentage = hasMRSet ? mrPercentRecord : 0;
+  // Emphasis logic: emphasize Estimated until ALL required allocations are complete
+  // Determine if all required leaf elements have allocations > 0
+  const hierarchicalForEmphasis = useMemo(() => {
+    return elements && elements.length > 0
+      ? BOECalculationService.buildHierarchicalStructure(elements)
+      : [] as any[];
+  }, [elements]);
+
+  const allRequiredAllocated = useMemo(() => {
+    if (!hierarchicalForEmphasis || hierarchicalForEmphasis.length === 0) return false;
+    const requiredLeaves: any[] = [];
+    const walk = (els: any[]) => {
+      els.forEach(el => {
+        const hasChildren = el.childElements && el.childElements.length > 0;
+        if (!hasChildren) {
+          if (el.isRequired) requiredLeaves.push(el);
+        } else {
+          walk(el.childElements);
+        }
+      });
+    };
+    walk(hierarchicalForEmphasis);
+    if (requiredLeaves.length === 0) return false;
+    const allocatedRequiredLeaves = requiredLeaves.filter(leaf =>
+      (elementAllocations || []).some(a => a.boeElementId === leaf.id && (a.totalAmount || 0) > 0)
+    ).length;
+    return allocatedRequiredLeaves === requiredLeaves.length;
+  }, [hierarchicalForEmphasis, elementAllocations]);
+
+  const emphasizeAllocated = allRequiredAllocated; // only when all required are allocated
+  const totalWithMR = (emphasizeAllocated ? totalAllocatedCost : totalEstimatedCost) + safeNumber(managementReserveAmount);
 
   if (boeLoading) {
     return (
@@ -160,16 +257,6 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
     );
   }
 
-  const elements = currentBOE.elements || [];
-  const totalElements = elements.length;
-  const requiredElements = elements.filter(e => e.isRequired).length;
-  const optionalElements = elements.filter(e => e.isOptional).length;
-  const totalCost = safeNumber(currentBOE.totalEstimatedCost);
-  // Use MR data from the hook, fallback to BOE data if not available
-  const managementReserveAmount = mrData?.adjustedAmount || safeNumber(currentBOE.managementReserveAmount);
-  const managementReservePercentage = mrData?.adjustedPercentage || safeNumber(currentBOE.managementReservePercentage);
-  const totalWithMR = totalCost + safeNumber(managementReserveAmount);
-
   return (
     <div className="p-6">
       {/* Header */}
@@ -191,33 +278,70 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
       </div>
 
       {/* Cost Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {/* Estimated - show planning badge; emphasize until ALL allocations complete */}
+        <div className={`${emphasizeAllocated ? 'bg-white border-gray-200 opacity-80' : 'bg-white border-blue-200'} rounded-lg border p-6`}>
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <CurrencyDollarIcon className="h-8 w-8 text-green-600" />
+              {/* Use a clipboard-like metaphor for planning (reuse dollar but green subtle) */}
+              <CurrencyDollarIcon className={`h-8 w-8 ${emphasizeAllocated ? 'text-green-500' : 'text-green-600'}`} />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Estimated Cost</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalCost)}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-gray-500">Total Estimated Cost</p>
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">Planning</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalEstimatedCost)}</p>
+              {emphasizeAllocated ? (
+                <p className="text-xs text-gray-500 mt-1">Initial planning value</p>
+              ) : (
+                <p className="text-xs text-blue-600 mt-1">Awaiting allocations</p>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        {/* Allocated - emphasize only when ALL allocations complete; dim otherwise */}
+        <div className={`${emphasizeAllocated ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 opacity-70'} rounded-lg border p-6`}>
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <BuildingOfficeIcon className="h-8 w-8 text-blue-600" />
+              <ChartBarIcon className="h-8 w-8 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Total Allocated Cost</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalAllocatedCost)}</p>
+              {totalAllocatedCost > 0 && totalAllocatedCost !== totalEstimatedCost && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {totalAllocatedCost > totalEstimatedCost ? '↑ Over' : '↓ Under'} estimate
+                </p>
+              )}
+              {!emphasizeAllocated && (
+                <p className="text-xs text-gray-500 mt-1">Awaiting allocations</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* MR - unchanged logic, stays neutral */}
+        <div className={`rounded-lg border p-6 ${hasMRSet ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200 opacity-75'}`}>
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <BuildingOfficeIcon className={`h-8 w-8 ${hasMRSet ? 'text-blue-600' : 'text-gray-400'}`} />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Management Reserve</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(managementReserveAmount)}</p>
-              <p className="text-sm text-gray-500">{managementReservePercentage}%</p>
+              <p className={`text-2xl font-bold ${hasMRSet ? 'text-gray-900' : 'text-gray-500'}`}>{formatCurrency(managementReserveAmount)}</p>
+              {hasMRSet ? (
+                <p className="text-sm text-gray-500">{managementReservePercentage.toFixed(1)}%</p>
+              ) : (
+                <p className="text-sm text-gray-500 italic">MR not set</p>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        {/* Total with MR - match allocated icon; emphasize only when all allocations complete */}
+        <div className={`${emphasizeAllocated ? 'bg-purple-50 border-purple-200' : 'bg-white border-gray-200 opacity-70'} rounded-lg border p-6`}>
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <ChartBarIcon className="h-8 w-8 text-purple-600" />
@@ -225,6 +349,12 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total with MR</p>
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalWithMR)}</p>
+              {!hasMRSet && (
+                <p className="text-xs text-gray-400 mt-1 italic">MR not set</p>
+              )}
+              {!emphasizeAllocated && (
+                <p className="text-xs text-gray-500 mt-1">Calculated from Estimated + MR until allocations complete</p>
+              )}
             </div>
           </div>
         </div>

@@ -96,16 +96,14 @@ const Sidebar: React.FC = () => {
               <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>⚙️</span>
               {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Settings</span>}
             </Link>
-            <a
-              href={process.env.REACT_APP_DOCS_URL || "http://localhost:3001/lre_manager/docs/intro"}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/docs"
               className={`flex ${sidebarOpen ? 'flex-row' : 'flex-col'} items-center justify-center gap-2 px-0 py-2 rounded-md hover:bg-[#232b3b] transition-colors font-medium text-base`}
               style={{ width: '100%' }}
             >
               <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>📚</span>
               {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Documentation</span>}
-            </a>
+            </Link>
           </>
         ) : (
           <>

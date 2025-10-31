@@ -87,7 +87,7 @@ export class BOEElementAllocationService {
   static async getElementAllocations(boeVersionId: string) {
     const result = await elementAllocationRepository.find({
       where: { boeVersionId, isActive: true },
-      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor']
+      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'vendor']
     });
     return result;
   }
@@ -98,7 +98,7 @@ export class BOEElementAllocationService {
   static async getElementAllocation(allocationId: string): Promise<BOEElementAllocation | null> {
     return await elementAllocationRepository.findOne({
       where: { id: allocationId },
-      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'boeVersion']
+      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'vendor', 'boeVersion']
     });
   }
 
@@ -150,7 +150,7 @@ export class BOEElementAllocationService {
     
     const updatedAllocation = await elementAllocationRepository.findOne({
       where: { id: allocationId },
-      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'boeVersion']
+      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'vendor', 'boeVersion']
     });
     
     if (!updatedAllocation) {
@@ -323,7 +323,7 @@ export class BOEElementAllocationService {
   static async pushToLedger(allocationId: string, userId?: string): Promise<void> {
     const allocation = await elementAllocationRepository.findOne({
       where: { id: allocationId },
-      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'boeVersion', 'boeVersion.program']
+      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'vendor', 'boeVersion', 'boeVersion.program']
     });
 
     if (!allocation) {
@@ -351,10 +351,11 @@ export class BOEElementAllocationService {
     // Create ledger entries for each month
     for (const [month, data] of Object.entries(monthlyBreakdown)) {
       const ledgerEntry = ledgerRepository.create({
-        vendor_name: allocation.boeElement.vendor?.name || allocation.name,
+        vendor_name: allocation.vendor?.name || allocation.name,
         expense_description: `${allocation.boeElement.name}: ${allocation.description}`,
         wbsElementId: wbsElement.id, // Use the WBS element ID instead of BOE element ID
         costCategoryId: allocation.boeElement.costCategoryId,
+        vendorId: allocation.vendorId || undefined,
         baseline_date: data.date,
         baseline_amount: data.amount,
         planned_date: data.date,

@@ -6,6 +6,7 @@ import Button from '../../common/Button';
 interface BOEElementModalProps {
   element?: BOEElement | null;
   parentId?: string | null;
+  defaultCode?: string; // pre-populated code for new elements
   onSave: (element: BOEElement) => void;
   onCancel: () => void;
 }
@@ -13,37 +14,36 @@ interface BOEElementModalProps {
 const BOEElementModal: React.FC<BOEElementModalProps> = ({
   element,
   parentId,
+  defaultCode,
   onSave,
   onCancel
 }) => {
-  const { costCategories, vendors, fetchCostCategories, fetchVendors } = useSettingsStore();
+  const { costCategories, fetchCostCategories } = useSettingsStore();
   
   const [formData, setFormData] = useState({
-    code: element?.code || '',
+    code: element?.code || defaultCode || '',
     name: element?.name || '',
     description: element?.description || '',
     level: element?.level || 1,
     estimatedCost: element?.estimatedCost || 0,
     actualCost: element?.actualCost || 0,
     variance: element?.variance || 0,
+    // MR is managed at BOE level; keep fields internally but not exposed in UI
     managementReservePercentage: element?.managementReservePercentage || 0,
     managementReserveAmount: element?.managementReserveAmount || 0,
     isRequired: element?.isRequired ?? true,
-    isOptional: element?.isOptional ?? false,
     notes: element?.notes || '',
     assumptions: element?.assumptions || '',
     risks: element?.risks || '',
-    costCategoryId: element?.costCategoryId || '',
-    vendorId: element?.vendorId || ''
+    costCategoryId: element?.costCategoryId || ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Load cost categories and vendors
+  // Load cost categories
   useEffect(() => {
     fetchCostCategories();
-    fetchVendors();
-  }, [fetchCostCategories, fetchVendors]);
+  }, [fetchCostCategories]);
 
   // Calculate level based on parent
   useEffect(() => {
@@ -69,9 +69,7 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
       newErrors.estimatedCost = 'Estimated cost cannot be negative';
     }
 
-    if (formData.managementReservePercentage < 0 || formData.managementReservePercentage > 100) {
-      newErrors.managementReservePercentage = 'Management reserve percentage must be between 0 and 100';
-    }
+    // MR is managed at BOE level; nothing to validate here
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -84,6 +82,8 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
       return;
     }
 
+    // If this element has children (editing case), force estimatedCost to 0 as aggregator
+    const isAggregator = Boolean(element?.childElements && element.childElements.length > 0);
     const elementData: BOEElement = {
       id: element?.id || `temp-${Date.now()}`,
       code: formData.code,
@@ -92,14 +92,13 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
       level: formData.level,
       parentElementId: parentId || undefined,
       costCategoryId: formData.costCategoryId || undefined,
-      vendorId: formData.vendorId || undefined,
-      estimatedCost: formData.estimatedCost,
+      estimatedCost: isAggregator ? 0 : formData.estimatedCost,
       actualCost: formData.actualCost,
       variance: formData.variance,
-      managementReservePercentage: formData.managementReservePercentage || undefined,
-      managementReserveAmount: formData.managementReserveAmount,
+      managementReservePercentage: undefined,
+      managementReserveAmount: 0,
       isRequired: formData.isRequired,
-      isOptional: formData.isOptional,
+      isOptional: !formData.isRequired,
       notes: formData.notes || undefined,
       assumptions: formData.assumptions || undefined,
       risks: formData.risks || undefined,
@@ -121,10 +120,12 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
     }
   };
 
+  const isParentAggregator = Boolean(element?.childElements && element.childElements.length > 0);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
-        {/* Code */}
+        {/* Code (auto-generated) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Code *
@@ -132,10 +133,12 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
           <input
             type="text"
             value={formData.code}
-            onChange={(e) => handleInputChange('code', e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            readOnly
+            disabled
+            className={`w-full px-3 py-2 border rounded-md bg-gray-100 text-gray-600 cursor-not-allowed ${
               errors.code ? 'border-red-500' : 'border-gray-300'
             }`}
+            title="WBS Code is auto-generated based on position in the hierarchy"
             placeholder="e.g., 1.1, 2.3"
           />
           {errors.code && <p className="text-red-500 text-xs mt-1">{errors.code}</p>}
@@ -174,7 +177,7 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        {/* Level */}
+        {/* Level (calculated, read-only) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Level
@@ -182,9 +185,11 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
           <input
             type="number"
             value={formData.level}
-            onChange={(e) => handleInputChange('level', parseInt(e.target.value))}
+            readOnly
+            disabled
             min={1}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
+            title="Level is calculated from the WBS hierarchy"
           />
         </div>
 
@@ -199,35 +204,20 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
             onChange={(e) => handleInputChange('estimatedCost', parseFloat(e.target.value) || 0)}
             min={0}
             step={0.01}
+            disabled={isParentAggregator}
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               errors.estimatedCost ? 'border-red-500' : 'border-gray-300'
-            }`}
+            } ${isParentAggregator ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+            title={isParentAggregator ? 'Cost is aggregated from child elements' : ''}
           />
           {errors.estimatedCost && <p className="text-red-500 text-xs mt-1">{errors.estimatedCost}</p>}
         </div>
 
-        {/* Management Reserve Percentage */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            MR Percentage (%)
-          </label>
-          <input
-            type="number"
-            value={formData.managementReservePercentage}
-            onChange={(e) => handleInputChange('managementReservePercentage', parseFloat(e.target.value) || 0)}
-            min={0}
-            max={100}
-            step={0.1}
-            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              errors.managementReservePercentage ? 'border-red-500' : 'border-gray-300'
-            }`}
-          />
-          {errors.managementReservePercentage && <p className="text-red-500 text-xs mt-1">{errors.managementReservePercentage}</p>}
-        </div>
+        {/* MR Percentage removed - MR is configured at BOE level */}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {/* Cost Category */}
+        {/* Cost Category (leaves only) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Cost Category
@@ -235,7 +225,9 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
           <select
             value={formData.costCategoryId}
             onChange={(e) => handleInputChange('costCategoryId', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isParentAggregator}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isParentAggregator ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''}`}
+            title={isParentAggregator ? 'Parents inherit categories from their children' : ''}
           >
             <option value="">Select cost category</option>
             {costCategories.map(category => (
@@ -246,46 +238,21 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
           </select>
         </div>
 
-        {/* Vendor */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Vendor
-          </label>
-          <select
-            value={formData.vendorId}
-            onChange={(e) => handleInputChange('vendorId', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Select vendor</option>
-            {vendors.map(vendor => (
-              <option key={vendor.id} value={vendor.id}>
-                {vendor.name}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
-      {/* Required/Optional */}
-      <div className="flex space-x-4">
-        <label className="flex items-center">
+      {/* Required toggle (single) */}
+      <div className="flex items-center justify-between border rounded-md px-3 py-2 bg-gray-50">
+        <div>
+          <div className="text-sm font-medium text-gray-800">Required element</div>
+          <div className="text-xs text-gray-500">If unchecked, this element is optional.</div>
+        </div>
+        <label className="inline-flex items-center">
           <input
             type="checkbox"
             checked={formData.isRequired}
             onChange={(e) => handleInputChange('isRequired', e.target.checked)}
-            className="mr-2"
+            className="h-4 w-4"
           />
-          <span className="text-sm text-gray-700">Required</span>
-        </label>
-        
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={formData.isOptional}
-            onChange={(e) => handleInputChange('isOptional', e.target.checked)}
-            className="mr-2"
-          />
-          <span className="text-sm text-gray-700">Optional</span>
         </label>
       </div>
 
