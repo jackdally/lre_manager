@@ -37,10 +37,10 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
     basicInfo: {
       name: editTemplate?.name || '',
       description: editTemplate?.description || '',
-      category: editTemplate?.category || 'Software Development',
+      category: editTemplate?.category || 'Hardware Development',
       version: editTemplate?.version || '1.0',
     },
-    wbsStructure: editTemplate?.wbsStructure || [],
+    wbsStructure: editTemplate?.wbsStructure || editTemplate?.elements || [],
     costCategories: editTemplate?.costCategories || [],
     permissions: {
       isPublic: false,
@@ -56,10 +56,104 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
   const steps = [
     { id: 0, title: 'Basic Information', description: 'Template details and metadata' },
     { id: 1, title: 'WBS Structure', description: 'Define work breakdown structure' },
-    { id: 2, title: 'Cost Categories', description: 'Configure cost categories' },
-    { id: 3, title: 'Permissions', description: 'Set sharing and access permissions' },
-    { id: 4, title: 'Review & Save', description: 'Review and save template' },
+    { id: 2, title: 'Permissions', description: 'Set sharing and access permissions' },
+    { id: 3, title: 'Review & Save', description: 'Review and save template' },
   ];
+
+  // Helpers for WBS editing
+  const generateId = () => Math.random().toString(36).slice(2);
+
+  type WbsNode = {
+    id: string;
+    code: string;
+    name: string;
+    level: number;
+    parentElementId?: string;
+    childElements?: WbsNode[];
+  };
+
+  const setWbs = (updater: (prev: any[]) => any[]) => {
+    setTemplateData(prev => ({ ...prev, wbsStructure: updater(prev.wbsStructure) }));
+  };
+
+  const addRoot = () => {
+    setWbs(prev => [
+      ...prev,
+      { id: generateId(), code: `${prev.length + 1}.0`, name: 'New Element', level: 1, childElements: [] }
+    ]);
+  };
+
+  const addChild = (parentId: string) => {
+    const addRec = (nodes: WbsNode[]): WbsNode[] => nodes.map(n => {
+      if (n.id === parentId) {
+        const children = n.childElements || [];
+        const child: WbsNode = {
+          id: generateId(),
+          code: `${n.code}.${(children.length + 1)}`,
+          name: 'New Child',
+          level: (n.level || 1) + 1,
+          parentElementId: n.id,
+          childElements: []
+        };
+        return { ...n, childElements: [...children, child] };
+      }
+      return { ...n, childElements: n.childElements ? addRec(n.childElements) : n.childElements } as WbsNode;
+    });
+    setWbs(prev => addRec(prev));
+  };
+
+  const updateNode = (id: string, changes: Partial<WbsNode>) => {
+    const updRec = (nodes: WbsNode[]): WbsNode[] => nodes.map(n => (
+      n.id === id
+        ? { ...n, ...changes }
+        : { ...n, childElements: n.childElements ? updRec(n.childElements) : n.childElements }
+    ));
+    setWbs(prev => updRec(prev));
+  };
+
+  const deleteNode = (id: string) => {
+    const delRec = (nodes: WbsNode[]): WbsNode[] => nodes
+      .filter(n => n.id !== id)
+      .map(n => ({ ...n, childElements: n.childElements ? delRec(n.childElements) : n.childElements }));
+    setWbs(prev => delRec(prev));
+  };
+
+  const seedPreset = (preset: 'Hardware' | 'Software' | 'Services') => {
+    const hw: WbsNode[] = [
+      { id: generateId(), code: '1.0', name: 'Project Management', level: 1, childElements: [] },
+      { id: generateId(), code: '2.0', name: 'Requirements', level: 1, childElements: [] },
+      { id: generateId(), code: '3.0', name: 'Hardware Design', level: 1, childElements: [
+        { id: generateId(), code: '3.1', name: 'Electrical', level: 2, parentElementId: '', childElements: [] },
+        { id: generateId(), code: '3.2', name: 'Mechanical', level: 2, parentElementId: '', childElements: [] }
+      ] },
+      { id: generateId(), code: '4.0', name: 'Procurement', level: 1, childElements: [] },
+      { id: generateId(), code: '5.0', name: 'Integration & Test', level: 1, childElements: [] },
+      { id: generateId(), code: '6.0', name: 'Documentation', level: 1, childElements: [] },
+    ];
+    const sw: WbsNode[] = [
+      { id: generateId(), code: '1.0', name: 'Project Management', level: 1, childElements: [] },
+      { id: generateId(), code: '2.0', name: 'Requirements', level: 1, childElements: [] },
+      { id: generateId(), code: '3.0', name: 'Design & Development', level: 1, childElements: [
+        { id: generateId(), code: '3.1', name: 'Frontend', level: 2, parentElementId: '', childElements: [] },
+        { id: generateId(), code: '3.2', name: 'Backend', level: 2, parentElementId: '', childElements: [] }
+      ] },
+      { id: generateId(), code: '4.0', name: 'Testing & Validation', level: 1, childElements: [] },
+      { id: generateId(), code: '5.0', name: 'Documentation', level: 1, childElements: [] },
+    ];
+    const sv: WbsNode[] = [
+      { id: generateId(), code: '1.0', name: 'Project Management', level: 1, childElements: [] },
+      { id: generateId(), code: '2.0', name: 'Discovery', level: 1, childElements: [] },
+      { id: generateId(), code: '3.0', name: 'Delivery', level: 1, childElements: [] },
+      { id: generateId(), code: '4.0', name: 'Knowledge Transfer', level: 1, childElements: [] },
+    ];
+    const mapParent = (nodes: WbsNode[], parentId?: string): WbsNode[] => nodes.map(n => ({
+      ...n,
+      parentElementId: parentId,
+      childElements: n.childElements ? mapParent(n.childElements, n.id) : [],
+    }));
+    const chosen = preset === 'Hardware' ? hw : preset === 'Software' ? sw : sv;
+    setWbs(() => mapParent(chosen));
+  };
 
   const categories = [
     'Software Development',
@@ -106,10 +200,8 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
       case 1:
         return templateData.wbsStructure.length > 0;
       case 2:
-        return templateData.costCategories.length > 0;
-      case 3:
         return true; // Permissions are optional
-      case 4:
+      case 3:
         return true;
       default:
         return false;
@@ -184,29 +276,41 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
 
       case 1:
         return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">WBS Structure</h3>
-              <p className="text-gray-600 mb-4">
-                Define the work breakdown structure for this template. This will be the foundation for all BOEs created from this template.
-              </p>
-              
-              {/* Placeholder for WBS structure editor */}
-              <div className="bg-gray-50 rounded-lg p-6 text-center">
-                <div className="text-gray-400 mb-4">
-                  <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                  </svg>
-                </div>
-                <h4 className="font-medium text-gray-900 mb-2">WBS Structure Editor</h4>
-                <p className="text-sm text-gray-600 mb-4">
-                  This will include hierarchical WBS editing with drag-and-drop functionality.
-                </p>
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                  Add WBS Element
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">WBS Structure</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={addRoot} className="bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700">Add Root</button>
+                <select
+                  value={templateData.basicInfo.category}
+                  onChange={(e) => handleBasicInfoChange('category', e.target.value)}
+                  className="px-2 py-1.5 border border-gray-300 rounded-md"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <button
+                  onClick={() => seedPreset(
+                    templateData.basicInfo.category.includes('Hardware') ? 'Hardware' :
+                    templateData.basicInfo.category.includes('Software') ? 'Software' : 'Services'
+                  )}
+                  className="px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Seed from Preset
                 </button>
               </div>
             </div>
+
+            {templateData.wbsStructure.length === 0 ? (
+              <div className="bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-md p-4">
+                No WBS elements yet. Click "Add Root" or "Seed from Preset".
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-md p-3">
+                {templateData.wbsStructure.map((node: any) => (
+                  <WbsItem key={node.id} node={node} onAddChild={addChild} onUpdate={updateNode} onDelete={deleteNode} />
+                ))}
+              </div>
+            )}
           </div>
         );
 
@@ -214,167 +318,61 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Cost Categories</h3>
-              <p className="text-gray-600 mb-4">
-                Configure the cost categories that will be available for this template.
-              </p>
-              
-              {/* Placeholder for cost category configuration */}
-              <div className="bg-gray-50 rounded-lg p-6 text-center">
-                <div className="text-gray-400 mb-4">
-                  <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Permissions</h3>
+              <p className="text-gray-600 mb-4">Choose who can access this template.</p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Access Level</label>
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="accessLevel"
+                        checked={templateData.permissions.accessLevel === 'Private'}
+                        onChange={() => setTemplateData(prev => ({ ...prev, permissions: { ...prev.permissions, accessLevel: 'Private', isPublic: false } }))}
+                      />
+                      Private
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="accessLevel"
+                        checked={templateData.permissions.accessLevel === 'Shared'}
+                        onChange={() => setTemplateData(prev => ({ ...prev, permissions: { ...prev.permissions, accessLevel: 'Shared', isPublic: false } }))}
+                      />
+                      Organization
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="accessLevel"
+                        checked={templateData.permissions.accessLevel === 'Public'}
+                        onChange={() => setTemplateData(prev => ({ ...prev, permissions: { ...prev.permissions, accessLevel: 'Public', isPublic: true } }))}
+                      />
+                      Public
+                    </label>
+                  </div>
                 </div>
-                <h4 className="font-medium text-gray-900 mb-2">Cost Category Configuration</h4>
-                <p className="text-sm text-gray-600 mb-4">
-                  This will include cost category selection and configuration options.
-                </p>
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                  Configure Categories
-                </button>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="allowCopy"
+                    checked={templateData.permissions.allowCopy}
+                    onChange={(e) => setTemplateData(prev => ({ ...prev, permissions: { ...prev.permissions, allowCopy: e.target.checked } }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="allowCopy" className="ml-2 block text-sm text-gray-900">
+                    Allow others to copy this template
+                  </label>
+                </div>
               </div>
             </div>
           </div>
         );
 
       case 3:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Permissions & Sharing</h3>
-              <p className="text-gray-600 mb-4">
-                Set who can access and use this template.
-              </p>
-              
-              <div className="space-y-6">
-                {/* Access Level */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Access Level
-                  </label>
-                  <select
-                    value={templateData.permissions.accessLevel}
-                    onChange={(e) => setTemplateData(prev => ({
-                      ...prev,
-                      permissions: { 
-                        ...prev.permissions, 
-                        accessLevel: e.target.value as 'Private' | 'Shared' | 'Public' 
-                      }
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="Private">Private (Only you)</option>
-                    <option value="Shared">Shared (Specific users/roles)</option>
-                    <option value="Public">Public (All users)</option>
-                  </select>
-                </div>
-
-                {/* Public Access */}
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="isPublic"
-                    checked={templateData.permissions.isPublic}
-                    onChange={(e) => setTemplateData(prev => ({
-                      ...prev,
-                      permissions: { ...prev.permissions, isPublic: e.target.checked }
-                    }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
-                    Make this template public (available to all users)
-                  </label>
-                </div>
-
-                {/* Share with Users */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Share with specific users (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={templateData.permissions.sharedWith.join(', ')}
-                    onChange={(e) => setTemplateData(prev => ({
-                      ...prev,
-                      permissions: { 
-                        ...prev.permissions, 
-                        sharedWith: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      }
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter email addresses separated by commas"
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Leave empty if template is public or for personal use only
-                  </p>
-                </div>
-
-                {/* Share with Roles */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Share with roles (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={templateData.permissions.sharedWithRoles.join(', ')}
-                    onChange={(e) => setTemplateData(prev => ({
-                      ...prev,
-                      permissions: { 
-                        ...prev.permissions, 
-                        sharedWithRoles: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      }
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter role names separated by commas (e.g., Program Manager, Finance)"
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Users with these roles will have access to this template
-                  </p>
-                </div>
-
-                {/* Permissions */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-medium text-gray-900">Permissions</h4>
-                  
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="allowCopy"
-                      checked={templateData.permissions.allowCopy}
-                      onChange={(e) => setTemplateData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, allowCopy: e.target.checked }
-                      }))}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="allowCopy" className="ml-2 block text-sm text-gray-900">
-                      Allow others to copy this template
-                    </label>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="allowModify"
-                      checked={templateData.permissions.allowModify}
-                      onChange={(e) => setTemplateData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, allowModify: e.target.checked }
-                      }))}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="allowModify" className="ml-2 block text-sm text-gray-900">
-                      Allow others to modify this template
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 4:
         return (
           <div className="space-y-6">
             <div>
@@ -467,6 +465,38 @@ const BOETemplateWizard: React.FC<BOETemplateWizardProps> = ({
       default:
         return null;
     }
+  };
+
+  // WBS item component (inline, simple editor)
+  const WbsItem: React.FC<{ node: any; onAddChild: (id: string) => void; onUpdate: (id: string, c: any) => void; onDelete: (id: string) => void; }>
+    = ({ node, onAddChild, onUpdate, onDelete }) => {
+    return (
+      <div className="mb-2">
+        <div className="flex items-center gap-2">
+          <input
+            value={node.code}
+            onChange={(e) => onUpdate(node.id, { code: e.target.value })}
+            className="w-28 px-2 py-1 border border-gray-300 rounded"
+            placeholder="Code"
+          />
+          <input
+            value={node.name}
+            onChange={(e) => onUpdate(node.id, { name: e.target.value })}
+            className="flex-1 px-2 py-1 border border-gray-300 rounded"
+            placeholder="Name"
+          />
+          <button onClick={() => onAddChild(node.id)} className="text-sm px-2 py-1 border border-gray-300 rounded hover:bg-gray-100">Add Child</button>
+          <button onClick={() => onDelete(node.id)} className="text-sm px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50">Delete</button>
+        </div>
+        {Array.isArray(node.childElements) && node.childElements.length > 0 && (
+          <div className="pl-6 mt-1">
+            {node.childElements.map((child: any) => (
+              <WbsItem key={child.id} node={child} onAddChild={onAddChild} onUpdate={onUpdate} onDelete={onDelete} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (

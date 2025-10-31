@@ -148,6 +148,12 @@ export interface BOEElementAllocation {
   monthlyQuantity?: number;
   boeElementId: string;
   boeVersionId: string;
+  vendorId?: string;
+  vendor?: {
+    id: string;
+    name: string;
+    isActive: boolean;
+  };
   monthlyBreakdown?: {
     [month: string]: {
       amount: number;

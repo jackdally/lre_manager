@@ -29,7 +29,6 @@ interface BOETreeItemProps {
   onAddChild: (parentId: string) => void;
   isReadOnly?: boolean;
   costCategories: any[];
-  vendors: any[];
 }
 
 interface WBSTemplate {
@@ -55,8 +54,7 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
   onDelete,
   onAddChild,
   isReadOnly,
-  costCategories,
-  vendors
+  costCategories
 }) => {
   const isExpanded = expandedItems.has(element.id);
   const hasChildren = element.childElements && element.childElements.length > 0;
@@ -72,9 +70,8 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
     onElementSelect?.(element);
   };
 
-  // Get cost category and vendor names
+  // Get cost category name
   const costCategory = costCategories.find(cat => cat.id === element.costCategoryId);
-  const vendor = vendors.find(v => v.id === element.vendorId);
 
   return (
     <div className="boe-tree-item">
@@ -119,12 +116,6 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
               <div className="flex items-center">
                 <CurrencyDollarIcon className="h-3 w-3 mr-1" />
                 <span>{costCategory.name}</span>
-              </div>
-            )}
-            {vendor && (
-              <div className="flex items-center">
-                <BuildingOfficeIcon className="h-3 w-3 mr-1" />
-                <span>{vendor.name}</span>
               </div>
             )}
                                     <div className="text-sm font-mono text-gray-700 ml-2">
@@ -178,7 +169,6 @@ const BOETreeItem: React.FC<BOETreeItemProps> = ({
               onAddChild={onAddChild}
               isReadOnly={isReadOnly}
               costCategories={costCategories}
-              vendors={vendors}
             />
           ))}
         </div>
@@ -195,7 +185,7 @@ const BOEForm: React.FC<BOEFormProps> = ({
   onSave,
   isReadOnly = false
 }) => {
-  const { costCategories, vendors, fetchCostCategories, fetchVendors } = useSettingsStore();
+  const { costCategories, fetchCostCategories } = useSettingsStore();
   
   const [selectedElement, setSelectedElement] = useState<BOEElement | null>(null);
   const [editingElement, setEditingElement] = useState<BOEElement | null>(null);
@@ -208,11 +198,10 @@ const BOEForm: React.FC<BOEFormProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
-  // Load cost categories and vendors
+  // Load cost categories
   useEffect(() => {
     fetchCostCategories();
-    fetchVendors();
-  }, [fetchCostCategories, fetchVendors]);
+  }, [fetchCostCategories]);
 
   // Load WBS templates
   useEffect(() => {
@@ -540,7 +529,6 @@ const BOEForm: React.FC<BOEFormProps> = ({
                   onAddChild={handleAddChild}
                   isReadOnly={isReadOnly}
                   costCategories={costCategories}
-                  vendors={vendors}
                 />
               ))}
             </div>
@@ -571,11 +559,6 @@ const BOEForm: React.FC<BOEFormProps> = ({
             {costCategories.find(cat => cat.id === selectedElement.costCategoryId) && (
               <div>
                 <span className="font-medium">Cost Category:</span> {costCategories.find(cat => cat.id === selectedElement.costCategoryId)?.name}
-              </div>
-            )}
-            {vendors.find(v => v.id === selectedElement.vendorId) && (
-              <div>
-                <span className="font-medium">Vendor:</span> {vendors.find(v => v.id === selectedElement.vendorId)?.name}
               </div>
             )}
           </div>

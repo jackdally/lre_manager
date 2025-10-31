@@ -76,13 +76,38 @@ const BOETemplateSelector: React.FC<BOETemplateSelectorProps> = ({
     setShowTemplateWizard(true);
   };
 
-  const handleTemplateWizardComplete = (templateData: any) => {
-    // TODO: Save template via API
-    
-    setShowTemplateWizard(false);
-    setEditingTemplate(null);
-    // Refresh templates list
-    // loadTemplates();
+  const handleTemplateWizardComplete = async (templateData: any) => {
+    try {
+      // Map wizard data to API payload
+      const payload: any = {
+        name: templateData.basicInfo?.name,
+        description: templateData.basicInfo?.description,
+        category: templateData.basicInfo?.category,
+        version: templateData.basicInfo?.version,
+        elements: templateData.wbsStructure || [],
+        costCategories: templateData.costCategories || [],
+        permissions: templateData.permissions || {},
+      };
+
+      if (templateData.isEdit && templateData.id) {
+        await boeTemplatesApi.updateTemplate(templateData.id, payload);
+      } else {
+        await boeTemplatesApi.createTemplate(payload);
+      }
+
+      // Reload templates
+      setTemplatesLoading(true);
+      setTemplatesError(null);
+      const templatesData = await boeTemplatesApi.getTemplates();
+      setTemplates(templatesData);
+    } catch (error) {
+      console.error('Error saving template:', error);
+      setTemplatesError(error instanceof Error ? error.message : 'Failed to save template');
+    } finally {
+      setShowTemplateWizard(false);
+      setEditingTemplate(null);
+      setTemplatesLoading(false);
+    }
   };
 
   const handleTemplateWizardCancel = () => {
@@ -233,20 +258,28 @@ const BOETemplateSelector: React.FC<BOETemplateSelectorProps> = ({
                   <h6 className="font-medium text-gray-900 mt-3 mb-2">Template Preview</h6>
                   <div className="text-sm text-gray-600">
                     <p className="font-medium mb-2">Structure:</p>
-                    <ul className="space-y-1 mb-3">
-                      <li>• Project Management</li>
-                      <li>• Requirements Analysis</li>
-                      <li>• Design & Development</li>
-                      <li>• Testing & Validation</li>
-                      <li>• Documentation</li>
-                      <li>• Management Reserve</li>
-                    </ul>
+                    {Array.isArray(template.elements) && template.elements.length > 0 ? (
+                      <ul className="space-y-1 mb-3 max-h-36 overflow-auto">
+                        {template.elements.slice(0, 12).map((el: any) => (
+                          <li key={el.id}>
+                            • {el.code ? `${el.code} - ` : ''}{el.name}
+                          </li>
+                        ))}
+                        {template.elements.length > 12 && (
+                          <li className="text-gray-400">…and {template.elements.length - 12} more</li>
+                        )}
+                      </ul>
+                    ) : (
+                      <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md p-3 mb-3">
+                        This template has no defined structure yet. Click "Edit Template" to add a WBS.
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4 text-xs">
                       <div>
                         <span className="font-medium">Default MR:</span> 10%
                       </div>
                       <div>
-                        <span className="font-medium">Elements:</span> 15-25
+                        <span className="font-medium">Elements:</span> {Array.isArray(template.elements) ? template.elements.length : 0}
                       </div>
                     </div>
                   </div>

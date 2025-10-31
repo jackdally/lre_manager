@@ -2,9 +2,8 @@ import { BOEElement } from '../store/boeStore';
 import { safeNumber } from '../utils/currencyUtils';
 
 export interface BOECalculationResult {
-  totalEstimatedCost: number;
-  totalActualCost: number;
-  totalVariance: number;
+  totalEstimatedCost: number; // Sum of allocation totals (if available) or estimated costs
+  totalAllocatedCost: number; // Sum of all allocation totals (if any exist)
   managementReserveAmount: number;
   managementReservePercentage: number;
   totalWithMR: number;
@@ -13,50 +12,125 @@ export interface BOECalculationResult {
   optionalElementCount: number;
   costCategoryBreakdown: CostCategoryBreakdown[];
   levelBreakdown: LevelBreakdown[];
+  reconciliationIssues: Array<{
+    elementId: string;
+    elementCode: string;
+    elementName: string;
+    estimatedCost: number;
+    allocatedTotal: number;
+    difference: number;
+  }>;
 }
 
 export interface CostCategoryBreakdown {
   costCategoryId: string;
   costCategoryName: string;
   estimatedCost: number;
-  actualCost: number;
-  variance: number;
+  allocatedCost: number;
   elementCount: number;
 }
 
 export interface LevelBreakdown {
   level: number;
   estimatedCost: number;
-  actualCost: number;
-  variance: number;
+  allocatedCost: number;
   elementCount: number;
 }
 
 export class BOECalculationService {
   /**
    * Calculate comprehensive BOE totals and breakdowns
+   * Allocations are the source of truth - if allocations exist, use their sum; otherwise use estimated cost
    */
-  static calculateBOETotals(elements: BOEElement[], managementReservePercentage: number = 10): BOECalculationResult {
+  static calculateBOETotals(
+    elements: BOEElement[], 
+    managementReservePercentage: number = 10,
+    elementAllocations: any[] = []
+  ): BOECalculationResult {
     const allElements = this.flattenElements(elements);
     
-    const totalEstimatedCost = allElements.reduce((sum, element) => sum + safeNumber(element.estimatedCost), 0);
-    const totalActualCost = allElements.reduce((sum, element) => sum + safeNumber(element.actualCost), 0);
-    const totalVariance = totalActualCost - totalEstimatedCost;
+    // Calculate allocation sums per element
+    const allocationSumByElement = new Map<string, number>();
+    elementAllocations.forEach(allocation => {
+      const current = allocationSumByElement.get(allocation.boeElementId) || 0;
+      allocationSumByElement.set(allocation.boeElementId, current + safeNumber(allocation.totalAmount));
+    });
     
-    const managementReserveAmount = (totalEstimatedCost * managementReservePercentage) / 100;
-    const totalWithMR = totalEstimatedCost + managementReserveAmount;
+    // Identify leaf elements (elements that don't appear as parentElementId AND don't have childElements)
+    const parentIds = new Set<string>();
+    allElements.forEach(el => {
+      if (el.parentElementId) {
+        parentIds.add(el.parentElementId);
+      }
+    });
     
-    const elementCount = allElements.length;
-    const requiredElementCount = allElements.filter(e => e.isRequired).length;
-    const optionalElementCount = allElements.filter(e => e.isOptional).length;
+    // Also check for elements that have childElements in the hierarchical structure
+    const elementsWithChildren = new Set<string>();
+    const checkForChildren = (els: BOEElement[]) => {
+      els.forEach(el => {
+        if (el.childElements && el.childElements.length > 0) {
+          elementsWithChildren.add(el.id);
+          checkForChildren(el.childElements);
+        }
+      });
+    };
+    checkForChildren(elements);
     
-    const costCategoryBreakdown = this.calculateCostCategoryBreakdown(allElements);
-    const levelBreakdown = this.calculateLevelBreakdown(allElements);
+    // Leaf elements are those that: 1) don't appear as a parentElementId, AND 2) don't have childElements
+    const leafElementIds = allElements
+      .filter(el => !parentIds.has(el.id) && !elementsWithChildren.has(el.id))
+      .map(el => el.id);
+    const leafElementSet = new Set(leafElementIds);
+    
+    // Calculate estimated cost total - ONLY sum estimated costs from leaf elements (never allocations)
+    const trueEstimatedTotal = allElements
+      .filter(el => leafElementSet.has(el.id))
+      .reduce((sum, element) => sum + safeNumber(element.estimatedCost), 0);
+    
+    const totalAllocatedCost = Array.from(allocationSumByElement.values()).reduce((sum, val) => sum + val, 0);
+    
+    const managementReserveAmount = (trueEstimatedTotal * managementReservePercentage) / 100;
+    const totalWithMR = trueEstimatedTotal + managementReserveAmount;
+    
+    // Count only leaf elements
+    
+    const elementCount = leafElementIds.length;
+    const requiredElementCount = allElements.filter(e => e.isRequired && leafElementSet.has(e.id)).length;
+    const optionalElementCount = allElements.filter(e => e.isOptional && leafElementSet.has(e.id)).length;
+    
+    // Calculate reconciliation issues (where allocation sum differs from estimate)
+    const reconciliationIssues: Array<{
+      elementId: string;
+      elementCode: string;
+      elementName: string;
+      estimatedCost: number;
+      allocatedTotal: number;
+      difference: number;
+    }> = [];
+    
+    allElements.forEach(element => {
+      const allocationSum = allocationSumByElement.get(element.id) || 0;
+      const estimated = safeNumber(element.estimatedCost);
+      
+      if (allocationSum > 0 && estimated > 0 && Math.abs(allocationSum - estimated) > 0.01) {
+        reconciliationIssues.push({
+          elementId: element.id,
+          elementCode: element.code,
+          elementName: element.name,
+          estimatedCost: estimated,
+          allocatedTotal: allocationSum,
+          difference: allocationSum - estimated
+        });
+      }
+    });
+    
+    // Pass hierarchical structure to breakdown functions (they will flatten internally)
+    const costCategoryBreakdown = this.calculateCostCategoryBreakdown(elements, allocationSumByElement);
+    const levelBreakdown = this.calculateLevelBreakdown(elements, allocationSumByElement);
     
     return {
-      totalEstimatedCost,
-      totalActualCost,
-      totalVariance,
+      totalEstimatedCost: trueEstimatedTotal,
+      totalAllocatedCost,
       managementReserveAmount,
       managementReservePercentage,
       totalWithMR,
@@ -64,19 +138,67 @@ export class BOECalculationService {
       requiredElementCount,
       optionalElementCount,
       costCategoryBreakdown,
-      levelBreakdown
+      levelBreakdown,
+      reconciliationIssues
     };
   }
 
   /**
-   * Flatten hierarchical elements into a flat array
+   * Calculate aggregated cost for an element (sum of all leaf descendants)
+   * For leaf elements, returns allocation sum if available, else estimated cost
+   * For parent elements, returns the sum of all leaf children (using allocations if available)
+   */
+  static calculateElementAggregatedCost(
+    element: BOEElement, 
+    elementAllocations: any[] = []
+  ): number {
+    const hasChildren = element.childElements && element.childElements.length > 0;
+    
+    // Get allocation sum for this element
+    const allocationSum = elementAllocations
+      .filter(a => a.boeElementId === element.id)
+      .reduce((sum, a) => sum + safeNumber(a.totalAmount), 0);
+    
+    if (!hasChildren) {
+      // Leaf element: return allocation sum if available, else estimated cost
+      return allocationSum > 0 ? allocationSum : safeNumber(element.estimatedCost);
+    }
+    
+    // Parent element: sum all leaf descendants (using allocations if available)
+    let total = 0;
+    const sumLeafCosts = (elements: BOEElement[]) => {
+      elements.forEach(el => {
+        const isLeaf = !el.childElements || el.childElements.length === 0;
+        if (isLeaf) {
+          const childAllocationSum = elementAllocations
+            .filter(a => a.boeElementId === el.id)
+            .reduce((sum, a) => sum + safeNumber(a.totalAmount), 0);
+          total += childAllocationSum > 0 ? childAllocationSum : safeNumber(el.estimatedCost);
+        } else {
+          // Recursively process children
+          sumLeafCosts(el.childElements!);
+        }
+      });
+    };
+    
+    sumLeafCosts(element.childElements!);
+    return total;
+  }
+
+  /**
+   * Flatten hierarchical elements into a flat array (deduplicated by ID)
    */
   static flattenElements(elements: BOEElement[]): BOEElement[] {
     const result: BOEElement[] = [];
+    const seenIds = new Set<string>();
     
     const flatten = (items: BOEElement[]) => {
       items.forEach(item => {
-        result.push(item);
+        // Only add element if we haven't seen it before (prevent duplicates)
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          result.push(item);
+        }
         if (item.childElements && item.childElements.length > 0) {
           flatten(item.childElements);
         }
@@ -85,6 +207,43 @@ export class BOECalculationService {
     
     flatten(elements);
     return result;
+  }
+
+  /**
+   * Sort WBS codes numerically (e.g., "1.0", "1.1", "2.0", "10.0")
+   */
+  private static sortByCode(elements: BOEElement[]): BOEElement[] {
+    return elements.sort((a, b) => {
+      const codeA = a.code || '';
+      const codeB = b.code || '';
+      
+      // Split codes into parts (e.g., "1.2.3" -> [1, 2, 3])
+      const partsA = codeA.split('.').map(Number);
+      const partsB = codeB.split('.').map(Number);
+      
+      // Compare each part
+      const maxLength = Math.max(partsA.length, partsB.length);
+      for (let i = 0; i < maxLength; i++) {
+        const partA = partsA[i] || 0;
+        const partB = partsB[i] || 0;
+        if (partA !== partB) {
+          return partA - partB;
+        }
+      }
+      return 0;
+    });
+  }
+
+  /**
+   * Recursively sort children within each element
+   */
+  private static sortChildrenRecursive(elements: BOEElement[]): void {
+    elements.forEach(element => {
+      if (element.childElements && element.childElements.length > 0) {
+        element.childElements = this.sortByCode(element.childElements);
+        this.sortChildrenRecursive(element.childElements);
+      }
+    });
   }
 
   /**
@@ -113,16 +272,68 @@ export class BOECalculationService {
       }
     });
     
-    return rootElements;
+    // Sort root elements by code
+    const sortedRoots = this.sortByCode(rootElements);
+    
+    // Recursively sort children
+    this.sortChildrenRecursive(sortedRoots);
+    
+    return sortedRoots;
   }
 
   /**
    * Calculate cost category breakdown
+   * Only counts leaf elements and uses estimated costs only (never allocations)
    */
-  static calculateCostCategoryBreakdown(elements: BOEElement[]): CostCategoryBreakdown[] {
+  static calculateCostCategoryBreakdown(
+    elements: BOEElement[], 
+    allocationSumByElement?: Map<string, number>
+  ): CostCategoryBreakdown[] {
     const breakdown = new Map<string, CostCategoryBreakdown>();
     
-    elements.forEach(element => {
+    // Flatten and identify leaf elements (elements that are not parents)
+    const allElements = this.flattenElements(elements);
+    const parentIds = new Set<string>();
+    allElements.forEach(el => {
+      if (el.parentElementId) {
+        parentIds.add(el.parentElementId);
+      }
+    });
+    
+    // Also check for elements that have childElements in the hierarchical structure
+    const elementsWithChildren = new Set<string>();
+    const checkForChildren = (els: BOEElement[]) => {
+      els.forEach(el => {
+        if (el.childElements && el.childElements.length > 0) {
+          elementsWithChildren.add(el.id);
+          checkForChildren(el.childElements);
+        }
+      });
+    };
+    checkForChildren(elements);
+    
+    // Leaf elements are those that: 1) don't appear as a parentElementId, AND 2) don't have childElements
+    const leafElementIds = new Set(
+      allElements
+        .filter(el => !parentIds.has(el.id) && !elementsWithChildren.has(el.id))
+        .map(el => el.id)
+    );
+    
+    // Create a deduplicated map of elements by ID (in case of duplicates)
+    const uniqueElements = new Map<string, BOEElement>();
+    allElements.forEach(el => {
+      if (!uniqueElements.has(el.id)) {
+        uniqueElements.set(el.id, el);
+      }
+    });
+    
+    // Process only leaf elements for the breakdown (using unique elements only)
+    Array.from(uniqueElements.values()).forEach(element => {
+      // Skip non-leaf elements - they shouldn't be in the breakdown
+      if (!leafElementIds.has(element.id)) {
+        return;
+      }
+      
       const categoryId = element.costCategoryId || 'uncategorized';
       const categoryName = element.costCategoryId ? 'Categorized' : 'Uncategorized';
       
@@ -131,16 +342,22 @@ export class BOECalculationService {
           costCategoryId: categoryId,
           costCategoryName: categoryName,
           estimatedCost: 0,
-          actualCost: 0,
-          variance: 0,
+          allocatedCost: 0,
           elementCount: 0
         });
       }
       
       const category = breakdown.get(categoryId)!;
-      category.estimatedCost += safeNumber(element.estimatedCost);
-      category.actualCost += safeNumber(element.actualCost);
-      category.variance += safeNumber(element.actualCost) - safeNumber(element.estimatedCost);
+      const allocationSum = allocationSumByElement?.get(element.id) || 0;
+      const estimatedCost = safeNumber(element.estimatedCost);
+      
+      // Only add estimated costs (never allocations) for leaf elements
+      category.estimatedCost += estimatedCost;
+      
+      // Track allocated costs separately (for display only)
+      category.allocatedCost += allocationSum;
+      
+      // Count leaf elements
       category.elementCount += 1;
     });
     
@@ -149,28 +366,79 @@ export class BOECalculationService {
 
   /**
    * Calculate level breakdown
+   * Only counts leaf elements and uses estimated costs only
    */
-  static calculateLevelBreakdown(elements: BOEElement[]): LevelBreakdown[] {
+  static calculateLevelBreakdown(
+    elements: BOEElement[], 
+    allocationSumByElement?: Map<string, number>
+  ): LevelBreakdown[] {
     const breakdown = new Map<number, LevelBreakdown>();
     
-    elements.forEach(element => {
+    // Identify leaf elements (elements that are not parents)
+    // We need to check both: elements that don't appear as parentElementId AND don't have childElements
+    const allElements = this.flattenElements(elements);
+    const parentIds = new Set<string>();
+    allElements.forEach(el => {
+      if (el.parentElementId) {
+        parentIds.add(el.parentElementId);
+      }
+    });
+    
+    // Also check for elements that have childElements in the hierarchical structure
+    const elementsWithChildren = new Set<string>();
+    const checkForChildren = (els: BOEElement[]) => {
+      els.forEach(el => {
+        if (el.childElements && el.childElements.length > 0) {
+          elementsWithChildren.add(el.id);
+          checkForChildren(el.childElements);
+        }
+      });
+    };
+    checkForChildren(elements);
+    
+    // Leaf elements are those that: 1) don't appear as a parentElementId, AND 2) don't have childElements
+    const leafElementIds = new Set(
+      allElements
+        .filter(el => !parentIds.has(el.id) && !elementsWithChildren.has(el.id))
+        .map(el => el.id)
+    );
+    
+    // Create a deduplicated map of elements by ID (in case of duplicates)
+    const uniqueElements = new Map<string, BOEElement>();
+    allElements.forEach(el => {
+      if (!uniqueElements.has(el.id)) {
+        uniqueElements.set(el.id, el);
+      }
+    });
+    
+    // Process only leaf elements - skip parents entirely (using unique elements only)
+    Array.from(uniqueElements.values()).forEach(element => {
+      // Skip non-leaf elements completely
+      if (!leafElementIds.has(element.id)) {
+        return;
+      }
+      
       const level = element.level;
       
       if (!breakdown.has(level)) {
         breakdown.set(level, {
           level,
           estimatedCost: 0,
-          actualCost: 0,
-          variance: 0,
+          allocatedCost: 0,
           elementCount: 0
         });
       }
       
       const levelData = breakdown.get(level)!;
-      levelData.estimatedCost += safeNumber(element.estimatedCost);
-      levelData.actualCost += safeNumber(element.actualCost);
-      levelData.variance += safeNumber(element.actualCost) - safeNumber(element.estimatedCost);
+      const allocationSum = allocationSumByElement?.get(element.id) || 0;
+      const estimatedCost = safeNumber(element.estimatedCost);
+      
+      // Add estimated costs for leaf elements only
+      levelData.estimatedCost += estimatedCost;
       levelData.elementCount += 1;
+      
+      // Track allocated costs separately
+      levelData.allocatedCost += allocationSum;
     });
     
     return Array.from(breakdown.values()).sort((a, b) => a.level - b.level);
@@ -215,16 +483,45 @@ export class BOECalculationService {
    */
   static validateBOEStructure(elements: BOEElement[]): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
-    const allElements = this.flattenElements(elements);
+    
+    // Build a map to identify leaf elements before flattening
+    const leafElementIds = new Set<string>();
+    const allElementsFlat = this.flattenElements(elements);
+    
+    // Mark all elements as potential leaves first
+    allElementsFlat.forEach(el => leafElementIds.add(el.id));
+    
+    // Remove parent elements from leaf set (they have children)
+    const markParents = (elements: BOEElement[]) => {
+      elements.forEach(element => {
+        if (element.childElements && element.childElements.length > 0) {
+          leafElementIds.delete(element.id);
+          markParents(element.childElements);
+        }
+      });
+    };
+    markParents(elements);
 
-    // Check for required elements
-    const requiredElements = allElements.filter(e => e.isRequired);
+    // Check for required elements - only validate leaf elements for cost categories
+    const requiredElements = allElementsFlat.filter(e => e.isRequired);
     for (const element of requiredElements) {
-      if (!element.estimatedCost || element.estimatedCost <= 0) {
-        errors.push(`Required element "${element.name}" has no estimated cost`);
-      }
-      if (!element.costCategoryId) {
-        errors.push(`Required element "${element.name}" has no cost category assigned`);
+      const isLeaf = leafElementIds.has(element.id);
+      
+      // Cost validation: only check leaf elements
+      if (isLeaf) {
+        if (!element.estimatedCost || element.estimatedCost <= 0) {
+          errors.push(`Required element "${element.code} ${element.name}" has no estimated cost`);
+        }
+        if (!element.costCategoryId) {
+          errors.push(`Required element "${element.code} ${element.name}" has no cost category assigned`);
+        }
+      } else {
+        // For parent elements, calculate aggregated cost from children and validate that
+        const aggregatedCost = this.calculateElementAggregatedCost(element);
+        if (aggregatedCost <= 0) {
+          errors.push(`Required element "${element.code} ${element.name}" has no estimated cost`);
+        }
+        // Don't require cost category on parents
       }
     }
 
@@ -235,7 +532,7 @@ export class BOECalculationService {
     }
 
     // Check for duplicate codes
-    const codes = allElements.map(e => e.code);
+    const codes = allElementsFlat.map(e => e.code);
     const duplicateCodes = codes.filter((code, index) => codes.indexOf(code) !== index);
     if (duplicateCodes.length > 0) {
       errors.push(`Duplicate element codes found: ${duplicateCodes.join(', ')}`);

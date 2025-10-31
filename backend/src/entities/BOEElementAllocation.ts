@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BOEElement } from './BOEElement';
 import { BOEVersion } from './BOEVersion';
+import { Vendor } from './Vendor';
 
 @Entity()
 export class BOEElementAllocation {
@@ -70,6 +71,13 @@ export class BOEElementAllocation {
   @ManyToOne(() => BOEVersion, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'boeVersionId' })
   boeVersion!: BOEVersion;
+
+  @Column({ nullable: true })
+  vendorId?: string; // Vendor for this allocation (contract/PO)
+
+  @ManyToOne(() => Vendor, { nullable: true })
+  @JoinColumn({ name: 'vendorId' })
+  vendor?: Vendor;
 
   // Monthly breakdown (stored as JSON for flexibility)
   @Column('jsonb', { nullable: true })

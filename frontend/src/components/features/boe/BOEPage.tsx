@@ -15,6 +15,9 @@ import Button from '../../common/Button';
 import Modal from '../../common/Modal';
 import { boeApiService } from '../../../services/boeApi';
 import { boeVersionsApi } from '../../../services/boeApi';
+import BOECalculationService from '../../../services/boeCalculationService';
+import { useManagementReserve } from '../../../hooks/useManagementReserve';
+import BOEProgressTracker from './BOEProgressTracker';
 
 
 interface BOEPageProps {
@@ -24,13 +27,15 @@ interface BOEPageProps {
 const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   const { id: urlProgramId } = useParams<{ id: string }>();
   const programId = propProgramId || urlProgramId;
-  
 
-  
+
+
   const {
     currentBOE,
     boeLoading,
     boeError,
+    elements,
+    elementAllocations,
     activeTab,
     setActiveTab,
     setCurrentBOE,
@@ -39,8 +44,9 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     openWizard,
     toast,
     clearToast,
+    setToast,
   } = useBOEStore();
-  
+
 
 
   const [isInitialized, setIsInitialized] = useState(false);
@@ -54,6 +60,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
   const [pushingToLedger, setPushingToLedger] = useState(false);
   const [ledgerPushResult, setLedgerPushResult] = useState<any>(null);
   const [approvalError, setApprovalError] = useState<string | null>(null);
+  const { managementReserve: mrData } = useManagementReserve(currentBOE?.id);
 
   const [showNewVersionConfirmation, setShowNewVersionConfirmation] = useState(false);
   const [approvalSidebarWidth, setApprovalSidebarWidth] = useState(() => {
@@ -98,14 +105,14 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
       try {
         setBOELoading(true);
         setBOEError(null);
-        
+
         // Load current BOE from API
         const boeData = await boeApiService.versions.getCurrentBOE(programId);
         // The API returns { program, currentBOE, hasBOE, lastBOEUpdate }
         // not the BOESummary structure we expected
         setCurrentBOE(boeData.currentBOE || null);
 
-        
+
         setBOELoading(false);
         setIsInitialized(true);
       } catch (error) {
@@ -125,11 +132,11 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         try {
           setBOELoading(true);
           setBOEError(null);
-          
+
           // Load complete BOE data with elements and allocations
           const boeData = await boeApiService.versions.getCurrentBOE(programId);
           setCurrentBOE(boeData.currentBOE || null);
-          
+
           setBOELoading(false);
         } catch (error) {
           console.error('Error reloading BOE details:', error);
@@ -154,7 +161,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
   const handleConfirmOverwrite = async () => {
     setShowDraftOverwriteModal(false);
-    
+
     // Delete the existing draft BOE before opening the wizard
     if (currentBOE && currentBOE.status === 'Draft') {
       try {
@@ -177,7 +184,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         // Show error but still allow wizard to proceed
       }
     }
-    
+
     openWizard(programId!);
     setShowTemplateManagement(false);
   };
@@ -187,9 +194,65 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
     try {
       setApprovalError(null);
+      // Client-side validation aligned with the progress tracker
+      const preSubmitErrors: string[] = [];
+
+      // 1) WBS validation
+      const hierarchical = elements && elements.length > 0
+        ? BOECalculationService.buildHierarchicalStructure(elements)
+        : [];
+      if (hierarchical.length === 0) {
+        preSubmitErrors.push('No WBS elements defined.');
+      } else {
+        const validation = BOECalculationService.validateBOEStructure(hierarchical);
+        if (!validation.isValid && validation.errors.length > 0) {
+          preSubmitErrors.push('WBS validation issues:');
+          validation.errors.forEach(e => preSubmitErrors.push(`- ${e}`));
+        }
+      }
+
+      // Helper: required leaf elements list
+      const requiredLeaves: any[] = [];
+      const walk = (els: any[]) => {
+        els.forEach(el => {
+          const hasChildren = el.childElements && el.childElements.length > 0;
+          if (!hasChildren) {
+            if (el.isRequired) requiredLeaves.push(el);
+          } else {
+            walk(el.childElements);
+          }
+        });
+      };
+      if (hierarchical.length > 0) walk(hierarchical);
+
+      // 2) Required allocations for required leaves
+      const missingAllocations: string[] = [];
+      requiredLeaves.forEach(leaf => {
+        const total = elementAllocations
+          .filter(a => a.boeElementId === leaf.id)
+          .reduce((s, a) => s + (a.totalAmount || 0), 0);
+        if (total <= 0) missingAllocations.push(`${leaf.code} - ${leaf.name}`);
+      });
+      if (missingAllocations.length > 0) {
+        preSubmitErrors.push('Missing allocations for required elements:');
+        missingAllocations.forEach(line => preSubmitErrors.push(`- ${line}`));
+      }
+
+      // 3) MR required to submit (addressed means MR record exists and has justification)
+      const mrJustification = (mrData?.justification || '').trim();
+      const hasMRRecord = !!mrData;
+      if (!hasMRRecord || mrJustification.length === 0) {
+        preSubmitErrors.push('Management Reserve is not addressed. Please calculate (0% allowed) and provide justification.');
+      }
+
+      if (preSubmitErrors.length > 0) {
+        setApprovalError(preSubmitErrors.join('\n'));
+        return; // do not submit
+      }
+
       // Use the proper API service
       const result = await boeVersionsApi.submitForApproval(programId);
-      
+
       // Update BOE status to "Under Review"
       if (result) {
         setCurrentBOE({
@@ -211,7 +274,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     try {
       // Use the proper API service
       const result = await boeVersionsApi.revertToDraft(programId, currentBOE.id);
-      
+
       // Update BOE status to "Draft"
       if (result) {
         setCurrentBOE({
@@ -231,11 +294,11 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
     try {
       setPushingToLedger(true);
-      
+
       // Use the proper API service
       const result = await boeVersionsApi.pushToLedger(programId, currentBOE.id);
       setLedgerPushResult(result);
-      
+
       // Update BOE status to "Baseline"
       if (result.success) {
         setCurrentBOE({
@@ -252,6 +315,28 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     }
   };
 
+  const handleDeleteDraft = async () => {
+    if (!currentBOE || !programId) return;
+    if (currentBOE.status !== 'Draft') return;
+
+    const confirmed = window.confirm('Delete current Draft BOE? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await boeVersionsApi.deleteBOE(programId, currentBOE.id);
+
+      // Reload current BOE (should return latest active or null)
+      const boeData = await boeApiService.versions.getCurrentBOE(programId);
+      setCurrentBOE(boeData.currentBOE || null);
+
+      setToast({ message: 'Draft BOE deleted.', type: 'success' });
+    } catch (error: any) {
+      console.error('Error deleting draft BOE:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to delete draft BOE';
+      setToast({ message: errorMessage, type: 'error' });
+    }
+  };
+
   const handleCreateNewVersion = () => {
     // Show confirmation dialog first
     setShowNewVersionConfirmation(true);
@@ -259,7 +344,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
   const handleConfirmNewVersion = () => {
     setShowNewVersionConfirmation(false);
-    
+
     // Check if there's already a draft BOE
     if (currentBOE && currentBOE.status === 'Draft') {
       setShowDraftOverwriteModal(true);
@@ -319,11 +404,10 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
             <div className="flex space-x-3">
               <button
                 onClick={() => setShowTemplateManagement(!showTemplateManagement)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  showTemplateManagement
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${showTemplateManagement
                     ? 'bg-gray-600 text-white hover:bg-gray-700'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -332,7 +416,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                   {showTemplateManagement ? 'Hide Templates' : 'Manage Templates'}
                 </span>
               </button>
-              
+
               {/* Create New Version Button */}
               {currentBOE && (
                 <button
@@ -345,7 +429,20 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                   Create New Version
                 </button>
               )}
-              
+
+              {/* Temporary: Delete Draft BOE button */}
+              {currentBOE && currentBOE.status === 'Draft' && (
+                <button
+                  onClick={handleDeleteDraft}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors flex items-center gap-2"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a2 2 0 012-2h2a2 2 0 012 2m-6 0h6" />
+                  </svg>
+                  Delete Draft
+                </button>
+              )}
+
               {/* Secondary Action Buttons */}
               {currentBOE && (
                 <>
@@ -399,7 +496,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
               selectedTemplateId={selectedTemplate?.id}
               showCreateNew={true}
             />
-            
+
             {/* Show action buttons when a template is selected */}
             {selectedTemplate && (
               <div className="mt-6 p-4 bg-white rounded-lg border border-gray-200">
@@ -432,15 +529,15 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
         {/* BOE Status Banner */}
         {currentBOE && (
-                      <BOEStatusBanner
-              programId={programId!}
-              onViewApprovalStatus={() => setShowApprovalSidebar(true)}
-              onViewHistory={() => setShowHistoryModal(true)}
-              onPushToLedger={() => setPushToLedgerModalOpen(true)}
-              onSubmitForApproval={handleSubmitForApproval}
-              onRevertToDraft={handleRevertToDraft}
-              onCreateNewVersion={handleCreateNewVersion}
-            />
+          <BOEStatusBanner
+            programId={programId!}
+            onViewApprovalStatus={() => setShowApprovalSidebar(true)}
+            onViewHistory={() => setShowHistoryModal(true)}
+            onPushToLedger={() => setPushToLedgerModalOpen(true)}
+            onSubmitForApproval={handleSubmitForApproval}
+            onRevertToDraft={handleRevertToDraft}
+            onCreateNewVersion={handleCreateNewVersion}
+          />
         )}
 
         {/* Approval Error Display */}
@@ -462,11 +559,11 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                         {(() => {
                           const errorText = approvalError.replace('BOE validation failed: ', '');
                           const errors = errorText.split(', ');
-                          
+
                           // Group errors by category
                           const categories: { [key: string]: string[] } = {};
                           let currentCategory = '';
-                          
+
                           errors.forEach(error => {
                             if (error.includes(': ')) {
                               // This is a category header
@@ -481,7 +578,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                               categories[error] = [];
                             }
                           });
-                          
+
                           return Object.entries(categories).map(([category, items], index) => (
                             <div key={index}>
                               <div className="font-medium text-red-800 mb-1">{category}:</div>
@@ -547,7 +644,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 Are you sure you want to proceed?
               </p>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
               <Button
                 onClick={() => setShowDraftOverwriteModal(false)}
@@ -586,7 +683,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 <li>• Maintain the current baseline BOE as historical data</li>
               </ul>
             </div>
-            
+
             <div className="bg-gray-50 rounded-lg p-4">
               <h4 className="font-medium mb-2">Current BOE Information</h4>
               <ul className="text-sm text-gray-600 space-y-1">
@@ -596,7 +693,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 <li>• Elements: {currentBOE?.elements?.length || 0}</li>
               </ul>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
               <Button
                 onClick={() => setShowNewVersionConfirmation(false)}
@@ -628,11 +725,11 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h4 className="font-medium text-blue-800 mb-2">⚠️ Important</h4>
                   <p className="text-sm text-blue-700">
-                    This action will create ledger entries for all BOE elements with estimated costs. 
+                    This action will create ledger entries for all BOE elements with estimated costs.
                     The BOE status will be updated to "Baseline" after successful push.
                   </p>
                 </div>
-                
+
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="font-medium mb-2">Summary</h4>
                   <ul className="text-sm text-gray-600 space-y-1">
@@ -642,7 +739,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                     <li>• BOE status will change to "Baseline"</li>
                   </ul>
                 </div>
-                
+
                 <div className="flex justify-end space-x-2">
                   <Button
                     onClick={() => setPushToLedgerModalOpen(false)}
@@ -710,7 +807,18 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
         {/* Visual Separator */}
         <div className="bg-gray-100 h-px mx-6 my-6"></div>
-        
+
+        {/* Progress Tracker */}
+        {currentBOE && (
+          <BOEProgressTracker
+            boeVersionId={currentBOE.id}
+            currentBOE={currentBOE}
+            elements={elements}
+            elementAllocations={elementAllocations}
+            onNavigate={(tab) => setActiveTab(tab)}
+          />
+        )}
+
         {/* Tab Navigation */}
         <div className="border-b border-gray-200 mb-8">
           <nav className="-mb-px flex space-x-8 px-6">
@@ -764,19 +872,19 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         </div>
 
         {/* Resizable Approval Sidebar */}
-        <div 
+        <div
           className={`fixed inset-y-0 right-0 z-50 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${showApprovalSidebar ? 'translate-x-0' : 'translate-x-full'}`}
           style={{ width: `${approvalSidebarWidth}px` }}
           ref={approvalSidebarRef}
         >
           {/* Drag Handle for Resizing */}
-          <div 
+          <div
             className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200"
             onMouseDown={(e) => {
               e.preventDefault();
               const startX = e.clientX;
               const startWidth = approvalSidebarWidth;
-              
+
               const handleMouseMove = (moveEvent: MouseEvent) => {
                 const deltaX = startX - moveEvent.clientX;
                 const screenWidth = window.innerWidth;
@@ -785,12 +893,12 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
                 setApprovalSidebarWidth(newWidth);
               };
-              
+
               const handleMouseUp = () => {
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
               };
-              
+
               document.addEventListener('mousemove', handleMouseMove);
               document.addEventListener('mouseup', handleMouseUp);
             }}
@@ -824,7 +932,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 </button>
               </div>
             </div>
-            
+
             {/* Sidebar Content */}
             <div className="flex-1 overflow-hidden">
               <div className="h-full overflow-y-auto">
@@ -835,19 +943,19 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         </div>
 
         {/* Resizable History Sidebar */}
-        <div 
+        <div
           className={`fixed inset-y-0 right-0 z-50 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${showHistorySidebar ? 'translate-x-0' : 'translate-x-full'}`}
           style={{ width: `${historySidebarWidth}px` }}
           ref={historySidebarRef}
         >
           {/* Drag Handle for Resizing */}
-          <div 
+          <div
             className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200"
             onMouseDown={(e) => {
               e.preventDefault();
               const startX = e.clientX;
               const startWidth = historySidebarWidth;
-              
+
               const handleMouseMove = (moveEvent: MouseEvent) => {
                 const deltaX = startX - moveEvent.clientX;
                 const screenWidth = window.innerWidth;
@@ -856,12 +964,12 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
                 setHistorySidebarWidth(newWidth);
               };
-              
+
               const handleMouseUp = () => {
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
               };
-              
+
               document.addEventListener('mousemove', handleMouseMove);
               document.addEventListener('mouseup', handleMouseUp);
             }}
@@ -895,7 +1003,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 </button>
               </div>
             </div>
-            
+
             {/* Sidebar Content */}
             <div className="flex-1 overflow-hidden min-h-0">
               <BOEHistory programId={programId!} sidebarWidth={historySidebarWidth} />
@@ -905,7 +1013,7 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
         {/* Backdrop for sidebars */}
         {(showApprovalSidebar || showHistorySidebar) && (
-          <div 
+          <div
             className="fixed inset-0 z-40 bg-black bg-opacity-25 transition-opacity duration-300"
             onClick={() => {
               setShowApprovalSidebar(false);
@@ -916,11 +1024,10 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
         {/* Toast Notification */}
         {toast && (
-          <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
-            toast.type === 'success' ? 'bg-green-500 text-white' : 
-            toast.type === 'error' ? 'bg-red-500 text-white' : 
-            'bg-blue-500 text-white'
-          }`}>
+          <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${toast.type === 'success' ? 'bg-green-500 text-white' :
+              toast.type === 'error' ? 'bg-red-500 text-white' :
+                'bg-blue-500 text-white'
+            }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 {toast.type === 'success' && (

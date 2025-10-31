@@ -422,7 +422,7 @@ export class BOEService {
   static async getBOESummary(programId: string): Promise<any> {
     const program = await programRepository.findOne({
       where: { id: programId },
-      relations: ['boeVersions', 'boeVersions.elements']
+      relations: ['boeVersions', 'boeVersions.elements', 'boeVersions.elements.costCategory', 'boeVersions.elements.vendor']
     });
 
     if (!program) {
@@ -489,20 +489,96 @@ export class BOEService {
       relations: ['costCategory']
     });
 
-    // Check for required elements
+    // Build hierarchical structure for cost calculation
+    const elementMap = new Map<string, any>();
+    const rootElements: any[] = [];
+    
+    elements.forEach(element => {
+      elementMap.set(element.id, { ...element, childElements: [] });
+    });
+    
+    elements.forEach(element => {
+      const mappedElement = elementMap.get(element.id)!;
+      if (element.parentElementId) {
+        const parent = elementMap.get(element.parentElementId);
+        if (parent) {
+          parent.childElements = parent.childElements || [];
+          parent.childElements.push(mappedElement);
+        }
+      } else {
+        rootElements.push(mappedElement);
+      }
+    });
+
+    // Helper to calculate aggregated cost from children (sum of all leaf descendants)
+    const calculateAggregatedCost = (element: any): number => {
+      const hasChildren = element.childElements && element.childElements.length > 0;
+      
+      if (!hasChildren) {
+        // Leaf element: return its own cost
+        return Number(element.estimatedCost) || 0;
+      }
+      
+      // Parent element: sum all leaf descendants
+      let total = 0;
+      const sumLeafCosts = (children: any[]) => {
+        children.forEach((el: any) => {
+          const isLeaf = !el.childElements || el.childElements.length === 0;
+          if (isLeaf) {
+            total += Number(el.estimatedCost) || 0;
+          } else {
+            // Recursively process children
+            sumLeafCosts(el.childElements);
+          }
+        });
+      };
+      
+      sumLeafCosts(element.childElements);
+      return total;
+    };
+
+    // Build a set of parent element IDs (elements that have children)
+    const parentElementIds = new Set<string>();
+    elements.forEach(element => {
+      if (element.parentElementId) {
+        parentElementIds.add(element.parentElementId);
+      }
+    });
+
+    // Helper to check if an element is a leaf (has no children)
+    const isLeafElement = (element: any): boolean => {
+      return !parentElementIds.has(element.id);
+    };
+
+    // Check for required elements - only validate leaf elements for cost categories
     const requiredElements = elements.filter(e => e.isRequired);
     for (const element of requiredElements) {
-      if (!element.estimatedCost || element.estimatedCost <= 0) {
-        errors.push(`Required element "${element.name}" has no estimated cost`);
-      }
-      if (!element.costCategory) {
-        errors.push(`Required element "${element.name}" has no cost category assigned`);
+      const isLeaf = isLeafElement(element);
+      
+      // Cost validation: only check leaf elements
+      if (isLeaf) {
+        if (!element.estimatedCost || element.estimatedCost <= 0) {
+          errors.push(`Required element "${element.code} ${element.name}" has no estimated cost`);
+        }
+        if (!element.costCategory) {
+          errors.push(`Required element "${element.code} ${element.name}" has no cost category assigned`);
+        }
+      } else {
+        // For parent elements, calculate aggregated cost from children and validate that
+        const hierarchicalElement = elementMap.get(element.id);
+        if (hierarchicalElement) {
+          const aggregatedCost = calculateAggregatedCost(hierarchicalElement);
+          if (aggregatedCost <= 0) {
+            errors.push(`Required element "${element.code} ${element.name}" has no estimated cost`);
+          }
+        }
+        // Don't require cost category on parents
       }
     }
 
     // Check for hierarchical structure
-    const rootElements = elements.filter(e => !e.parentElementId);
-    if (rootElements.length === 0) {
+    const rootElementsList = elements.filter(e => !e.parentElementId);
+    if (rootElementsList.length === 0) {
       errors.push('BOE must have at least one root element');
     }
 
@@ -556,7 +632,8 @@ export class BOEService {
       boeElement.name = elementData.name;
       boeElement.description = elementData.description;
       boeElement.level = elementData.level || 1;
-      boeElement.parentElementId = elementData.parentElementId || null;
+      // Defer setting parentElementId until all elements are created
+      boeElement.parentElementId = undefined;
       boeElement.costCategoryId = elementData.costCategoryId || null;
       boeElement.vendorId = elementData.vendorId || null;
       boeElement.estimatedCost = elementData.estimatedCost || 0;
@@ -571,6 +648,19 @@ export class BOEService {
       // Store mapping from temp ID to database ID
       if (elementData.id) {
         elementIdMapping[elementData.id] = savedElement.id;
+      }
+    }
+
+    // Second pass: update parent relationships using the mapping
+    for (const elementData of elements) {
+      if (elementData.id && elementData.parentElementId) {
+        const childDbId = elementIdMapping[elementData.id];
+        const parentDbId = elementIdMapping[elementData.parentElementId];
+        if (childDbId && parentDbId) {
+          await boeElementRepository.update(childDbId, {
+            parentElementId: parentDbId
+          });
+        }
       }
     }
 
@@ -694,7 +784,7 @@ export class BOEService {
     // Get all element allocations for this BOE version
     const allocations = await elementAllocationRepository.find({
       where: { boeVersionId },
-      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor']
+      relations: ['boeElement', 'boeElement.costCategory', 'boeElement.vendor', 'vendor']
     });
 
     let totalEntriesCreated = 0;
