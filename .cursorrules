@@ -33,6 +33,22 @@
 7. **GitHub Checkpoints**
    - Always push checkpoints up to GitHub after implementing certain steps in Feature Development
 
+8. **Git Workflow Enforcement (CRITICAL - READ CAREFULLY)**
+   - **ALWAYS follow the branch strategy defined in `.git-branch-strategy.md` and `FEATURE_DEVELOPMENT_GUIDE.md`**
+   - **NEVER commit directly to `main` or `develop` branches** - Create feature branches from `develop`
+   - **Branch naming**: Use format `feature/`, `fix/`, `chore/`, `docs/`, `refactor/`, or `hotfix/` prefix
+   - **Commit messages**: Must follow format `<type>: <subject>` where type is: feat, fix, docs, style, refactor, test, chore
+   - **Before starting work**: Always check current branch and ensure you're on a feature branch, not main/develop
+   - **Workflow steps**:
+     1. Check current branch: `git branch` or `git status`
+     2. If on main/develop, create feature branch: `git checkout develop && git pull && git checkout -b feature/name`
+     3. Make changes and commit with proper format: `git commit -m "feat: Description"`
+     4. Push feature branch: `git push -u origin feature/name`
+     5. When complete, merge to develop (NOT main): `git checkout develop && git merge feature/name`
+   - **Git hooks are installed** - They will enforce these rules automatically
+   - **If commit fails validation**: Read the error message and fix the commit message format
+   - **If pre-commit hook blocks**: You're trying to commit to main/develop - create a feature branch instead
+
 ## Terminal Command Best Practices for LRE Manager
 
 ### Build and Compilation Commands (Use these for error checking)
@@ -91,3 +107,52 @@ timeout 10s docker logs -f container_name
 ```
 
 Remember: Development servers and watch commands are designed to run indefinitely. Use `is_background: true` for these, not `is_background: false`.
+
+## Git Workflow Rules (MANDATORY FOR ALL AGENTS)
+
+### Before Making ANY Commits:
+
+1. **Check your current branch**:
+   ```bash
+   git branch
+   git status
+   ```
+
+2. **If you're on `main` or `develop`**:
+   - **STOP** - You cannot commit directly to these branches
+   - Create a feature branch first:
+     ```bash
+     git checkout develop
+     git pull origin develop
+     git checkout -b feature/your-feature-name
+     ```
+
+3. **Commit message format** (REQUIRED):
+   - Format: `<type>: <subject>`
+   - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+   - Examples:
+     - ✅ `feat: Add BOE approval notification system`
+     - ✅ `fix: Resolve vendor upload error`
+     - ✅ `docs: Update API documentation`
+     - ❌ `update stuff` (too vague, wrong format)
+     - ❌ `WIP` (not allowed)
+
+4. **After completing work**:
+   - Merge to `develop` (NOT `main`):
+     ```bash
+     git checkout develop
+     git pull origin develop
+     git merge feature/your-feature-name
+     git push origin develop
+     ```
+
+5. **Git hooks will enforce**:
+   - Commit message format validation
+   - Prevention of direct commits to main/develop
+   - Branch name validation
+   - TypeScript compilation checks
+
+### Reference Documents:
+- `.git-branch-strategy.md` - Branch strategy overview
+- `FEATURE_DEVELOPMENT_GUIDE.md` - Detailed workflow guide
+- `.git/hooks/` - Automated enforcement scripts
