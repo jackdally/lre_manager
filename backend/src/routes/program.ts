@@ -3,6 +3,7 @@ import { AppDataSource } from '../config/database';
 import { Program } from '../entities/Program';
 import { copyWbsTemplateToProgram } from '../services/wbsTemplateService';
 import { ProgramDeletionService } from '../services/programDeletionService';
+import { ProgramSetupService } from '../services/programSetupService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -113,6 +114,16 @@ router.post('/', async (req, res) => {
         // Don't fail the program creation if WBS template copying fails
         // The program is already created, just log the error
       }
+    }
+
+    // Initialize setup status for the new program
+    try {
+      await ProgramSetupService.initializeSetupStatus(savedProgram.id);
+      console.log('Program setup status initialized');
+    } catch (error) {
+      console.error('Error initializing program setup status:', error);
+      // Don't fail the program creation if setup status initialization fails
+      // The program is already created, just log the error
     }
     
     res.status(201).json(savedProgram);
