@@ -41,7 +41,7 @@ export const vendorSchema = Joi.object({
 });
 
 export const vendorUploadSchema = Joi.object({
-  vendorNameColumn: Joi.string().required().default('Vendor Name')
+  vendorNameColumn: Joi.string().optional().default('Vendor Name')
 });
 
 // UUID validation function

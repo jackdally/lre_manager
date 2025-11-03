@@ -168,7 +168,7 @@ export interface SettingsState {
   createVendorApi: (vendor: Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Vendor>;
   updateVendorApi: (id: string, vendor: Partial<Vendor>) => Promise<Vendor>;
   deleteVendorApi: (id: string) => Promise<void>;
-  uploadVendorsApi: (file: File) => Promise<{ message: string; count: number }>;
+  uploadVendorsApi: (file: File) => Promise<{ message: string; count: number; total?: number; skipped?: number; errors?: number; errorsList?: string[] }>;
   importFromNetSuiteApi: () => Promise<{ message: string; count: number }>;
   downloadVendorTemplateApi: () => Promise<Blob>;
   

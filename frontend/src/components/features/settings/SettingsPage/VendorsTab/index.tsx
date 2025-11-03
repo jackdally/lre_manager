@@ -84,14 +84,35 @@ const VendorsTab: React.FC = () => {
   const handleFileUpload = async () => {
     if (!uploadFile) return;
     
+    setIsSubmitting(true);
     try {
       const result = await uploadVendorsApi(uploadFile);
-      alert(`Successfully uploaded ${result.count} vendors: ${result.message}`);
+      const message = result.count > 0 
+        ? `Successfully uploaded ${result.count} vendor(s). ${result.skipped || 0} skipped, ${result.errors || 0} error(s).`
+        : `No vendors were uploaded. ${result.skipped || 0} skipped (duplicates), ${result.errors || 0} error(s).`;
+      
+      if (result.errorsList && result.errorsList.length > 0) {
+        const errorDetails = result.errorsList.slice(0, 5).join('\n');
+        const moreErrors = result.errorsList.length > 5 ? `\n... and ${result.errorsList.length - 5} more errors` : '';
+        alert(`${message}\n\nErrors:\n${errorDetails}${moreErrors}`);
+      } else {
+        alert(message);
+      }
+      
       setUploadFile(null);
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      
       // Refresh vendors list
       fetchVendors();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading vendors:', error);
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to upload vendors';
+      setError(errorMessage);
+      alert(`Upload failed: ${errorMessage}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -164,10 +185,10 @@ const VendorsTab: React.FC = () => {
           />
           <Button 
             onClick={handleFileUpload} 
-            disabled={!uploadFile}
+            disabled={!uploadFile || isSubmitting}
             variant="secondary"
           >
-            Upload
+            {isSubmitting ? 'Uploading...' : 'Upload'}
           </Button>
         </div>
       </div>

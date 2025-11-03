@@ -83,7 +83,7 @@ export const settingsApi = {
     await axios.delete(`${API_BASE_URL}/vendors/${id}`);
   },
 
-  uploadVendors: async (file: File): Promise<{ message: string; count: number }> => {
+  uploadVendors: async (file: File): Promise<{ message: string; count: number; total?: number; skipped?: number; errors?: number; errorsList?: string[] }> => {
     const formData = new FormData();
     formData.append('file', file);
     const response = await axios.post(`${API_BASE_URL}/vendors/upload`, formData, {
@@ -91,7 +91,7 @@ export const settingsApi = {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data as { message: string; count: number };
+    return response.data as { message: string; count: number; total?: number; skipped?: number; errors?: number; errorsList?: string[] };
   },
 
   importFromNetSuite: async (): Promise<{ message: string; count: number }> => {
