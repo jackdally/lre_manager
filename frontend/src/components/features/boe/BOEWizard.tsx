@@ -970,7 +970,7 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     };
 
     // Determine if this is an edit or a new element
-    const isEditingExisting = editingWBSElement && 
+    const isEditingExisting = editingWBSElement &&
       elementExistsInStructure(currentData.wbsStructure, editingWBSElement.id);
 
     if (isEditingExisting) {
@@ -1099,9 +1099,16 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const months = (end.getFullYear() - start.getFullYear()) * 12 +
-      (end.getMonth() - start.getMonth());
-    return Math.max(1, months + 1);
+    // Calculate inclusive months from start to end
+    // For Jan 1 to Dec 31, we want 12 months (Jan through Dec)
+    const startYear = start.getFullYear();
+    const startMonth = start.getMonth();
+    const endYear = end.getFullYear();
+    const endMonth = end.getMonth();
+
+    // Calculate the difference in months
+    const months = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+    return Math.max(1, months);
   };
 
   const getMonthlyAmount = (totalAmount: number, startDate: string, endDate: string, allocationType: string): number => {
