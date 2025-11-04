@@ -5,6 +5,7 @@ import Layout from '../../../layout';
 import SetupProgress from './SetupProgress';
 import BOESetupStep from './BOESetupStep';
 import BaselineSetupStep from './BaselineSetupStep';
+import RiskOpportunitySetupStep from './RiskOpportunitySetupStep';
 import { programSetupApi, SetupStatus } from '../../../../services/programSetupApi';
 
 interface Program {
@@ -204,15 +205,7 @@ const ProgramSetup: React.FC = () => {
             <BaselineSetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
           {currentStep === 'risk-opportunity' && (
-            <div className="text-center py-12">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Initialize Risk & Opportunity Register</h2>
-              <p className="text-gray-600 mb-6">
-                Set up your risk and opportunity management framework to track program risks and opportunities.
-              </p>
-              <div className="text-sm text-gray-500">
-                <p>Risk & Opportunity register step component will be implemented in the next phase.</p>
-              </div>
-            </div>
+            <RiskOpportunitySetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
         </div>
       </div>
