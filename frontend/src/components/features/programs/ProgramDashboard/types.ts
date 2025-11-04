@@ -9,6 +9,7 @@ export interface Program {
   totalBudget: number;
   type: 'Annual' | 'Period of Performance';
   program_manager?: string;
+  program_manager_email?: string | null;
 }
 
 export interface LedgerEntry {

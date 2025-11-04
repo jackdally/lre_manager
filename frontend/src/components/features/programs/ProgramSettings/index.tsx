@@ -172,7 +172,22 @@ const ProgramSettingsPage: React.FC = () => {
                     value={programForm.program_manager || ''}
                     onChange={handleProgramChange}
                     className="input-field"
+                    placeholder="Manager name"
                   />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Program Manager Email</label>
+                  <input
+                    type="email"
+                    name="program_manager_email"
+                    value={programForm.program_manager_email || ''}
+                    onChange={handleProgramChange}
+                    className="input-field"
+                    placeholder="manager@example.com"
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Used for monthly actuals upload reminders
+                  </div>
                 </div>
               </div>
               <button className="btn-primary mt-6" onClick={handleSaveProgram} disabled={savingInfo}>{savingInfo ? 'Saving...' : 'Save Program Info'}</button>
