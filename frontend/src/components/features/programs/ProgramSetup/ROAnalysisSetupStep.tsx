@@ -42,7 +42,7 @@ const ROAnalysisSetupStep: React.FC<ROAnalysisSetupStepProps> = ({ programId, on
   };
 
   const handleGoToROPage = () => {
-    navigate(`/programs/${programId}/risk-opportunity`);
+    navigate(`/programs/${programId}/risks`);
   };
 
   return (

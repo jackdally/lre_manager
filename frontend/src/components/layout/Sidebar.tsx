@@ -43,20 +43,23 @@ const Sidebar: React.FC = () => {
 
   const getSetupProgress = (): { completed: number; total: number; percentage: number } => {
     if (!setupStatus) {
-      return { completed: 4, total: 4, percentage: 100 }; // Assume complete if no status
+      return { completed: 7, total: 7, percentage: 100 }; // Assume complete if no status
     }
 
+    // Count completed steps (7 total steps)
     let completed = 0;
-    if (setupStatus.boeCreated && setupStatus.boeApproved) completed++;
-    if (setupStatus.boeBaselined) completed++;
-    if (setupStatus.riskOpportunityRegisterCreated) completed++;
-    // Always count "complete" as a step
-    completed++; // Setup complete itself is a step
+    if (setupStatus.boeCreated) completed++; // Step 1: Create BOE
+    if (setupStatus.initialMRSet) completed++; // Step 2: Set Initial MR
+    if (setupStatus.riskOpportunityRegisterCreated) completed++; // Step 3: Initialize R&O Register
+    if (setupStatus.roAnalysisComplete !== null) completed++; // Step 4: R&O Analysis (optional - counts if completed or skipped)
+    if (setupStatus.finalMRSet) completed++; // Step 5: Finalize MR
+    if (setupStatus.boeApproved) completed++; // Step 6: Submit BOE for Approval
+    if (setupStatus.boeBaselined) completed++; // Step 7: Baseline to Ledger
 
     return {
-      completed: setupStatus.setupComplete ? 3 : completed,
-      total: 3,
-      percentage: setupStatus.setupComplete ? 100 : Math.round((completed / 3) * 100),
+      completed: setupStatus.setupComplete ? 7 : completed,
+      total: 7,
+      percentage: setupStatus.setupComplete ? 100 : Math.round((completed / 7) * 100),
     };
   };
 

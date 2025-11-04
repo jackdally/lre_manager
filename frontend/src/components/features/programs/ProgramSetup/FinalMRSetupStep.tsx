@@ -19,7 +19,7 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
   const [error, setError] = useState<string | null>(null);
   const [initialMR, setInitialMR] = useState<any>(null);
   const [setupStatus, setSetupStatus] = useState<any>(null);
-  const [hasCheckedMR, setHasCheckedMR] = useState(false);
+  // Removed hasCheckedMR - we don't auto-complete Final MR
 
   const {
     managementReserve,
@@ -36,12 +36,13 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
     }
   }, [currentBOE?.id, loadManagementReserve]);
 
-  // Check if MR exists and mark step complete if needed
-  useEffect(() => {
-    if (!hasCheckedMR && managementReserve && setupStatus && !setupStatus.finalMRSet) {
-      checkMRStatus();
-    }
-  }, [managementReserve, setupStatus, programId, hasCheckedMR]);
+  // Note: We don't auto-complete Final MR - user must explicitly set it
+  // This ensures they review and confirm the Final MR amount after R&O analysis
+  // useEffect(() => {
+  //   if (!hasCheckedMR && managementReserve && setupStatus && !setupStatus.finalMRSet) {
+  //     checkMRStatus();
+  //   }
+  // }, [managementReserve, setupStatus, programId, hasCheckedMR]);
 
   const loadData = async () => {
     try {
@@ -75,22 +76,8 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
     }
   };
 
-  const checkMRStatus = async () => {
-    // If MR exists and finalMRSet is false, mark it as set
-    if (managementReserve && setupStatus && !setupStatus.finalMRSet && !hasCheckedMR) {
-      setHasCheckedMR(true);
-      try {
-        await programSetupApi.markFinalMRSet(programId);
-        // Refresh status and mark step complete
-        const updatedStatus = await programSetupApi.getSetupStatus(programId);
-        setSetupStatus(updatedStatus);
-        onStepComplete();
-      } catch (err: any) {
-        console.error('Error marking Final MR as set:', err);
-        setHasCheckedMR(false); // Reset on error so we can retry
-      }
-    }
-  };
+  // Removed checkMRStatus - Final MR must be explicitly set by user
+  // This ensures they review and confirm the Final MR amount after R&O analysis
 
   const handleGoToBOE = () => {
     navigate(`/programs/${programId}/boe`);
@@ -212,8 +199,8 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
         </div>
       )}
 
-      {/* Action Button */}
-      <div className="flex justify-end">
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-end">
         <button
           onClick={handleGoToBOE}
           className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
@@ -221,6 +208,29 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
           Go to BOE to Finalize MR
           <ArrowRightIcon className="h-5 w-5 ml-2" />
         </button>
+        {managementReserve && (
+          <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                await programSetupApi.markFinalMRSet(programId);
+                const updatedStatus = await programSetupApi.getSetupStatus(programId);
+                setSetupStatus(updatedStatus);
+                onStepComplete();
+              } catch (err: any) {
+                console.error('Error marking Final MR as set:', err);
+                setError(err?.response?.data?.message || err?.message || 'Failed to mark Final MR as set');
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+          >
+            <CheckCircleIcon className="h-5 w-5 mr-2" />
+            {loading ? 'Processing...' : 'Mark Final MR as Set'}
+          </button>
+        )}
       </div>
     </div>
   );

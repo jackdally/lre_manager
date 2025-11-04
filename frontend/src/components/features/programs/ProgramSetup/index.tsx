@@ -77,12 +77,19 @@ const ProgramSetup: React.FC = () => {
   const handleStepComplete = async () => {
     // Refresh setup status after step completion
     if (id) {
-      const updatedStatus = await programSetupApi.getSetupStatus(id);
-      setSetupStatus(updatedStatus);
-      
-      // If setup is now complete, redirect to dashboard
-      if (updatedStatus.setupComplete) {
-        navigate(`/programs/${id}/dashboard`);
+      try {
+        setLoading(true); // Show loading state to prevent jumpy UI
+        const updatedStatus = await programSetupApi.getSetupStatus(id);
+        setSetupStatus(updatedStatus);
+        
+        // If setup is now complete, redirect to dashboard
+        if (updatedStatus.setupComplete) {
+          navigate(`/programs/${id}/dashboard`);
+        }
+      } catch (err: any) {
+        console.error('Error refreshing setup status:', err);
+      } finally {
+        setLoading(false);
       }
     }
   };
