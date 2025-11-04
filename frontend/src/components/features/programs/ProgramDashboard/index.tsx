@@ -199,13 +199,17 @@ const ProgramDashboard: React.FC = () => {
         <MissingActualsAlert missingActuals={missingActuals} />
 
         {/* Program Health Indicators */}
-        {id && (
-          <ProgramHealthIndicators
-            programId={id}
-            vac={topRowSummary?.vac || 0}
-            totalBudget={program.totalBudget || 0}
-          />
-        )}
+        <ProgramHealthIndicators
+          programId={id!}
+          vac={topRowSummary?.vac || 0}
+          totalBudget={program.totalBudget || 0}
+          missingActualsCount={missingActuals.length}
+          scheduleVariance={summary?.scheduleVariance || 0}
+          schedulePerformanceIndex={summary?.schedulePerformanceIndex || 1.0}
+          costPerformanceIndex={summary?.costPerformanceIndex || 1.0}
+          baselineToDate={summary?.baselineToDate || 0}
+          actualsToDate={summary?.actualsToDate || 0}
+        />
 
         {/* Program Summary Bar */}
         <ProgramSummaryBar program={program} topRowSummary={topRowSummary} />

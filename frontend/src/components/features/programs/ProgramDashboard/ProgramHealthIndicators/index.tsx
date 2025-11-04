@@ -1,334 +1,270 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CheckCircleIcon,
   ExclamationTriangleIcon,
   XCircleIcon,
   ClockIcon,
-  InformationCircleIcon,
+  ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
 import { boeVersionsApi } from '../../../../../services/boeApi';
-import { programSetupApi, SetupStatus } from '../../../../../services/programSetupApi';
-import { riskOpportunityApi } from '../../../../../services/riskOpportunityApi';
 
 interface ProgramHealthIndicatorsProps {
   programId: string;
   vac?: number; // Variance at Completion
   totalBudget?: number;
+  missingActualsCount?: number;
+  scheduleVariance?: number;
+  schedulePerformanceIndex?: number;
+  costPerformanceIndex?: number;
+  baselineToDate?: number;
+  actualsToDate?: number;
 }
 
-interface HealthStatus {
-  boeStatus: 'none' | 'draft' | 'under-review' | 'approved' | 'baseline' | 'error';
-  boeStatusLabel: string;
-  riskOpportunityStatus: 'initialized' | 'not-initialized' | 'loading';
-  budgetVariance: 'healthy' | 'warning' | 'critical';
-  loading: boolean;
+interface HealthConcern {
+  id: string;
+  severity: 'warning' | 'critical';
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  message: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
+/**
+ * Program Health Indicators - Shows dynamic, actionable health metrics
+ * 
+ * Only displays when there are concerns that need user attention.
+ * All indicators shown here are actionable and change over time.
+ */
 const ProgramHealthIndicators: React.FC<ProgramHealthIndicatorsProps> = ({
   programId,
   vac = 0,
   totalBudget = 0,
+  missingActualsCount = 0,
+  scheduleVariance = 0,
+  schedulePerformanceIndex = 1.0,
+  costPerformanceIndex = 1.0,
+  baselineToDate = 0,
+  actualsToDate = 0,
 }) => {
   const navigate = useNavigate();
-  const [healthStatus, setHealthStatus] = useState<HealthStatus>({
-    boeStatus: 'none',
-    boeStatusLabel: 'No BOE',
-    riskOpportunityStatus: 'loading',
-    budgetVariance: 'healthy',
-    loading: true,
-  });
-  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [boeAge, setBoeAge] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadHealthStatus();
-  }, [programId, vac, totalBudget]);
+    loadBOEAge();
+  }, [programId]);
 
-  const loadHealthStatus = async () => {
+  const loadBOEAge = async () => {
     try {
-      setHealthStatus((prev) => ({ ...prev, loading: true }));
-
-      // Fetch BOE status, setup status, and R&O status in parallel
-      const [boeData, setupData, roStatus] = await Promise.all([
-        boeVersionsApi.getCurrentBOE(programId).catch(() => ({ currentBOE: null })),
-        programSetupApi.getSetupStatus(programId).catch(() => null),
-        riskOpportunityApi.getRegisterStatus(programId).catch(() => ({ initialized: false })),
-      ]);
-
-      setSetupStatus(setupData);
-
-      // Determine BOE status
-      let boeStatus: HealthStatus['boeStatus'] = 'none';
-      let boeStatusLabel = 'No BOE';
-      
-      if (boeData?.currentBOE) {
-        const status = boeData.currentBOE.status;
-        switch (status) {
-          case 'Draft':
-            boeStatus = 'draft';
-            boeStatusLabel = 'Draft';
-            break;
-          case 'Under Review':
-            boeStatus = 'under-review';
-            boeStatusLabel = 'Under Review';
-            break;
-          case 'Approved':
-            boeStatus = 'approved';
-            boeStatusLabel = 'Approved';
-            break;
-          case 'Baseline':
-            boeStatus = 'baseline';
-            boeStatusLabel = 'Baseline';
-            break;
-          default:
-            boeStatus = 'none';
-            boeStatusLabel = 'Unknown';
-        }
+      const boeData = await boeVersionsApi.getCurrentBOE(programId);
+      if (boeData?.currentBOE?.updatedAt) {
+        const updatedDate = new Date(boeData.currentBOE.updatedAt);
+        const daysSinceUpdate = Math.floor((Date.now() - updatedDate.getTime()) / (1000 * 60 * 60 * 24));
+        setBoeAge(daysSinceUpdate);
       }
-
-      // Determine R&O status
-      const riskOpportunityStatus = roStatus.initialized ? 'initialized' : 'not-initialized';
-
-      // Determine budget variance status
-      let budgetVariance: HealthStatus['budgetVariance'] = 'healthy';
-      if (totalBudget > 0) {
-        const vacPercent = (vac / totalBudget) * 100;
-        if (vacPercent < -10) {
-          budgetVariance = 'critical'; // More than 10% over budget
-        } else if (vacPercent < -5) {
-          budgetVariance = 'warning'; // Between 5-10% over budget
-        }
-      }
-
-      setHealthStatus({
-        boeStatus,
-        boeStatusLabel,
-        riskOpportunityStatus,
-        budgetVariance,
-        loading: false,
-      });
     } catch (error) {
-      console.error('Error loading health status:', error);
-      setHealthStatus((prev) => ({ ...prev, loading: false }));
+      console.error('Error loading BOE age:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getBOEIndicator = () => {
-    const { boeStatus, boeStatusLabel } = healthStatus;
-    
-    switch (boeStatus) {
-      case 'none':
-        return {
-          icon: XCircleIcon,
-          color: 'text-red-600',
-          bgColor: 'bg-red-50',
-          borderColor: 'border-red-200',
-          textColor: 'text-red-800',
-          action: () => navigate(`/programs/${programId}/boe`),
-          actionLabel: 'Create BOE',
-        };
-      case 'draft':
-        return {
-          icon: ClockIcon,
-          color: 'text-yellow-600',
-          bgColor: 'bg-yellow-50',
-          borderColor: 'border-yellow-200',
-          textColor: 'text-yellow-800',
-          action: () => navigate(`/programs/${programId}/boe`),
-          actionLabel: 'Edit BOE',
-        };
-      case 'under-review':
-        return {
-          icon: ClockIcon,
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-50',
-          borderColor: 'border-blue-200',
-          textColor: 'text-blue-800',
-          action: () => navigate(`/programs/${programId}/boe`),
-          actionLabel: 'View Status',
-        };
-      case 'approved':
-        return {
-          icon: CheckCircleIcon,
-          color: 'text-green-600',
-          bgColor: 'bg-green-50',
-          borderColor: 'border-green-200',
-          textColor: 'text-green-800',
-          action: () => navigate(`/programs/${programId}/boe`),
-          actionLabel: 'View BOE',
-        };
-      case 'baseline':
-        return {
-          icon: CheckCircleIcon,
-          color: 'text-green-600',
-          bgColor: 'bg-green-50',
-          borderColor: 'border-green-200',
-          textColor: 'text-green-800',
-          action: () => navigate(`/programs/${programId}/boe`),
-          actionLabel: 'View BOE',
-        };
-      default:
-        return {
-          icon: InformationCircleIcon,
-          color: 'text-gray-600',
-          bgColor: 'bg-gray-50',
-          borderColor: 'border-gray-200',
-          textColor: 'text-gray-800',
-          action: () => navigate(`/programs/${programId}/boe`),
-          actionLabel: 'View BOE',
-        };
-    }
-  };
+  const concerns: HealthConcern[] = [];
 
-  const getROIndicator = () => {
-    const { riskOpportunityStatus } = healthStatus;
-    
-    if (riskOpportunityStatus === 'initialized') {
-      return {
-        icon: CheckCircleIcon,
-        color: 'text-green-600',
-        bgColor: 'bg-green-50',
-        borderColor: 'border-green-200',
-        textColor: 'text-green-800',
-        label: 'Initialized',
-        action: () => navigate(`/programs/${programId}/risks`),
-        actionLabel: 'Manage R&O',
-      };
-    } else {
-      return {
-        icon: ExclamationTriangleIcon,
-        color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50',
-        borderColor: 'border-yellow-200',
-        textColor: 'text-yellow-800',
-        label: 'Not Initialized',
-        action: () => navigate(`/programs/${programId}/setup`),
-        actionLabel: 'Initialize',
-      };
-    }
-  };
-
-  const getBudgetVarianceIndicator = () => {
-    const { budgetVariance } = healthStatus;
-    
-    if (budgetVariance === 'critical') {
-      return {
+  // 1. Budget Variance (VAC)
+  if (totalBudget > 0) {
+    const vacPercent = (vac / totalBudget) * 100;
+    if (vacPercent < -10) {
+      concerns.push({
+        id: 'budget-critical',
+        severity: 'critical',
         icon: XCircleIcon,
-        color: 'text-red-600',
-        bgColor: 'bg-red-50',
-        borderColor: 'border-red-200',
-        textColor: 'text-red-800',
-        label: 'Critical Over Budget',
-        message: `VAC: ${vac < 0 ? '-' : ''}$${Math.abs(vac).toLocaleString()}`,
-      };
-    } else if (budgetVariance === 'warning') {
-      return {
+        title: 'Critical: Over Budget',
+        message: `${Math.abs(vacPercent).toFixed(1)}% over budget (VAC: ${vac < 0 ? '-' : ''}$${Math.abs(vac).toLocaleString()})`,
+        action: {
+          label: 'Review Budget',
+          onClick: () => navigate(`/programs/${programId}/boe`),
+        },
+      });
+    } else if (vacPercent < -5) {
+      concerns.push({
+        id: 'budget-warning',
+        severity: 'warning',
         icon: ExclamationTriangleIcon,
-        color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50',
-        borderColor: 'border-yellow-200',
-        textColor: 'text-yellow-800',
-        label: 'Over Budget',
-        message: `VAC: ${vac < 0 ? '-' : ''}$${Math.abs(vac).toLocaleString()}`,
-      };
-    } else {
-      return null; // Don't show indicator if healthy
+        title: 'Warning: Over Budget',
+        message: `${Math.abs(vacPercent).toFixed(1)}% over budget (VAC: ${vac < 0 ? '-' : ''}$${Math.abs(vac).toLocaleString()})`,
+        action: {
+          label: 'Review Budget',
+          onClick: () => navigate(`/programs/${programId}/boe`),
+        },
+      });
     }
-  };
-
-  if (healthStatus.loading) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex items-center justify-center py-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-600">Loading health status...</span>
-        </div>
-      </div>
-    );
   }
 
-  const boeIndicator = getBOEIndicator();
-  const roIndicator = getROIndicator();
-  const budgetIndicator = getBudgetVarianceIndicator();
-  const BOEIcon = boeIndicator.icon;
-  const ROIcon = roIndicator.icon;
+  // 2. Schedule Performance (SPI)
+  if (schedulePerformanceIndex < 0.9) {
+    concerns.push({
+      id: 'schedule-critical',
+      severity: 'critical',
+      icon: ClockIcon,
+      title: 'Critical: Behind Schedule',
+      message: `SPI: ${schedulePerformanceIndex.toFixed(2)} - Significantly behind schedule`,
+      action: {
+        label: 'Review Schedule',
+        onClick: () => navigate(`/programs/${programId}/ledger`),
+      },
+    });
+  } else if (schedulePerformanceIndex < 0.95) {
+    concerns.push({
+      id: 'schedule-warning',
+      severity: 'warning',
+      icon: ClockIcon,
+      title: 'Warning: Behind Schedule',
+      message: `SPI: ${schedulePerformanceIndex.toFixed(2)} - Slightly behind schedule`,
+      action: {
+        label: 'Review Schedule',
+        onClick: () => navigate(`/programs/${programId}/ledger`),
+      },
+    });
+  }
+
+  // 3. Cost Performance (CPI)
+  if (costPerformanceIndex < 0.9) {
+    concerns.push({
+      id: 'cost-critical',
+      severity: 'critical',
+      icon: ArrowTrendingDownIcon,
+      title: 'Critical: Cost Overrun',
+      message: `CPI: ${costPerformanceIndex.toFixed(2)} - Significant cost overrun`,
+      action: {
+        label: 'Review Costs',
+        onClick: () => navigate(`/programs/${programId}/ledger`),
+      },
+    });
+  } else if (costPerformanceIndex < 0.95) {
+    concerns.push({
+      id: 'cost-warning',
+      severity: 'warning',
+      icon: ArrowTrendingDownIcon,
+      title: 'Warning: Cost Overrun',
+      message: `CPI: ${costPerformanceIndex.toFixed(2)} - Slight cost overrun`,
+      action: {
+        label: 'Review Costs',
+        onClick: () => navigate(`/programs/${programId}/ledger`),
+      },
+    });
+  }
+
+  // 4. Missing Actuals
+  if (missingActualsCount > 0) {
+    concerns.push({
+      id: 'missing-actuals',
+      severity: 'warning',
+      icon: ExclamationTriangleIcon,
+      title: 'Missing Actuals',
+      message: `${missingActualsCount} ${missingActualsCount === 1 ? 'entry' : 'entries'} missing actuals data`,
+      action: {
+        label: 'Upload Actuals',
+        onClick: () => navigate(`/programs/${programId}/actuals`),
+      },
+    });
+  }
+
+  // 5. BOE Age Warning (if BOE is old)
+  if (boeAge !== null && boeAge > 90) {
+    concerns.push({
+      id: 'boe-age',
+      severity: 'warning',
+      icon: ClockIcon,
+      title: 'BOE May Need Review',
+      message: `BOE hasn't been updated in ${boeAge} days. Consider reviewing for accuracy.`,
+      action: {
+        label: 'Review BOE',
+        onClick: () => navigate(`/programs/${programId}/boe`),
+      },
+    });
+  }
+
+  // 6. BOE Variance Warning (if actuals differ significantly from baseline)
+  if (baselineToDate > 0 && actualsToDate > 0) {
+    const variancePercent = ((actualsToDate - baselineToDate) / baselineToDate) * 100;
+    if (Math.abs(variancePercent) > 15) {
+      concerns.push({
+        id: 'boe-variance',
+        severity: variancePercent > 0 ? 'critical' : 'warning',
+        icon: ExclamationTriangleIcon,
+        title: variancePercent > 0 ? 'Spending Exceeds Baseline' : 'Spending Below Baseline',
+        message: `Actuals ${variancePercent > 0 ? 'exceed' : 'below'} baseline by ${Math.abs(variancePercent).toFixed(1)}%`,
+        action: {
+          label: 'Review BOE',
+          onClick: () => navigate(`/programs/${programId}/boe`),
+        },
+      });
+    }
+  }
+
+  // Don't render if no concerns
+  if (concerns.length === 0) {
+    return null;
+  }
+
+  // Sort concerns: critical first, then by severity
+  const sortedConcerns = concerns.sort((a, b) => {
+    if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+    if (a.severity !== 'critical' && b.severity === 'critical') return 1;
+    return 0;
+  });
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-700">Program Health</h3>
+        <span className="text-xs text-gray-500">{concerns.length} {concerns.length === 1 ? 'concern' : 'concerns'}</span>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* BOE Status Indicator */}
-        <button
-          onClick={boeIndicator.action}
-          className={`flex items-center justify-between p-3 rounded-lg border ${boeIndicator.bgColor} ${boeIndicator.borderColor} hover:shadow-md transition-shadow`}
-        >
-          <div className="flex items-center">
-            <BOEIcon className={`h-5 w-5 ${boeIndicator.color} mr-2`} />
-            <div className="text-left">
-              <div className="text-xs font-medium text-gray-600">BOE Status</div>
-              <div className={`text-sm font-semibold ${boeIndicator.textColor}`}>
-                {healthStatus.boeStatusLabel}
-              </div>
-            </div>
-          </div>
-          <span className="text-xs text-gray-500 hover:text-gray-700">
-            {boeIndicator.actionLabel} →
-          </span>
-        </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {sortedConcerns.map((concern) => {
+          const Icon = concern.icon;
+          const bgColor = concern.severity === 'critical' ? 'bg-red-50' : 'bg-yellow-50';
+          const borderColor = concern.severity === 'critical' ? 'border-red-200' : 'border-yellow-200';
+          const textColor = concern.severity === 'critical' ? 'text-red-800' : 'text-yellow-800';
+          const iconColor = concern.severity === 'critical' ? 'text-red-600' : 'text-yellow-600';
 
-        {/* Risk & Opportunity Status Indicator */}
-        <button
-          onClick={roIndicator.action}
-          className={`flex items-center justify-between p-3 rounded-lg border ${roIndicator.bgColor} ${roIndicator.borderColor} hover:shadow-md transition-shadow`}
-        >
-          <div className="flex items-center">
-            <ROIcon className={`h-5 w-5 ${roIndicator.color} mr-2`} />
-            <div className="text-left">
-              <div className="text-xs font-medium text-gray-600">R&O Register</div>
-              <div className={`text-sm font-semibold ${roIndicator.textColor}`}>
-                {roIndicator.label}
-              </div>
-            </div>
-          </div>
-          <span className="text-xs text-gray-500 hover:text-gray-700">
-            {roIndicator.actionLabel} →
-          </span>
-        </button>
-
-        {/* Budget Variance Indicator */}
-        {budgetIndicator ? (
-          <div
-            className={`flex items-center justify-between p-3 rounded-lg border ${budgetIndicator.bgColor} ${budgetIndicator.borderColor}`}
-          >
-            <div className="flex items-center">
-              <budgetIndicator.icon className={`h-5 w-5 ${budgetIndicator.color} mr-2`} />
-              <div className="text-left">
-                <div className="text-xs font-medium text-gray-600">Budget Status</div>
-                <div className={`text-sm font-semibold ${budgetIndicator.textColor}`}>
-                  {budgetIndicator.label}
+          return (
+            <div
+              key={concern.id}
+              className={`flex items-start justify-between p-3 rounded-lg border ${bgColor} ${borderColor}`}
+            >
+              <div className="flex items-start flex-1">
+                <Icon className={`h-5 w-5 ${iconColor} mr-2 mt-0.5 flex-shrink-0`} />
+                <div className="flex-1 min-w-0">
+                  <div className={`text-xs font-semibold ${textColor} mb-1`}>
+                    {concern.title}
+                  </div>
+                  <div className="text-xs text-gray-600 mb-2">{concern.message}</div>
+                  {concern.action && (
+                    <button
+                      onClick={concern.action.onClick}
+                      className={`text-xs font-medium ${
+                        concern.severity === 'critical'
+                          ? 'text-red-700 hover:text-red-800'
+                          : 'text-yellow-700 hover:text-yellow-800'
+                      } underline`}
+                    >
+                      {concern.action.label} →
+                    </button>
+                  )}
                 </div>
-                <div className="text-xs text-gray-500 mt-0.5">{budgetIndicator.message}</div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between p-3 rounded-lg border bg-green-50 border-green-200">
-            <div className="flex items-center">
-              <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
-              <div className="text-left">
-                <div className="text-xs font-medium text-gray-600">Budget Status</div>
-                <div className="text-sm font-semibold text-green-800">Healthy</div>
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })}
       </div>
     </div>
   );
 };
 
 export default ProgramHealthIndicators;
-
