@@ -40,7 +40,7 @@ export interface BOEVersion {
   versionNumber: string;
   name: string;
   description: string;
-  status: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived' | 'Baseline';
+  status: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived' | 'Baseline' | 'PushedToProgram';
   templateId?: string;
   totalEstimatedCost: number;
   managementReserveAmount: number;

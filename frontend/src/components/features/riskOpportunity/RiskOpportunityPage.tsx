@@ -2,7 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '../../layout';
 import { riskOpportunityApi } from '../../../services/riskOpportunityApi';
-import { InformationCircleIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, CurrencyDollarIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { boeVersionsApi } from '../../../services/boeApi';
+import { useManagementReserve } from '../../../hooks/useManagementReserve';
+import { useBOEStore } from '../../../store/boeStore';
+import { formatCurrency } from '../../../utils/currencyUtils';
+import MRUtilizationHistory from './MRUtilizationHistory';
 
 type TabType = 'risks' | 'opportunities';
 
@@ -12,6 +17,28 @@ const RiskOpportunityPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [registerInitialized, setRegisterInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { setCurrentBOE } = useBOEStore();
+
+  // Load BOE to get MR data
+  const loadBOE = async () => {
+    if (!programId) return;
+    try {
+      const boeData = await boeVersionsApi.getCurrentBOE(programId);
+      if (boeData.currentBOE) {
+        setCurrentBOE(boeData.currentBOE);
+      }
+    } catch (err) {
+      console.error('Error loading BOE:', err);
+    }
+  };
+
+  const { currentBOE } = useBOEStore();
+  const {
+    managementReserve,
+    mrUtilizationHistory,
+    loadManagementReserve,
+    loadMRUtilizationHistory,
+  } = useManagementReserve(currentBOE?.id);
 
   useEffect(() => {
     if (!programId) return;
@@ -19,6 +46,7 @@ const RiskOpportunityPage: React.FC = () => {
     const checkRegisterStatus = async () => {
       try {
         setLoading(true);
+        await loadBOE();
         const status = await riskOpportunityApi.getRegisterStatus(programId);
         setRegisterInitialized(status.initialized);
       } catch (err: any) {
@@ -31,6 +59,13 @@ const RiskOpportunityPage: React.FC = () => {
 
     checkRegisterStatus();
   }, [programId]);
+
+  useEffect(() => {
+    if (currentBOE?.id) {
+      loadManagementReserve();
+      loadMRUtilizationHistory();
+    }
+  }, [currentBOE?.id, loadManagementReserve, loadMRUtilizationHistory]);
 
   if (loading) {
     return (
@@ -119,19 +154,70 @@ const RiskOpportunityPage: React.FC = () => {
         {/* Tab Content */}
         <div className="bg-white rounded-lg shadow">
           {activeTab === 'risks' && (
-            <div className="p-8">
-              <div className="text-center py-12">
+            <div className="p-8 space-y-6">
+              <div>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">Risk Management</h2>
                 <p className="text-gray-600 mb-6">
-                  Risk management functionality will be implemented in a future release.
+                  Manage program risks and utilize Management Reserve when risks materialize.
                 </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-2xl mx-auto">
+              </div>
+
+              {/* MR Utilization Section */}
+              {managementReserve && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <CurrencyDollarIcon className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-blue-900">Management Reserve Utilization</h3>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-blue-700">Available MR</p>
+                      <p className="text-xl font-bold text-blue-900">
+                        {formatCurrency(managementReserve.remainingAmount || 0)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-blue-800 mb-4">
+                    When a risk materializes, you can request MR utilization directly from the risk entry. 
+                    The utilization will be linked to the specific risk and tracked in the history below.
+                  </p>
+                </div>
+              )}
+
+              {/* Risk List Placeholder */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Risk Register</h3>
+                <p className="text-gray-600 mb-4">
+                  The full risk management interface will be implemented in a future release. 
+                  Once available, you'll be able to:
+                </p>
+                <ul className="list-disc list-inside text-gray-600 space-y-1 mb-4">
+                  <li>Create and manage risks</li>
+                  <li>Assess probability and cost impact</li>
+                  <li>Request MR utilization when risks materialize</li>
+                  <li>Track risk response strategies</li>
+                </ul>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-800">
-                    <strong>Coming Soon:</strong> You'll be able to create and manage risks, assess probability and impact, 
-                    track risk responses, and link risks to Management Reserve utilization.
+                    <strong>Note:</strong> MR utilization functionality is available now. 
+                    Once risks can be created, you'll be able to utilize MR directly from each risk entry.
                   </p>
                 </div>
               </div>
+
+              {/* MR Utilization History */}
+              {managementReserve && mrUtilizationHistory && mrUtilizationHistory.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <ClockIcon className="h-5 w-5 mr-2 text-gray-600" />
+                    MR Utilization History
+                  </h3>
+                  <MRUtilizationHistory
+                    utilizationHistory={mrUtilizationHistory}
+                    managementReserve={managementReserve}
+                  />
+                </div>
+              )}
             </div>
           )}
 

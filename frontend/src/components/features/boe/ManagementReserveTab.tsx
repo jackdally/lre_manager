@@ -6,7 +6,7 @@ import {
   ManagementReserveDisplay, 
   ManagementReserveUtilization 
 } from './ManagementReserve';
-import { PencilIcon, EyeIcon, ChartBarIcon, CalculatorIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, EyeIcon, ChartBarIcon, CalculatorIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { elementAllocationApi } from '../../../services/boeApi';
 import { BOECalculationService } from '../../../services/boeCalculationService';
 import type { BOEElementAllocation } from '../../../store/boeStore';
@@ -33,6 +33,9 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
     utilizeManagementReserve,
     loadMRUtilizationHistory,
   } = useManagementReserve(currentBOE?.id);
+
+  // Check if BOE is baselined (MR utilization moved to R&O page)
+  const isBaselined = currentBOE?.status === 'Baseline' || currentBOE?.status === 'PushedToProgram';
 
   // Load MR data when BOE changes
   useEffect(() => {
@@ -204,9 +207,9 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
               }`}
             >
               <EyeIcon className="h-4 w-4 inline mr-1" />
-              View
+              {isBaselined ? 'MR Summary' : 'View'}
             </button>
-            {!managementReserve ? (
+            {!managementReserve && !isBaselined ? (
               <button
                 onClick={() => setViewMode('calculator')}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
@@ -219,29 +222,34 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
                 Calculate
               </button>
             ) : (
+              !isBaselined && (
+                <button
+                  onClick={() => setViewMode('calculator')}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    viewMode === 'calculator'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-blue-600 hover:text-blue-700'
+                  }`}
+                >
+                  <CalculatorIcon className="h-4 w-4 inline mr-1" />
+                  Recalculate
+                </button>
+              )
+            )}
+            {/* Hide utilization view after baselining - MR utilization moved to R&O page */}
+            {!isBaselined && (
               <button
-                onClick={() => setViewMode('calculator')}
+                onClick={() => setViewMode('utilization')}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  viewMode === 'calculator'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-blue-600 hover:text-blue-700'
+                  viewMode === 'utilization'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                <CalculatorIcon className="h-4 w-4 inline mr-1" />
-                Recalculate
+                <ChartBarIcon className="h-4 w-4 inline mr-1" />
+                Utilization
               </button>
             )}
-            <button
-              onClick={() => setViewMode('utilization')}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                viewMode === 'utilization'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <ChartBarIcon className="h-4 w-4 inline mr-1" />
-              Utilization
-            </button>
           </div>
         </div>
       </div>
@@ -304,7 +312,8 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
           </div>
         )}
 
-        {viewMode === 'utilization' && (
+        {/* Utilization view - hidden after baselining (moved to R&O page) */}
+        {viewMode === 'utilization' && !isBaselined && (
           <div>
             {managementReserve ? (
               <ManagementReserveUtilization
@@ -324,6 +333,30 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Show read-only MR Summary after baselining */}
+        {isBaselined && managementReserve && (
+          <div>
+            <ManagementReserveDisplay
+              managementReserve={managementReserve}
+              totalCost={totalCost}
+              showUtilization={false}
+              isEditable={false}
+            />
+            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="text-sm font-medium text-blue-900 mb-1">MR Utilization Moved to R&O Page</h4>
+                  <p className="text-sm text-blue-800">
+                    After baselining, MR utilization is managed from the Risks & Opportunities page. 
+                    This allows you to link MR utilization directly to materialized risks.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -44,6 +44,19 @@ export class Risk {
   @Column({ default: 'Identified' })
   status!: string;
 
+  // MR Utilization fields (Phase 3)
+  @Column({ type: 'timestamp', nullable: true })
+  materializedAt!: Date | null;
+
+  @Column('decimal', { precision: 15, scale: 2, default: 0 })
+  mrUtilizedAmount!: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  mrUtilizationDate!: Date | null;
+
+  @Column('text', { nullable: true })
+  mrUtilizationReason!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
