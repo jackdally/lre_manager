@@ -9,6 +9,7 @@ import BaselineSetupStep from './BaselineSetupStep';
 import RiskOpportunitySetupStep from './RiskOpportunitySetupStep';
 import ROAnalysisSetupStep from './ROAnalysisSetupStep';
 import FinalMRSetupStep from './FinalMRSetupStep';
+import BOEApprovalSetupStep from './BOEApprovalSetupStep';
 import { programSetupApi, SetupStatus } from '../../../../services/programSetupApi';
 
 interface Program {
@@ -94,7 +95,7 @@ const ProgramSetup: React.FC = () => {
         id: 'boe',
         title: 'Create Basis of Estimate (BOE)',
         description: 'Build your program budget estimate with cost breakdowns',
-        completed: setupStatus.boeCreated && setupStatus.boeApproved,
+        completed: setupStatus.boeCreated,
       },
       {
         id: 'initial-mr',
@@ -122,6 +123,12 @@ const ProgramSetup: React.FC = () => {
         completed: setupStatus.finalMRSet,
       },
       {
+        id: 'approval',
+        title: 'Submit BOE for Approval',
+        description: 'Submit your BOE with final MR for approval',
+        completed: setupStatus.boeApproved,
+      },
+      {
         id: 'baseline',
         title: 'Baseline Budget to Ledger',
         description: 'Push approved BOE to the ledger as baseline budget entries',
@@ -133,8 +140,8 @@ const ProgramSetup: React.FC = () => {
   const getCurrentStep = (): string | null => {
     if (!setupStatus) return null;
 
-    // Step 1: Create BOE
-    if (!setupStatus.boeCreated || !setupStatus.boeApproved) {
+    // Step 1: Create BOE (only requires creation, not approval)
+    if (!setupStatus.boeCreated) {
       return 'boe';
     }
     // Step 2: Set Initial MR
@@ -153,7 +160,11 @@ const ProgramSetup: React.FC = () => {
     if (!setupStatus.finalMRSet) {
       return 'final-mr';
     }
-    // Step 6: Baseline to Ledger
+    // Step 6: Submit BOE for Approval
+    if (!setupStatus.boeApproved) {
+      return 'approval';
+    }
+    // Step 7: Baseline to Ledger
     if (!setupStatus.boeBaselined) {
       return 'baseline';
     }
@@ -250,6 +261,9 @@ const ProgramSetup: React.FC = () => {
           )}
           {currentStep === 'final-mr' && (
             <FinalMRSetupStep programId={id!} onStepComplete={handleStepComplete} />
+          )}
+          {currentStep === 'approval' && (
+            <BOEApprovalSetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
           {currentStep === 'baseline' && (
             <BaselineSetupStep programId={id!} onStepComplete={handleStepComplete} />

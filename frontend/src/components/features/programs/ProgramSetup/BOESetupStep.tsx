@@ -8,7 +8,7 @@ import BOEWizard from '../../boe/BOEWizard';
 import BOEApprovalWorkflow from '../../boe/BOEApprovalWorkflow';
 import { useManagementReserve } from '../../../../hooks/useManagementReserve';
 import BOECalculationService from '../../../../services/boeCalculationService';
-import { CheckCircleIcon, ExclamationTriangleIcon, ArrowRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ExclamationTriangleIcon, ArrowRightIcon, DocumentTextIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 
 interface BOESetupStepProps {
   programId: string;
@@ -47,36 +47,15 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
     if (currentBOE) {
       updateBoeStatus(currentBOE.status);
       
-      // If BOE is approved, update setup status and mark step complete
-      if (currentBOE.status === 'Approved' && boeStatus !== 'approved') {
-        handleBOEApproved();
-      }
+      // Note: Approval is handled in a separate step, not here
+      // This step only handles BOE creation
     } else {
       setBoeStatus('none');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBOE]);
 
-  // Poll for approval status if BOE is under review
-  useEffect(() => {
-    if (boeStatus === 'under-review' && currentBOE?.id) {
-      const interval = setInterval(async () => {
-        try {
-          const boeData = await boeVersionsApi.getCurrentBOE(programId);
-          if (boeData.currentBOE) {
-            setCurrentBOE(boeData.currentBOE);
-            if (boeData.currentBOE.status === 'Approved') {
-              clearInterval(interval);
-            }
-          }
-        } catch (err) {
-          console.error('Error polling BOE status:', err);
-        }
-      }, 5000); // Poll every 5 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [boeStatus, currentBOE?.id, programId, setCurrentBOE]);
+  // Note: Approval polling is handled in BOEApprovalSetupStep, not here
 
   const loadBOEData = async () => {
     try {
@@ -255,6 +234,9 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
       
       // Reload BOE data to get elements
       await loadBOEData();
+      
+      // Mark step as complete - approval happens in a later step
+      onStepComplete();
     } catch (err: any) {
       console.error('Error handling BOE creation:', err);
       setError(err?.message || 'Failed to process BOE creation');
@@ -401,15 +383,18 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
               {isReady ? (
                 <div>
                   <p className="text-green-800 mb-4">
-                    Your BOE is complete and ready to submit for approval! All required steps have been completed.
+                    Your BOE has been created successfully! You can now proceed to the next step to set your Initial Management Reserve.
+                  </p>
+                  <p className="text-sm text-green-700 mb-4">
+                    Note: You'll submit your BOE for approval after finalizing your Management Reserve in a later step.
                   </p>
                   <div className="flex gap-3">
                     <button
                       onClick={() => navigate(`/programs/${programId}/boe`)}
-                      className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                     >
                       <DocumentTextIcon className="h-5 w-5 mr-2" />
-                      Go to BOE to Submit
+                      View BOE
                       <ArrowRightIcon className="h-5 w-5 ml-2" />
                     </button>
                   </div>
@@ -461,40 +446,26 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
     );
   }
 
-  // Show approval workflow if under review
-  if (boeStatus === 'under-review') {
+  // Note: Approval workflow is handled in BOEApprovalSetupStep
+  // If BOE is under review or approved, show a message directing to approval step
+  if (boeStatus === 'under-review' || boeStatus === 'approved') {
     return (
       <div className="space-y-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">BOE Under Review</h3>
-          <p className="text-blue-800 mb-4">
-            Your BOE has been submitted for approval. Please wait for approval before proceeding.
-          </p>
-          <button
-            onClick={() => navigate(`/programs/${programId}/boe`)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-          >
-            <DocumentTextIcon className="h-5 w-5 mr-2" />
-            View BOE Approval Status
-            <ArrowRightIcon className="h-5 w-5 ml-2" />
-          </button>
-        </div>
-        <BOEApprovalWorkflow programId={programId} />
-      </div>
-    );
-  }
-
-  // Show approved status
-  if (boeStatus === 'approved') {
-    return (
-      <div className="space-y-6">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
           <div className="flex items-start">
-            <CheckCircleIcon className="h-6 w-6 text-green-600 mr-3 mt-0.5" />
+            <InformationCircleIcon className="h-6 w-6 text-blue-600 mr-3 mt-0.5" />
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-green-900 mb-2">BOE Approved</h3>
-              <p className="text-green-800">
-                Your BOE has been approved! You can now proceed to the next step.
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                {boeStatus === 'approved' ? 'BOE Already Approved' : 'BOE Under Review'}
+              </h3>
+              <p className="text-blue-800 mb-4">
+                {boeStatus === 'approved' 
+                  ? 'Your BOE has already been approved. Approval is handled in a separate step after finalizing your Management Reserve.'
+                  : 'Your BOE is currently under review. Approval workflow is handled in a separate step after finalizing your Management Reserve.'
+                }
+              </p>
+              <p className="text-sm text-blue-700">
+                Continue with the setup workflow. You'll handle approval in Step 6 after finalizing your MR.
               </p>
             </div>
           </div>

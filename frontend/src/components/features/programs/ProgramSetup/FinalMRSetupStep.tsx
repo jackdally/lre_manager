@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBOEStore } from '../../../../store/boeStore';
 import { boeVersionsApi } from '../../../../services/boeApi';
 import { programSetupApi } from '../../../../services/programSetupApi';
 import { useManagementReserve } from '../../../../hooks/useManagementReserve';
-import ManagementReserveCalculator from '../../boe/ManagementReserve/ManagementReserveCalculator';
-import BOECalculationService from '../../../../services/boeCalculationService';
 import { formatCurrency } from '../../../../utils/currencyUtils';
-import { CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, InformationCircleIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 
 interface FinalMRSetupStepProps {
   programId: string;
@@ -14,115 +13,94 @@ interface FinalMRSetupStepProps {
 }
 
 const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepComplete }) => {
-  const { currentBOE, setCurrentBOE, elementAllocations } = useBOEStore();
+  const navigate = useNavigate();
+  const { currentBOE, setCurrentBOE } = useBOEStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalCost, setTotalCost] = useState<number>(0);
-  const [usingEstimatedCost, setUsingEstimatedCost] = useState(false);
   const [initialMR, setInitialMR] = useState<any>(null);
   const [setupStatus, setSetupStatus] = useState<any>(null);
+  const [hasCheckedMR, setHasCheckedMR] = useState(false);
 
   const {
     managementReserve,
     loadManagementReserve,
-    updateManagementReserve,
   } = useManagementReserve(currentBOE?.id);
 
   useEffect(() => {
-    loadBOEData();
-    loadSetupStatus();
+    loadData();
   }, [programId]);
 
   useEffect(() => {
     if (currentBOE?.id) {
       loadManagementReserve();
-      // Load initial MR (will be the same MR, but we'll track it separately in Phase 2)
-      // For now, we'll use the current MR as both initial and final
-      setInitialMR(managementReserve);
     }
-  }, [currentBOE?.id, loadManagementReserve, managementReserve]);
+  }, [currentBOE?.id, loadManagementReserve]);
 
+  // Check if MR exists and mark step complete if needed
   useEffect(() => {
-    if (currentBOE && elementAllocations) {
-      calculateTotalCost();
+    if (!hasCheckedMR && managementReserve && setupStatus && !setupStatus.finalMRSet) {
+      checkMRStatus();
     }
-  }, [currentBOE, elementAllocations]);
+  }, [managementReserve, setupStatus, programId, hasCheckedMR]);
 
-  const loadSetupStatus = async () => {
-    try {
-      const status = await programSetupApi.getSetupStatus(programId);
-      setSetupStatus(status);
-    } catch (err: any) {
-      console.error('Error loading setup status:', err);
-    }
-  };
-
-  const loadBOEData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const boeData = await boeVersionsApi.getCurrentBOE(programId);
+      // Load BOE and setup status
+      const [boeData, status] = await Promise.all([
+        boeVersionsApi.getCurrentBOE(programId),
+        programSetupApi.getSetupStatus(programId)
+      ]);
+
       if (boeData.currentBOE) {
         setCurrentBOE(boeData.currentBOE);
       } else {
         setError('BOE not found. Please create a BOE first.');
       }
+
+      setSetupStatus(status);
+      
+      // Load initial MR if it exists (we'll track this separately in Phase 2)
+      // For now, use current MR as both initial and final
+      if (managementReserve) {
+        setInitialMR(managementReserve);
+      }
     } catch (err: any) {
-      console.error('Error loading BOE:', err);
-      setError(err?.message || 'Failed to load BOE data');
+      console.error('Error loading data:', err);
+      setError(err?.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateTotalCost = () => {
-    if (!currentBOE || !currentBOE.elements) return;
-
-    // Build hierarchical structure for calculations
-    const hierarchicalElements = BOECalculationService.buildHierarchicalStructure(currentBOE.elements);
-    
-    // Calculate totals using BOECalculationService
-    const calculationResult = BOECalculationService.calculateBOETotals(
-      hierarchicalElements,
-      0, // MR percentage not needed for this calculation
-      elementAllocations || []
-    );
-
-    const totalAllocatedCost = calculationResult.totalAllocatedCost || 0;
-    const totalEstimatedCost = calculationResult.totalEstimatedCost || 0;
-    
-    // Use allocated cost if available, otherwise use estimated
-    const finalCost = totalAllocatedCost > 0 ? totalAllocatedCost : totalEstimatedCost;
-    const usingEstimated = totalAllocatedCost === 0;
-
-    setTotalCost(finalCost);
-    setUsingEstimatedCost(usingEstimated);
+  const checkMRStatus = async () => {
+    // If MR exists and finalMRSet is false, mark it as set
+    if (managementReserve && setupStatus && !setupStatus.finalMRSet && !hasCheckedMR) {
+      setHasCheckedMR(true);
+      try {
+        await programSetupApi.markFinalMRSet(programId);
+        // Refresh status and mark step complete
+        const updatedStatus = await programSetupApi.getSetupStatus(programId);
+        setSetupStatus(updatedStatus);
+        onStepComplete();
+      } catch (err: any) {
+        console.error('Error marking Final MR as set:', err);
+        setHasCheckedMR(false); // Reset on error so we can retry
+      }
+    }
   };
 
-  const handleMRChange = async (mr: any) => {
-    if (!currentBOE?.id) return;
-
-    try {
-      setError(null);
-      await updateManagementReserve(mr);
-      
-      // Mark Final MR as set
-      await programSetupApi.markFinalMRSet(programId);
-      
-      // Refresh setup status and mark step complete
-      onStepComplete();
-    } catch (err: any) {
-      console.error('Error saving Final MR:', err);
-      setError(err?.response?.data?.message || err?.message || 'Failed to save Final MR');
-    }
+  const handleGoToBOE = () => {
+    navigate(`/programs/${programId}/boe`);
   };
 
   if (loading) {
     return (
       <div className="text-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading BOE data...</p>
+        <p className="text-gray-600">Loading...</p>
       </div>
     );
   }
@@ -148,8 +126,43 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
     );
   }
 
+  // If MR already exists and step is marked complete, show success
+  if (setupStatus?.finalMRSet || managementReserve) {
+    const initialMRAmount = initialMR ? Number(initialMR.baselineAmount || initialMR.adjustedAmount || 0) : 0;
+    const currentMRAmount = managementReserve ? Number(managementReserve.baselineAmount || managementReserve.adjustedAmount || 0) : 0;
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="flex items-start">
+            <CheckCircleIcon className="h-6 w-6 text-green-600 mr-3 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-green-900 mb-2">Final MR Set</h3>
+              <p className="text-green-800 mb-4">
+                Your Final Management Reserve has been set. You can now proceed to submit your BOE for approval.
+              </p>
+              {managementReserve && (
+                <div className="bg-white rounded-lg p-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Final MR Amount</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCurrency(currentMRAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Calculation Method</p>
+                      <p className="text-lg font-semibold text-gray-900">{managementReserve.calculationMethod}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const initialMRAmount = initialMR ? Number(initialMR.baselineAmount || initialMR.adjustedAmount || 0) : 0;
-  const currentMRAmount = managementReserve ? Number(managementReserve.baselineAmount || managementReserve.adjustedAmount || 0) : 0;
 
   return (
     <div className="space-y-6">
@@ -173,31 +186,17 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
       {/* Initial MR Comparison */}
       {initialMRAmount > 0 && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-          <h3 className="text-sm font-medium text-gray-900 mb-4">Initial MR Comparison</h3>
+          <h3 className="text-sm font-medium text-gray-900 mb-4">Initial MR Reference</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-600 mb-1">Initial MR</p>
               <p className="text-lg font-semibold text-gray-900">{formatCurrency(initialMRAmount)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 mb-1">Current MR</p>
-              <p className="text-lg font-semibold text-blue-600">
-                {currentMRAmount > 0 ? formatCurrency(currentMRAmount) : 'Not Set'}
-              </p>
+              <p className="text-xs text-gray-600 mb-1">Status</p>
+              <p className="text-sm text-gray-700">Compare with Initial MR when setting Final MR</p>
             </div>
           </div>
-          {currentMRAmount > 0 && initialMRAmount !== currentMRAmount && (
-            <div className="mt-4 pt-4 border-t border-gray-300">
-              <p className="text-sm text-gray-700">
-                <span className="font-medium">Change:</span>{' '}
-                <span className={currentMRAmount > initialMRAmount ? 'text-red-600' : 'text-green-600'}>
-                  {currentMRAmount > initialMRAmount ? '+' : ''}
-                  {formatCurrency(currentMRAmount - initialMRAmount)} (
-                  {((currentMRAmount - initialMRAmount) / initialMRAmount * 100).toFixed(1)}%)
-                </span>
-              </p>
-            </div>
-          )}
         </div>
       )}
 
@@ -213,18 +212,16 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
         </div>
       )}
 
-      {/* Management Reserve Calculator */}
-      {currentBOE.id && (
-        <ManagementReserveCalculator
-          boeVersionId={currentBOE.id}
-          totalCost={totalCost}
-          currentMR={managementReserve || undefined}
-          onMRChange={handleMRChange}
-          isEditable={currentBOE.status === 'Draft' || currentBOE.status === 'Approved'}
-          usingEstimatedCost={usingEstimatedCost}
-          showROIntegration={setupStatus?.roAnalysisComplete === true}
-        />
-      )}
+      {/* Action Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleGoToBOE}
+          className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+        >
+          Go to BOE to Finalize MR
+          <ArrowRightIcon className="h-5 w-5 ml-2" />
+        </button>
+      </div>
     </div>
   );
 };

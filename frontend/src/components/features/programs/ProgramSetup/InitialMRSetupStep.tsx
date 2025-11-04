@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBOEStore } from '../../../../store/boeStore';
 import { boeVersionsApi } from '../../../../services/boeApi';
 import { programSetupApi } from '../../../../services/programSetupApi';
 import { useManagementReserve } from '../../../../hooks/useManagementReserve';
-import ManagementReserveCalculator from '../../boe/ManagementReserve/ManagementReserveCalculator';
-import BOECalculationService from '../../../../services/boeCalculationService';
-import { CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, InformationCircleIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 
 interface InitialMRSetupStepProps {
   programId: string;
@@ -13,20 +12,20 @@ interface InitialMRSetupStepProps {
 }
 
 const InitialMRSetupStep: React.FC<InitialMRSetupStepProps> = ({ programId, onStepComplete }) => {
-  const { currentBOE, setCurrentBOE, elementAllocations } = useBOEStore();
+  const navigate = useNavigate();
+  const { currentBOE, setCurrentBOE } = useBOEStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalCost, setTotalCost] = useState<number>(0);
-  const [usingEstimatedCost, setUsingEstimatedCost] = useState(false);
+  const [setupStatus, setSetupStatus] = useState<any>(null);
+  const [hasCheckedMR, setHasCheckedMR] = useState(false);
 
   const {
     managementReserve,
     loadManagementReserve,
-    updateManagementReserve,
   } = useManagementReserve(currentBOE?.id);
 
   useEffect(() => {
-    loadBOEData();
+    loadData();
   }, [programId]);
 
   useEffect(() => {
@@ -35,78 +34,65 @@ const InitialMRSetupStep: React.FC<InitialMRSetupStepProps> = ({ programId, onSt
     }
   }, [currentBOE?.id, loadManagementReserve]);
 
+  // Check if MR exists and mark step complete if needed
   useEffect(() => {
-    if (currentBOE && elementAllocations) {
-      calculateTotalCost();
+    if (!hasCheckedMR && managementReserve && setupStatus && !setupStatus.initialMRSet) {
+      checkMRStatus();
     }
-  }, [currentBOE, elementAllocations]);
+  }, [managementReserve, setupStatus, programId, hasCheckedMR]);
 
-  const loadBOEData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const boeData = await boeVersionsApi.getCurrentBOE(programId);
+      // Load BOE and setup status
+      const [boeData, status] = await Promise.all([
+        boeVersionsApi.getCurrentBOE(programId),
+        programSetupApi.getSetupStatus(programId)
+      ]);
+
       if (boeData.currentBOE) {
         setCurrentBOE(boeData.currentBOE);
       } else {
         setError('BOE not found. Please create a BOE first.');
       }
+
+      setSetupStatus(status);
     } catch (err: any) {
-      console.error('Error loading BOE:', err);
-      setError(err?.message || 'Failed to load BOE data');
+      console.error('Error loading data:', err);
+      setError(err?.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateTotalCost = () => {
-    if (!currentBOE || !currentBOE.elements) return;
-
-    // Build hierarchical structure for calculations
-    const hierarchicalElements = BOECalculationService.buildHierarchicalStructure(currentBOE.elements);
-    
-    // Calculate totals using BOECalculationService
-    const calculationResult = BOECalculationService.calculateBOETotals(
-      hierarchicalElements,
-      0, // MR percentage not needed for this calculation
-      elementAllocations || []
-    );
-
-    const totalAllocatedCost = calculationResult.totalAllocatedCost || 0;
-    const totalEstimatedCost = calculationResult.totalEstimatedCost || 0;
-    
-    // Use allocated cost if available, otherwise use estimated
-    const finalCost = totalAllocatedCost > 0 ? totalAllocatedCost : totalEstimatedCost;
-    const usingEstimated = totalAllocatedCost === 0;
-
-    setTotalCost(finalCost);
-    setUsingEstimatedCost(usingEstimated);
+  const checkMRStatus = async () => {
+    // If MR exists and initialMRSet is false, mark it as set
+    if (managementReserve && setupStatus && !setupStatus.initialMRSet && !hasCheckedMR) {
+      setHasCheckedMR(true);
+      try {
+        await programSetupApi.markInitialMRSet(programId);
+        // Refresh status and mark step complete
+        const updatedStatus = await programSetupApi.getSetupStatus(programId);
+        setSetupStatus(updatedStatus);
+        onStepComplete();
+      } catch (err: any) {
+        console.error('Error marking Initial MR as set:', err);
+        setHasCheckedMR(false); // Reset on error so we can retry
+      }
+    }
   };
 
-  const handleMRChange = async (mr: any) => {
-    if (!currentBOE?.id) return;
-
-    try {
-      setError(null);
-      await updateManagementReserve(mr);
-      
-      // Mark Initial MR as set
-      await programSetupApi.markInitialMRSet(programId);
-      
-      // Refresh setup status and mark step complete
-      onStepComplete();
-    } catch (err: any) {
-      console.error('Error saving Initial MR:', err);
-      setError(err?.response?.data?.message || err?.message || 'Failed to save Initial MR');
-    }
+  const handleGoToBOE = () => {
+    navigate(`/programs/${programId}/boe`);
   };
 
   if (loading) {
     return (
       <div className="text-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading BOE data...</p>
+        <p className="text-gray-600">Loading...</p>
       </div>
     );
   }
@@ -132,6 +118,28 @@ const InitialMRSetupStep: React.FC<InitialMRSetupStepProps> = ({ programId, onSt
     );
   }
 
+  // If MR already exists and step is marked complete, show success
+  if (setupStatus?.initialMRSet || managementReserve) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="flex items-start">
+            <CheckCircleIcon className="h-6 w-6 text-green-600 mr-3 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-green-900 mb-2">Initial MR Set</h3>
+              <p className="text-green-800">
+                {managementReserve 
+                  ? `Your Initial Management Reserve has been set (${managementReserve.calculationMethod} method). You can proceed to the next step.`
+                  : 'Initial Management Reserve step is complete. You can proceed to the next step.'
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Information Box */}
@@ -139,7 +147,7 @@ const InitialMRSetupStep: React.FC<InitialMRSetupStepProps> = ({ programId, onSt
         <div className="flex items-start">
           <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-blue-800">
-            <p className="font-medium mb-2">Initial Management Reserve</p>
+            <p className="font-medium mb-2">Set Initial Management Reserve</p>
             <p>
               Set your initial Management Reserve (MR) using Standard, Risk-Based, or Custom calculation methods. 
               This is your preliminary MR estimate that you can refine later based on Risk & Opportunity analysis.
@@ -163,20 +171,18 @@ const InitialMRSetupStep: React.FC<InitialMRSetupStepProps> = ({ programId, onSt
         </div>
       )}
 
-      {/* Management Reserve Calculator */}
-      {currentBOE.id && (
-        <ManagementReserveCalculator
-          boeVersionId={currentBOE.id}
-          totalCost={totalCost}
-          currentMR={managementReserve || undefined}
-          onMRChange={handleMRChange}
-          isEditable={currentBOE.status === 'Draft' || currentBOE.status === 'Approved'}
-          usingEstimatedCost={usingEstimatedCost}
-        />
-      )}
+      {/* Action Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleGoToBOE}
+          className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+        >
+          Go to BOE to Set Initial MR
+          <ArrowRightIcon className="h-5 w-5 ml-2" />
+        </button>
+      </div>
     </div>
   );
 };
 
 export default InitialMRSetupStep;
-
