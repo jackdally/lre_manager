@@ -11,6 +11,7 @@ interface Program {
   totalBudget: number;
   type: "Annual" | "Period of Performance";
   program_manager?: string | null;
+  program_manager_email?: string | null;
 }
 
 interface ProgramSelectorProps {

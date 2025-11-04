@@ -15,6 +15,7 @@ interface Program {
   totalBudget: number;
   type: 'Annual' | 'Period of Performance';
   program_manager?: string | null;
+  program_manager_email?: string | null;
 }
 
 const TOMORROW_LOGO = '/tomorrow-logo.png';
@@ -666,7 +667,22 @@ const ProgramDirectory: React.FC = () => {
                     value={newProgram.program_manager || ''}
                     onChange={handleInputChange}
                     className="input-field"
+                    placeholder="Manager name"
                   />
+                </div>
+                <div>
+                  <label className="form-label">Program Manager Email</label>
+                  <input
+                    type="email"
+                    name="program_manager_email"
+                    value={newProgram.program_manager_email || ''}
+                    onChange={handleInputChange}
+                    className="input-field"
+                    placeholder="manager@example.com"
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Used for monthly actuals upload reminders
+                  </div>
                 </div>
                 <div>
                   <label className="form-label">WBS Template</label>

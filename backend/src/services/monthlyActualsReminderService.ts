@@ -92,22 +92,45 @@ export class MonthlyActualsReminderService {
   }
 
   /**
-   * Send email notification for missing actuals (placeholder)
+   * Send email notification for missing actuals
+   * Note: Currently logs the notification. Email sending will be integrated when email service is available.
    */
   private static async sendEmailNotification(program: Program, month: string, reminderId: string): Promise<void> {
+    const uploadUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/programs/${program.id}/actuals`;
+    
+    // Check if program has an email address configured
+    if (!program.program_manager_email) {
+      console.log(`[Email Notification] Skipped - No email address configured for program: ${program.name} (${program.code})`);
+      return;
+    }
+
     // TODO: Integrate with email service when available
     // Import email template functions when ready
     // import { generateMonthlyActualsReminderSubject, generateMonthlyActualsReminderBody } from '../templates/monthlyActualsReminderEmail';
     
-    // For now, just log the notification
-    const uploadUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/programs/${program.id}/actuals`;
-    console.log(`[Email Notification] Program: ${program.name}, Month: ${month}, Reminder ID: ${reminderId}`);
+    // For now, log the notification with email address
+    console.log(`[Email Notification] Program: ${program.name} (${program.code}), Month: ${month}, Reminder ID: ${reminderId}`);
+    console.log(`[Email Notification] To: ${program.program_manager_email}`);
     console.log(`[Email Notification] Upload URL: ${uploadUrl}`);
     
-    // Placeholder: Would send email here
-    // const subject = generateMonthlyActualsReminderSubject({ programName: program.name, programCode: program.code, month, reminderId, uploadUrl });
-    // const body = generateMonthlyActualsReminderBody({ programName: program.name, programCode: program.code, month, reminderId, uploadUrl });
-    // await NotificationService.sendEmail(program.program_manager || '', subject, body);
+    // When email service is integrated, uncomment and use:
+    // const subject = generateMonthlyActualsReminderSubject({ 
+    //   programName: program.name, 
+    //   programCode: program.code, 
+    //   month, 
+    //   reminderId, 
+    //   uploadUrl,
+    //   programManagerEmail: program.program_manager_email
+    // });
+    // const body = generateMonthlyActualsReminderBody({ 
+    //   programName: program.name, 
+    //   programCode: program.code, 
+    //   month, 
+    //   reminderId, 
+    //   uploadUrl,
+    //   programManagerEmail: program.program_manager_email
+    // });
+    // await NotificationService.sendEmail(program.program_manager_email, subject, body);
   }
 
   /**
