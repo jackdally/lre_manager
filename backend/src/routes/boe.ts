@@ -15,6 +15,7 @@ import { BOECommentService } from '../services/boeCommentService';
 import { WbsTemplate } from '../entities/WbsTemplate';
 import { ApprovalWorkflowService } from '../services/approvalWorkflowService';
 import { BOEValidationService } from '../services/boeValidationService';
+import { ProgramSetupService } from '../services/programSetupService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -215,6 +216,14 @@ router.post('/programs/:id/boe', async (req, res) => {
     program.currentBOEVersionId = savedBOE.id;
     program.lastBOEUpdate = new Date();
     await programRepository.save(program);
+
+    // Update setup status to mark BOE as created
+    try {
+      await ProgramSetupService.markBOECreated(id);
+    } catch (error) {
+      console.error('Error updating setup status after BOE creation:', error);
+      // Don't fail BOE creation if setup status update fails
+    }
 
     // Load the complete BOE with elements and allocations for the response
     const completeBOE = await boeVersionRepository.findOne({

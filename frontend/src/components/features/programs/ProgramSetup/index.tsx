@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Layout from '../../../layout';
 import SetupProgress from './SetupProgress';
+import BOESetupStep from './BOESetupStep';
 import { programSetupApi, SetupStatus } from '../../../../services/programSetupApi';
 
 interface Program {
@@ -63,6 +64,19 @@ const ProgramSetup: React.FC = () => {
       setError(err?.response?.data?.message || err?.message || 'Failed to load program setup');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStepComplete = async () => {
+    // Refresh setup status after step completion
+    if (id) {
+      const updatedStatus = await programSetupApi.getSetupStatus(id);
+      setSetupStatus(updatedStatus);
+      
+      // If setup is now complete, redirect to dashboard
+      if (updatedStatus.setupComplete) {
+        navigate(`/programs/${id}/dashboard`);
+      }
     }
   };
 
@@ -182,24 +196,31 @@ const ProgramSetup: React.FC = () => {
 
         {/* Current Step Content */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              {currentStep === 'boe' && 'Create Your Basis of Estimate'}
-              {currentStep === 'baseline' && 'Baseline Your Budget'}
-              {currentStep === 'risk-opportunity' && 'Initialize Risk & Opportunity Register'}
-            </h2>
-            <p className="text-gray-600 mb-6">
-              {currentStep === 'boe' &&
-                'Start by creating your BOE to establish your program budget. This will be the foundation for all financial tracking.'}
-              {currentStep === 'baseline' &&
-                'Push your approved BOE to the ledger to create baseline budget entries.'}
-              {currentStep === 'risk-opportunity' &&
-                'Set up your risk and opportunity management framework to track program risks and opportunities.'}
-            </p>
-            <div className="text-sm text-gray-500">
-              <p>Step components will be implemented in the next phase.</p>
+          {currentStep === 'boe' && (
+            <BOESetupStep programId={id!} onStepComplete={handleStepComplete} />
+          )}
+          {currentStep === 'baseline' && (
+            <div className="text-center py-12">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Baseline Your Budget</h2>
+              <p className="text-gray-600 mb-6">
+                Push your approved BOE to the ledger to create baseline budget entries.
+              </p>
+              <div className="text-sm text-gray-500">
+                <p>Baseline step component will be implemented in the next phase.</p>
+              </div>
             </div>
-          </div>
+          )}
+          {currentStep === 'risk-opportunity' && (
+            <div className="text-center py-12">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Initialize Risk & Opportunity Register</h2>
+              <p className="text-gray-600 mb-6">
+                Set up your risk and opportunity management framework to track program risks and opportunities.
+              </p>
+              <div className="text-sm text-gray-500">
+                <p>Risk & Opportunity register step component will be implemented in the next phase.</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Layout>
