@@ -9,11 +9,10 @@ import {
   BOEElementAllocationSummary,
 } from '../store/boeStore';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
-
+// Use relative paths for proxy compatibility
 // API Client
 const boeApi = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },

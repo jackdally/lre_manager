@@ -12,6 +12,7 @@ import { CategoryBreakdown } from './CategoryBreakdown';
 import { MissingActualsAlert } from './MissingActualsAlert';
 import { MonthSelector } from './MonthSelector';
 import MonthlyActualsReminder from '../../../common/MonthlyActualsReminder';
+import ProgramHealthIndicators from './ProgramHealthIndicators';
 import { Program, SummaryType, FullSummaryType, TopRowSummaryType, LedgerEntry, CategoryDataItem } from './types';
 import { getYearMonth, CATEGORY_COLORS } from './utils';
 
@@ -196,6 +197,19 @@ const ProgramDashboard: React.FC = () => {
         
         {/* Missing Actuals Alert */}
         <MissingActualsAlert missingActuals={missingActuals} />
+
+        {/* Program Health Indicators */}
+        <ProgramHealthIndicators
+          programId={id!}
+          vac={topRowSummary?.vac || 0}
+          totalBudget={program.totalBudget || 0}
+          missingActualsCount={missingActuals.length}
+          scheduleVariance={summary?.scheduleVariance || 0}
+          schedulePerformanceIndex={summary?.schedulePerformanceIndex || 1.0}
+          costPerformanceIndex={summary?.costPerformanceIndex || 1.0}
+          baselineToDate={summary?.baselineToDate || 0}
+          actualsToDate={summary?.actualsToDate || 0}
+        />
 
         {/* Program Summary Bar */}
         <ProgramSummaryBar program={program} topRowSummary={topRowSummary} />

@@ -3,6 +3,7 @@ import { useBOEStore } from '../../../store/boeStore';
 import { boeApprovalsApi, boeVersionsApi } from '../../../services/boeApi';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
+import EnhancedErrorMessage from '../../common/EnhancedErrorMessage';
 import { 
   CheckCircleIcon, 
   XCircleIcon, 
@@ -209,63 +210,68 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
 
   return (
     <div className="p-6 space-y-6">
-      {/* Error Display */}
+      {/* Enhanced Error Display */}
       {approvalsError && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-sm font-medium text-red-800">Approval Submission Failed</h3>
-              <div className="mt-2 text-sm text-red-700">
-                {approvalsError.startsWith('BOE validation failed:') ? (
-                  <div>
-                    <p className="font-medium mb-2">The following issues must be resolved before approval:</p>
-                    <div className="space-y-3">
-                      {approvalsError.replace('BOE validation failed: ', '').split(', ').map((error, index) => {
-                        // Check if this is a category with items (e.g., "Missing Allocations: Backend Development, Frontend Development")
-                        if (error.includes(': ')) {
-                          const [category, items] = error.split(': ');
-                          const itemList = items.split(', ');
-                          
-                          return (
-                            <div key={index}>
-                              <div className="font-medium text-red-800 mb-1">{category}:</div>
-                              <ul className="list-disc list-inside ml-4 space-y-0.5">
-                                {itemList.map((item, itemIndex) => (
-                                  <li key={itemIndex} className="text-red-700">{item.trim()}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        } else {
-                          // Regular error without sub-items
-                          return (
-                            <div key={index} className="text-red-700">
-                              {error}
-                            </div>
-                          );
-                        }
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  approvalsError
-                )}
-              </div>
-              <div className="mt-3">
-                <button
-                  onClick={() => setApprovalsError(null)}
-                  className="text-sm text-red-600 hover:text-red-500 underline"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
+        <div className="mb-6">
+          <EnhancedErrorMessage
+            title="Approval Submission Failed"
+            message={
+              approvalsError.startsWith('BOE validation failed:')
+                ? "Your BOE cannot be submitted for approval until the following issues are resolved:"
+                : approvalsError
+            }
+            type="error"
+            details={
+              approvalsError.startsWith('BOE validation failed:')
+                ? (() => {
+                    const errorText = approvalsError.replace('BOE validation failed: ', '');
+                    const errors = errorText.split(', ');
+                    const details: string[] = [];
+                    
+                    errors.forEach(error => {
+                      if (error.includes(': ')) {
+                        const [category, items] = error.split(': ');
+                        const itemList = items.split(', ');
+                        details.push(`${category}: ${itemList.join(', ')}`);
+                      } else {
+                        details.push(error);
+                      }
+                    });
+                    
+                    return details;
+                  })()
+                : [approvalsError]
+            }
+            recoverySuggestions={(() => {
+              const suggestions: string[] = [];
+              if (approvalsError.includes('Missing Allocations')) {
+                suggestions.push('Navigate to the Allocations tab and create allocations for all required elements');
+              }
+              if (approvalsError.includes('Missing Vendors')) {
+                suggestions.push('Assign vendors to all leaf elements in the WBS Structure');
+              }
+              if (approvalsError.includes('Management Reserve')) {
+                suggestions.push('Configure Management Reserve in the BOE Overview section');
+              }
+              if (approvalsError.includes('WBS element')) {
+                suggestions.push('Ensure all required WBS elements have cost estimates and cost categories');
+              }
+              if (suggestions.length === 0) {
+                suggestions.push('Review the BOE details and ensure all required fields are completed');
+                suggestions.push('Check that all allocations are properly configured');
+              }
+              return suggestions;
+            })()}
+            onDismiss={() => setApprovalsError(null)}
+            onAction={{
+              label: 'Go to BOE Details',
+              onClick: () => {
+                // Scroll to BOE details section or navigate
+                window.location.hash = 'boe-details';
+                setApprovalsError(null);
+              },
+            }}
+          />
         </div>
       )}
 
