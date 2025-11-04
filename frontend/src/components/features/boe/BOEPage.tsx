@@ -461,8 +461,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 </span>
               </button>
 
-              {/* Create New Version Button */}
-              {currentBOE && (
+              {/* Create New Version Button - only show if not baselined */}
+              {currentBOE && currentBOE.status !== 'Baseline' && currentBOE.status !== 'PushedToProgram' && (
                 <button
                   onClick={handleCreateNewVersion}
                   className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors flex items-center gap-2"
@@ -857,8 +857,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         {/* Visual Separator */}
         <div className="bg-gray-100 h-px mx-6 my-6"></div>
 
-        {/* Progress Tracker */}
-        {currentBOE && (
+        {/* Progress Tracker - Hide after baselining */}
+        {currentBOE && currentBOE.status !== 'Baseline' && currentBOE.status !== 'PushedToProgram' && (
           <BOEProgressTracker
             boeVersionId={currentBOE.id}
             currentBOE={currentBOE}

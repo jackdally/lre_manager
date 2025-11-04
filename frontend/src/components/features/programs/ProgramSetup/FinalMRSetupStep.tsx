@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBOEStore } from '../../../../store/boeStore';
+import { useBOEStore, ManagementReserve } from '../../../../store/boeStore';
 import { boeVersionsApi } from '../../../../services/boeApi';
 import { programSetupApi } from '../../../../services/programSetupApi';
 import { useManagementReserve } from '../../../../hooks/useManagementReserve';
@@ -25,6 +25,9 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
     managementReserve,
     loadManagementReserve,
   } = useManagementReserve(currentBOE?.id);
+
+  // Type assertion for managementReserve - ensure proper typing
+  const mr: ManagementReserve | null = managementReserve ? (managementReserve as ManagementReserve) : null;
 
   useEffect(() => {
     loadData();
@@ -114,9 +117,9 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
   }
 
   // If MR already exists and step is marked complete, show success
-  if (setupStatus?.finalMRSet || managementReserve) {
+  if (setupStatus?.finalMRSet || mr) {
     const initialMRAmount = initialMR ? Number(initialMR.baselineAmount || initialMR.adjustedAmount || 0) : 0;
-    const currentMRAmount = managementReserve ? Number(managementReserve.baselineAmount || managementReserve.adjustedAmount || 0) : 0;
+    const currentMRAmount = mr ? Number(mr.baselineAmount || mr.adjustedAmount || 0) : 0;
 
     return (
       <div className="space-y-6">
@@ -128,7 +131,7 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
               <p className="text-green-800 mb-4">
                 Your Final Management Reserve has been set. You can now proceed to submit your BOE for approval.
               </p>
-              {managementReserve && (
+              {mr && (
                 <div className="bg-white rounded-lg p-4 mt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -137,7 +140,7 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
                     </div>
                     <div>
                       <p className="text-xs text-gray-600 mb-1">Calculation Method</p>
-                      <p className="text-lg font-semibold text-gray-900">{managementReserve.calculationMethod}</p>
+                      <p className="text-lg font-semibold text-gray-900">{mr.calculationMethod}</p>
                     </div>
                   </div>
                 </div>
@@ -157,36 +160,95 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <div className="flex items-start">
           <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-blue-800">
-            <p className="font-medium mb-2">Finalize Management Reserve</p>
-            <p>
-              Set your final Management Reserve (MR) amount. You can use <strong>R&O-Driven calculation</strong> if you've entered 
-              risks and opportunities, or use Standard, Risk-Based, or Custom methods to adjust from your Initial MR.
-            </p>
-            <p className="mt-2">
-              <strong>R&O-Driven Calculation:</strong> Automatically calculates MR based on actual risk data with severity-weighted expected values.
-              Available when you have active risks entered in the R&O register.
-            </p>
-            <p className="mt-2">
-              <strong>Note:</strong> This final MR will be included when you baseline your BOE to the ledger.
-            </p>
+          <div className="text-sm text-blue-800 space-y-3">
+            <div>
+              <p className="font-semibold text-base mb-2">What is Final Management Reserve?</p>
+              <p>
+                Final Management Reserve (MR) is the approved MR amount that will be baselined with your BOE. 
+                This is your opportunity to refine your Initial MR based on Risk & Opportunity analysis or 
+                your own assessment.
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold mb-2">Calculation Options:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li><strong>R&O-Driven:</strong> Automatically calculates MR based on actual risk data with severity-weighted expected values (available if you completed R&O analysis)</li>
+                <li><strong>Standard/Risk-Based/Custom:</strong> Adjust your Initial MR using traditional calculation methods</li>
+              </ul>
+            </div>
+            <div className="bg-blue-100 border border-blue-300 rounded p-3">
+              <p className="font-medium mb-1">⚠️ Important:</p>
+              <p>
+                This Final MR will be locked once you baseline your BOE to the ledger. Ensure you're satisfied 
+                with this amount before proceeding to approval and baseline.
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Initial MR Comparison */}
       {initialMRAmount > 0 && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-          <h3 className="text-sm font-medium text-gray-900 mb-4">Initial MR Reference</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-gray-600 mb-1">Initial MR</p>
-              <p className="text-lg font-semibold text-gray-900">{formatCurrency(initialMRAmount)}</p>
+        <div className="bg-gradient-to-r from-gray-50 to-blue-50 border-2 border-gray-300 rounded-lg p-6">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center">
+            <InformationCircleIcon className="h-5 w-5 mr-2 text-blue-600" />
+            Initial MR vs Final MR Comparison
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <p className="text-xs text-gray-600 mb-1 font-medium">Initial MR</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(initialMRAmount)}</p>
+              <p className="text-xs text-gray-500 mt-1">Preliminary estimate</p>
             </div>
-            <div>
-              <p className="text-xs text-gray-600 mb-1">Status</p>
-              <p className="text-sm text-gray-700">Compare with Initial MR when setting Final MR</p>
+            <div className="bg-white rounded-lg p-4 border border-blue-300 border-2">
+              <p className="text-xs text-blue-600 mb-1 font-medium">Final MR</p>
+              <p className="text-2xl font-bold text-blue-900">
+                {mr !== null
+                  ? formatCurrency(Number((mr as ManagementReserve).baselineAmount || (mr as ManagementReserve).adjustedAmount || 0))
+                  : 'Not set'
+                }
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                {mr !== null ? `Using ${(mr as ManagementReserve).calculationMethod || 'Unknown'} method` : 'To be determined'}
+              </p>
             </div>
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <p className="text-xs text-gray-600 mb-1 font-medium">Difference</p>
+              {mr !== null ? (
+                <>
+                  {(() => {
+                    const finalMR = mr as ManagementReserve;
+                    const finalAmount = Number(finalMR.baselineAmount || finalMR.adjustedAmount || 0);
+                    const diff = finalAmount - initialMRAmount;
+                    const diffPercent = initialMRAmount > 0 ? (diff / initialMRAmount * 100) : 0;
+                    return (
+                      <>
+                        <p className={`text-2xl font-bold ${
+                          diff >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {diff >= 0 ? '+' : ''}
+                          {formatCurrency(diff)}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {diffPercent.toFixed(1)}% change
+                        </p>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold text-gray-400">—</p>
+                  <p className="text-xs text-gray-500 mt-1">Set Final MR to see</p>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+            <p className="text-xs text-yellow-800">
+              <strong>💡 Tip:</strong> Compare your Final MR to Initial MR to see how R&O analysis or your adjustments 
+              have affected the MR amount. If you completed R&O analysis, use the R&O-Driven method for a data-driven calculation.
+            </p>
           </div>
         </div>
       )}
@@ -212,7 +274,7 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
           Go to BOE to Finalize MR
           <ArrowRightIcon className="h-5 w-5 ml-2" />
         </button>
-        {managementReserve && (
+        {mr && (
           <button
             onClick={async () => {
               try {

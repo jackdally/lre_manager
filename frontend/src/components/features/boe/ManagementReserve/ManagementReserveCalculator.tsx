@@ -279,11 +279,33 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
       {/* R&O-Driven Calculation Display */}
       {calculationMethod === 'R&O-Driven' && (
         <div className="space-y-4">
+          {/* R&O-Driven Information Box */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <InformationCircleIcon className="h-5 w-5 text-purple-600 mr-2 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-purple-800">
+                <p className="font-semibold mb-1">R&O-Driven Calculation Method</p>
+                <p className="mb-2">
+                  This method automatically calculates your Management Reserve using actual risk data from your Risk & Opportunity register.
+                </p>
+                <div className="bg-purple-100 border border-purple-300 rounded p-2 mt-2">
+                  <p className="text-xs font-medium mb-1">Formula:</p>
+                  <p className="text-xs">
+                    <strong>Base MR</strong> (Standard calculation) + <strong>Risk Adjustment</strong> (sum of severity-weighted expected values)
+                  </p>
+                  <p className="text-xs mt-1">
+                    <strong>Expected Value</strong> = Probability × Most Likely Cost Impact × Severity Multiplier
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {loadingROCalculation && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
-                <p className="text-sm text-blue-800">Calculating R&O-Driven MR...</p>
+                <p className="text-sm text-blue-800">Calculating R&O-Driven MR from your risk data...</p>
               </div>
             </div>
           )}
@@ -294,7 +316,7 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
                 <ExclamationTriangleIcon className="h-5 w-5 text-red-600 mr-2 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-red-800 mb-1">Calculation Error</p>
-                  <p className="text-sm text-red-700">{roCalculationError}</p>
+                  <p className="text-sm text-red-700 mb-2">{roCalculationError}</p>
                   <button
                     onClick={fetchRODrivenCalculation}
                     className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
@@ -311,10 +333,19 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
           )}
 
           {!loadingROCalculation && !roCalculationError && !roCalculationResult && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <p className="text-sm text-gray-600">
-                No risks found for this program. R&O-Driven calculation requires at least one active risk with cost impact and probability.
-              </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <InformationCircleIcon className="h-5 w-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-yellow-800 mb-1">No Risk Data Available</p>
+                  <p className="text-sm text-yellow-700 mb-2">
+                    R&O-Driven calculation requires at least one active risk with cost impact and probability in your Risk & Opportunity register.
+                  </p>
+                  <p className="text-xs text-yellow-600">
+                    <strong>Tip:</strong> Complete the R&O Analysis step in program setup or add risks manually on the R&O page to enable this calculation method.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -536,15 +567,32 @@ const RODrivenCalculationCard: React.FC<RODrivenCalculationCardProps> = ({
     onClick={onClick}
     disabled={disabled}
     className={`p-4 rounded-lg border-2 text-left transition-all ${selected
-        ? 'border-blue-500 bg-blue-50'
-        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+        ? 'border-purple-500 bg-purple-50'
+        : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} relative`}
   >
+    {selected && (
+      <div className="absolute top-2 right-2">
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-purple-600 text-white">
+          Recommended
+        </span>
+      </div>
+    )}
     <div className="flex items-center justify-between mb-2">
-      <h4 className="font-medium text-gray-900">R&O-Driven</h4>
-      {selected && <CheckCircleIcon className="h-5 w-5 text-blue-600" />}
+      <div className="flex items-center">
+        <ChartBarIcon className="h-5 w-5 text-purple-600 mr-2" />
+        <h4 className="font-semibold text-gray-900">R&O-Driven</h4>
+      </div>
+      {selected && <CheckCircleIcon className="h-5 w-5 text-purple-600" />}
     </div>
-    <p className="text-sm text-gray-600">Based on actual risk and opportunity analysis</p>
+    <p className="text-sm text-gray-700 mb-2">
+      <strong>Data-driven calculation</strong> based on actual Risk & Opportunity analysis
+    </p>
+    <div className="mt-2 pt-2 border-t border-gray-200">
+      <p className="text-xs text-gray-600">
+        <strong>How it works:</strong> Uses severity-weighted expected values from your risk register to calculate MR automatically
+      </p>
+    </div>
   </button>
 );
 

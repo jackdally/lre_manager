@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useBOEStore } from '../../../store/boeStore';
 import { useManagementReserve } from '../../../hooks/useManagementReserve';
 import { 
@@ -244,12 +245,37 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
         {viewMode === 'display' && (
           <div>
             {managementReserve ? (
-              <ManagementReserveDisplay
-                managementReserve={managementReserve}
-                totalCost={totalCost}
-                showUtilization={true}
-                isEditable={currentBOE.status === 'Draft'}
-              />
+              <>
+                <ManagementReserveDisplay
+                  managementReserve={managementReserve}
+                  totalCost={totalCost}
+                  showUtilization={!isBaselined}
+                  isEditable={currentBOE.status === 'Draft'}
+                />
+                {isBaselined && (
+                  <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-blue-900 mb-1">MR Utilization on R&O Page</h4>
+                        <p className="text-sm text-blue-800 mb-3">
+                          MR utilization is managed from the Risks & Opportunities page. 
+                          This allows you to link MR utilization directly to materialized risks.
+                        </p>
+                        <Link
+                          to={`/programs/${programId}/risks?tab=mr`}
+                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                        >
+                          Go to R&O MR Tab
+                          <svg className="h-4 w-4 ml-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-12">
                 <div className="text-gray-400 mb-4">
@@ -283,39 +309,6 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
             />
           </div>
         )}
-
-        {/* Show read-only MR Summary after baselining */}
-        {isBaselined && managementReserve && (
-          <div>
-            <ManagementReserveDisplay
-              managementReserve={managementReserve}
-              totalCost={totalCost}
-              showUtilization={false}
-              isEditable={false}
-            />
-            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h4 className="text-sm font-medium text-blue-900 mb-1">MR Utilization on R&O Page</h4>
-                  <p className="text-sm text-blue-800">
-                    MR utilization is managed from the Risks & Opportunities page. 
-                    This allows you to link MR utilization directly to materialized risks.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* R&O Integration Notice */}
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h4 className="text-sm font-medium text-blue-800 mb-2">R&O Integration Coming Soon</h4>
-        <p className="text-sm text-blue-700">
-          Future versions will include integration with the Risks & Opportunities system for 
-          more sophisticated management reserve calculations based on actual risk analysis.
-        </p>
       </div>
     </div>
   );

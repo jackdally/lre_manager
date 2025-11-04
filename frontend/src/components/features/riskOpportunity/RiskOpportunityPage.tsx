@@ -9,11 +9,20 @@ import { useBOEStore } from '../../../store/boeStore';
 import { formatCurrency } from '../../../utils/currencyUtils';
 import MRUtilizationHistory from './MRUtilizationHistory';
 
-type TabType = 'risks' | 'opportunities';
+type TabType = 'risks' | 'opportunities' | 'mr';
 
 const RiskOpportunityPage: React.FC = () => {
   const { id: programId } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<TabType>('risks');
+  
+  // Check URL params for tab
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'mr') {
+      setActiveTab('mr');
+    }
+  }, []);
   const [loading, setLoading] = useState(true);
   const [registerInitialized, setRegisterInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +157,19 @@ const RiskOpportunityPage: React.FC = () => {
               <span>✨</span>
               Opportunity Management
             </button>
+            <button
+              onClick={() => setActiveTab('mr')}
+              className={`
+                py-3 px-2 border-b-2 font-semibold text-base flex items-center gap-2
+                ${activeTab === 'mr'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <span>💰</span>
+              Management Reserve
+            </button>
           </nav>
         </div>
 
@@ -162,13 +184,13 @@ const RiskOpportunityPage: React.FC = () => {
                 </p>
               </div>
 
-              {/* MR Utilization Section */}
+              {/* MR Utilization Section - Risks Only */}
               {managementReserve && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-2">
                       <CurrencyDollarIcon className="h-5 w-5 text-blue-600" />
-                      <h3 className="text-lg font-semibold text-blue-900">Management Reserve Utilization</h3>
+                      <h3 className="text-lg font-semibold text-blue-900">Management Reserve Utilization (Risks Only)</h3>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-blue-700">Available MR</p>
@@ -177,7 +199,18 @@ const RiskOpportunityPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-blue-800 mb-4">
+                  <div className="bg-blue-100 border border-blue-300 rounded p-3 mb-3">
+                    <p className="text-sm font-semibold text-blue-900 mb-1">⚠️ Important: MR Utilization is for Risks Only</p>
+                    <p className="text-sm text-blue-800">
+                      <strong>Risks (threats):</strong> When a risk materializes, you can request MR utilization to cover the cost impact. 
+                      The utilization is linked directly to the specific risk entry.
+                    </p>
+                    <p className="text-sm text-blue-800 mt-2">
+                      <strong>Opportunities (benefits):</strong> Opportunities are tracked separately and do NOT utilize MR. 
+                      They represent potential cost savings or benefits that are tracked independently.
+                    </p>
+                  </div>
+                  <p className="text-sm text-blue-800">
                     When a risk materializes, you can request MR utilization directly from the risk entry. 
                     The utilization will be linked to the specific risk and tracked in the history below.
                   </p>
@@ -222,19 +255,138 @@ const RiskOpportunityPage: React.FC = () => {
           )}
 
           {activeTab === 'opportunities' && (
-            <div className="p-8">
-              <div className="text-center py-12">
+            <div className="p-8 space-y-6">
+              <div>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">Opportunity Management</h2>
                 <p className="text-gray-600 mb-6">
-                  Opportunity management functionality will be implemented in a future release.
+                  Track potential benefits and cost savings that could improve your program outcomes.
                 </p>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-2xl mx-auto">
+              </div>
+
+              {/* Opportunity Information */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                <div className="flex items-start">
+                  <InformationCircleIcon className="h-5 w-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-800 space-y-3">
+                    <div>
+                      <p className="font-semibold text-base mb-2">What are Opportunities?</p>
+                      <p>
+                        Opportunities are potential positive events or conditions that could benefit your program, such as:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 ml-2 mt-2">
+                        <li>Early delivery leading to cost savings</li>
+                        <li>Technology improvements reducing costs</li>
+                        <li>Favorable market conditions</li>
+                        <li>Vendor discounts or rebates</li>
+                      </ul>
+                    </div>
+                    <div className="bg-green-100 border border-green-300 rounded p-3">
+                      <p className="font-semibold mb-1">💡 Important: Opportunities Do NOT Use MR</p>
+                      <p>
+                        Opportunities are tracked separately from Management Reserve. They represent potential benefits 
+                        and are not funded from MR. Opportunities provide visibility into potential cost savings or 
+                        benefits but do not affect your MR balance.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Coming Soon Message */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Opportunity Register</h3>
+                <p className="text-gray-600 mb-4">
+                  The full opportunity management interface will be implemented in a future release. 
+                  Once available, you'll be able to:
+                </p>
+                <ul className="list-disc list-inside text-gray-600 space-y-1 mb-4">
+                  <li>Create and manage opportunities</li>
+                  <li>Assess probability and benefit amount</li>
+                  <li>Track opportunity realization and actual benefits</li>
+                  <li>Monitor opportunity trends and success rates</li>
+                </ul>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-sm text-green-800">
-                    <strong>Coming Soon:</strong> You'll be able to create and manage opportunities, assess probability and benefit, 
-                    track opportunity realization, and link opportunities to Management Reserve credits.
+                    <strong>Note:</strong> Opportunities are tracked independently from risks and do not utilize Management Reserve. 
+                    They provide visibility into potential program benefits.
                   </p>
                 </div>
               </div>
+            </div>
+          )}
+          
+          {activeTab === 'mr' && (
+            <div className="p-8 space-y-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">Management Reserve</h2>
+                <p className="text-gray-600 mb-6">
+                  View and manage Management Reserve utilization linked to materialized risks.
+                </p>
+              </div>
+
+              {/* MR Summary */}
+              {managementReserve && (() => {
+                const baselineMR = Number(managementReserve.baselineAmount || managementReserve.adjustedAmount || 0);
+                const utilizedMR = Number(managementReserve.utilizedAmount || 0);
+                const availableMR = baselineMR - utilizedMR;
+                return (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="bg-white rounded-lg p-4 border border-blue-200">
+                        <p className="text-sm text-gray-600 mb-1">Baseline MR</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {formatCurrency(baselineMR)}
+                        </p>
+                      </div>
+                      <div className="bg-white rounded-lg p-4 border border-green-200">
+                        <p className="text-sm text-gray-600 mb-1">Available MR</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {formatCurrency(availableMR)}
+                        </p>
+                      </div>
+                      <div className="bg-white rounded-lg p-4 border border-red-200">
+                        <p className="text-sm text-gray-600 mb-1">Utilized MR</p>
+                        <p className="text-2xl font-bold text-red-600">
+                          {formatCurrency(utilizedMR)}
+                        </p>
+                      </div>
+                    </div>
+                    {utilizedMR > 0 && (
+                      <div className="mt-4">
+                        <p className="text-sm text-gray-600 mb-1">
+                          Utilization: {baselineMR > 0 ? ((utilizedMR / baselineMR) * 100).toFixed(1) : 0}%
+                        </p>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-red-600 h-2 rounded-full transition-all"
+                            style={{ 
+                              width: `${baselineMR > 0 ? ((utilizedMR / baselineMR) * 100) : 0}%` 
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* MR Utilization History */}
+              {managementReserve && mrUtilizationHistory && (
+                <MRUtilizationHistory
+                  utilizationHistory={mrUtilizationHistory}
+                  managementReserve={managementReserve}
+                />
+              )}
+
+              {!managementReserve && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                  <CurrencyDollarIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Management Reserve</h3>
+                  <p className="text-gray-600">
+                    Management Reserve information will appear here once a BOE has been baselined.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

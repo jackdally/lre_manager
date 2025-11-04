@@ -207,10 +207,86 @@ const BaselineSetupStep: React.FC<BaselineSetupStepProps> = ({ programId, onStep
   return (
     <div className="space-y-6">
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-blue-900 mb-2">Baseline Your Budget</h3>
-        <p className="text-blue-800 mb-4">
-          Push your approved BOE to the ledger to create baseline budget entries. This will establish your program's baseline budget for tracking and reporting.
-        </p>
+        <div className="flex items-start">
+          <ExclamationTriangleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-blue-800 space-y-3">
+            <div>
+              <p className="font-semibold text-base mb-2">Baseline Your Budget to Ledger</p>
+              <p>
+                Baselining your BOE creates permanent budget entries in the ledger. This establishes your program's 
+                official baseline budget that will be used for tracking actuals, variances, and reporting.
+              </p>
+            </div>
+            <div className="bg-blue-100 border border-blue-300 rounded p-3">
+              <p className="font-medium mb-1">⚠️ Important:</p>
+              <p>
+                Once baselined, the BOE and Management Reserve amounts are locked. This is a critical step that 
+                cannot be undone. Ensure all amounts are correct before proceeding.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pre-Baseline Checklist */}
+      <div className="bg-white border-2 border-gray-300 rounded-lg p-6">
+        <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center">
+          <CheckCircleIcon className="h-5 w-5 mr-2 text-green-600" />
+          Pre-Baseline Checklist
+        </h3>
+        <div className="space-y-3">
+          <div className={`flex items-start ${setupStatus?.boeCreated ? 'text-green-700' : 'text-gray-400'}`}>
+            <CheckCircleIcon className={`h-5 w-5 mr-3 mt-0.5 flex-shrink-0 ${setupStatus?.boeCreated ? 'text-green-600' : 'text-gray-300'}`} />
+            <div className="flex-1">
+              <p className={`font-medium ${setupStatus?.boeCreated ? '' : 'line-through'}`}>
+                BOE Created
+              </p>
+              <p className="text-sm text-gray-600">
+                Basis of Estimate with WBS structure and element allocations
+              </p>
+            </div>
+          </div>
+          <div className={`flex items-start ${setupStatus?.initialMRSet ? 'text-green-700' : 'text-gray-400'}`}>
+            <CheckCircleIcon className={`h-5 w-5 mr-3 mt-0.5 flex-shrink-0 ${setupStatus?.initialMRSet ? 'text-green-600' : 'text-gray-300'}`} />
+            <div className="flex-1">
+              <p className={`font-medium ${setupStatus?.initialMRSet ? '' : 'line-through'}`}>
+                Initial MR Set
+              </p>
+              <p className="text-sm text-gray-600">
+                Preliminary Management Reserve estimate established
+              </p>
+            </div>
+          </div>
+          <div className={`flex items-start ${setupStatus?.boeApproved ? 'text-green-700' : 'text-yellow-700'}`}>
+            <CheckCircleIcon className={`h-5 w-5 mr-3 mt-0.5 flex-shrink-0 ${setupStatus?.boeApproved ? 'text-green-600' : 'text-yellow-500'}`} />
+            <div className="flex-1">
+              <p className={`font-medium ${setupStatus?.boeApproved ? '' : ''}`}>
+                BOE Approved
+              </p>
+              <p className="text-sm text-gray-600">
+                BOE must be in "Approved" status (currently: {currentBOE.status})
+              </p>
+            </div>
+          </div>
+          <div className={`flex items-start ${setupStatus?.finalMRSet ? 'text-green-700' : 'text-red-700'}`}>
+            <CheckCircleIcon className={`h-5 w-5 mr-3 mt-0.5 flex-shrink-0 ${setupStatus?.finalMRSet ? 'text-green-600' : 'text-red-500'}`} />
+            <div className="flex-1">
+              <p className={`font-medium ${setupStatus?.finalMRSet ? '' : ''}`}>
+                Final MR Set
+              </p>
+              <p className="text-sm text-gray-600">
+                Final Management Reserve amount finalized (required before baseline)
+              </p>
+            </div>
+          </div>
+        </div>
+        {setupStatus?.boeApproved && setupStatus?.finalMRSet && (
+          <div className="mt-4 bg-green-50 border border-green-200 rounded p-3">
+            <p className="text-sm text-green-800 font-medium">
+              ✅ All prerequisites met. You're ready to baseline your BOE to the ledger.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* BOE Summary */}
@@ -240,17 +316,27 @@ const BaselineSetupStep: React.FC<BaselineSetupStepProps> = ({ programId, onStep
         </div>
       </div>
 
+      {/* What Happens When You Baseline */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">What Happens When You Baseline:</h3>
+        <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
+          <li>Creates ledger entries for all BOE element allocations with planned amounts and dates</li>
+          <li>Establishes Management Reserve as available for utilization (tracked on R&O page)</li>
+          <li>Updates BOE status to "Baseline" (locked from further changes)</li>
+          <li>Enables actuals tracking and variance reporting against the baseline</li>
+        </ul>
+      </div>
+
       {/* Warning Info */}
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <div className="flex items-start">
           <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-yellow-800">
-            <p className="font-medium mb-1">Important:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>This will create ledger entries for all BOE element allocations</li>
-              <li>The BOE status will be updated to "Baseline"</li>
-              <li>This action cannot be undone</li>
-            </ul>
+            <p className="font-semibold mb-1">⚠️ Final Warning:</p>
+            <p>
+              This action <strong>cannot be undone</strong>. Once baselined, the BOE and MR amounts are permanently 
+              locked. Double-check all amounts before proceeding.
+            </p>
           </div>
         </div>
       </div>

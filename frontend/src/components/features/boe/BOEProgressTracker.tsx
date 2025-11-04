@@ -28,7 +28,14 @@ const BOEProgressTracker: React.FC<BOEProgressTrackerProps> = ({
   elementAllocations,
   onNavigate,
 }) => {
-  const { managementReserve } = useManagementReserve(currentBOE?.id);
+  const { managementReserve, loadManagementReserve } = useManagementReserve(currentBOE?.id);
+  
+  // Load MR when BOE ID changes
+  React.useEffect(() => {
+    if (currentBOE?.id) {
+      loadManagementReserve();
+    }
+  }, [currentBOE?.id, loadManagementReserve]);
 
   const { steps, percentage } = useMemo(() => {
     const hierarchical = elements && elements.length > 0
