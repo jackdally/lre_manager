@@ -11,6 +11,9 @@ export interface SetupStatusResponse {
   boeApproved: boolean;
   boeBaselined: boolean;
   riskOpportunityRegisterCreated: boolean;
+  initialMRSet: boolean;
+  roAnalysisComplete: boolean | null;
+  finalMRSet: boolean;
   setupComplete: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -39,7 +42,10 @@ export class ProgramSetupService {
         boeCreated: false,
         boeApproved: false,
         boeBaselined: false,
-        riskOpportunityRegisterCreated: false
+        riskOpportunityRegisterCreated: false,
+        initialMRSet: false,
+        roAnalysisComplete: null,
+        finalMRSet: false
       });
 
       await programSetupStatusRepository.save(setupStatus);
@@ -58,6 +64,9 @@ export class ProgramSetupService {
       boeApproved?: boolean;
       boeBaselined?: boolean;
       riskOpportunityRegisterCreated?: boolean;
+      initialMRSet?: boolean;
+      roAnalysisComplete?: boolean | null;
+      finalMRSet?: boolean;
     }
   ): Promise<SetupStatusResponse> {
     let setupStatus = await programSetupStatusRepository.findOne({
@@ -78,7 +87,10 @@ export class ProgramSetupService {
         boeCreated: false,
         boeApproved: false,
         boeBaselined: false,
-        riskOpportunityRegisterCreated: false
+        riskOpportunityRegisterCreated: false,
+        initialMRSet: false,
+        roAnalysisComplete: null,
+        finalMRSet: false
       });
     }
 
@@ -94,6 +106,15 @@ export class ProgramSetupService {
     }
     if (updates.riskOpportunityRegisterCreated !== undefined) {
       setupStatus.riskOpportunityRegisterCreated = updates.riskOpportunityRegisterCreated;
+    }
+    if (updates.initialMRSet !== undefined) {
+      setupStatus.initialMRSet = updates.initialMRSet;
+    }
+    if (updates.roAnalysisComplete !== undefined) {
+      setupStatus.roAnalysisComplete = updates.roAnalysisComplete;
+    }
+    if (updates.finalMRSet !== undefined) {
+      setupStatus.finalMRSet = updates.finalMRSet;
     }
 
     await programSetupStatusRepository.save(setupStatus);
@@ -130,14 +151,44 @@ export class ProgramSetupService {
   }
 
   /**
+   * Mark Initial MR as set
+   */
+  static async markInitialMRSet(programId: string): Promise<SetupStatusResponse> {
+    return this.updateSetupStatus(programId, { initialMRSet: true });
+  }
+
+  /**
+   * Mark R&O Analysis as complete
+   */
+  static async markROAnalysisComplete(programId: string): Promise<SetupStatusResponse> {
+    return this.updateSetupStatus(programId, { roAnalysisComplete: true });
+  }
+
+  /**
+   * Mark R&O Analysis as skipped
+   */
+  static async markROAnalysisSkipped(programId: string): Promise<SetupStatusResponse> {
+    return this.updateSetupStatus(programId, { roAnalysisComplete: false });
+  }
+
+  /**
+   * Mark Final MR as set
+   */
+  static async markFinalMRSet(programId: string): Promise<SetupStatusResponse> {
+    return this.updateSetupStatus(programId, { finalMRSet: true });
+  }
+
+  /**
    * Check if setup is complete
    */
   static isSetupComplete(setupStatus: ProgramSetupStatus): boolean {
     return (
       setupStatus.boeCreated &&
       setupStatus.boeApproved &&
-      setupStatus.boeBaselined &&
-      setupStatus.riskOpportunityRegisterCreated
+      setupStatus.initialMRSet &&
+      setupStatus.riskOpportunityRegisterCreated &&
+      setupStatus.finalMRSet &&
+      setupStatus.boeBaselined
     );
   }
 
@@ -151,6 +202,9 @@ export class ProgramSetupService {
       boeApproved: setupStatus.boeApproved,
       boeBaselined: setupStatus.boeBaselined,
       riskOpportunityRegisterCreated: setupStatus.riskOpportunityRegisterCreated,
+      initialMRSet: setupStatus.initialMRSet,
+      roAnalysisComplete: setupStatus.roAnalysisComplete,
+      finalMRSet: setupStatus.finalMRSet,
       setupComplete: this.isSetupComplete(setupStatus),
       createdAt: setupStatus.createdAt,
       updatedAt: setupStatus.updatedAt
@@ -182,7 +236,10 @@ export class ProgramSetupService {
       boeCreated: false,
       boeApproved: false,
       boeBaselined: false,
-      riskOpportunityRegisterCreated: false
+      riskOpportunityRegisterCreated: false,
+      initialMRSet: false,
+      roAnalysisComplete: null,
+      finalMRSet: false
     });
 
     return await programSetupStatusRepository.save(setupStatus);

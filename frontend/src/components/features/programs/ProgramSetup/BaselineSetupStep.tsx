@@ -15,10 +15,21 @@ const BaselineSetupStep: React.FC<BaselineSetupStepProps> = ({ programId, onStep
   const [pushing, setPushing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pushResult, setPushResult] = useState<{ success: boolean; entriesCreated: number; message: string } | null>(null);
+  const [setupStatus, setSetupStatus] = useState<any>(null);
 
   useEffect(() => {
     loadCurrentBOE();
+    loadSetupStatus();
   }, [programId]);
+
+  const loadSetupStatus = async () => {
+    try {
+      const status = await programSetupApi.getSetupStatus(programId);
+      setSetupStatus(status);
+    } catch (err: any) {
+      console.error('Error loading setup status:', err);
+    }
+  };
 
   const loadCurrentBOE = async () => {
     try {
@@ -54,6 +65,11 @@ const BaselineSetupStep: React.FC<BaselineSetupStepProps> = ({ programId, onStep
   const handlePushToLedger = async () => {
     if (!currentBOE) {
       setError('No BOE found to push to ledger');
+      return;
+    }
+
+    if (!setupStatus?.finalMRSet) {
+      setError('Final Management Reserve must be set before baselining. Please complete the Final MR step first.');
       return;
     }
 
@@ -111,6 +127,27 @@ const BaselineSetupStep: React.FC<BaselineSetupStepProps> = ({ programId, onStep
             <p className="text-red-800">
               You need to create and approve a BOE before you can baseline it to the ledger.
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!setupStatus?.finalMRSet) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="flex items-start">
+            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 mr-3 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-yellow-900 mb-2">Final MR Not Set</h3>
+              <p className="text-yellow-800 mb-4">
+                You must finalize your Management Reserve before you can baseline the BOE to the ledger.
+              </p>
+              <p className="text-sm text-yellow-700">
+                Please complete the "Finalize Management Reserve" step first.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -234,7 +271,7 @@ const BaselineSetupStep: React.FC<BaselineSetupStepProps> = ({ programId, onStep
       <div className="flex justify-end">
         <button
           onClick={handlePushToLedger}
-          disabled={pushing || currentBOE.status !== 'Approved'}
+          disabled={pushing || currentBOE.status !== 'Approved' || !setupStatus?.finalMRSet}
           className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
         >
           {pushing ? (

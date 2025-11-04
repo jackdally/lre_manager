@@ -26,6 +26,15 @@ export class ProgramSetupStatus {
   @Column({ default: false })
   riskOpportunityRegisterCreated!: boolean;
 
+  @Column({ default: false })
+  initialMRSet!: boolean;
+
+  @Column({ type: 'boolean', nullable: true, default: null })
+  roAnalysisComplete!: boolean | null;
+
+  @Column({ default: false })
+  finalMRSet!: boolean;
+
   // Computed property - setup is complete when all steps are done
   // This is computed in the service, not stored in DB
   setupComplete!: boolean;
