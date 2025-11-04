@@ -226,6 +226,24 @@ const Sidebar: React.FC = () => {
               </Link>
             )}
 
+            {/* ===== CORE OPERATIONS SECTION ===== */}
+            {sidebarOpen && (
+              <div
+                style={{
+                  width: '100%',
+                  padding: '8px 20px',
+                  marginTop: '8px',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: '#9ca3af',
+                }}
+              >
+                Core Operations
+              </div>
+            )}
+
             {/* Dashboard Link - Disabled if setup incomplete */}
             {isSetupComplete ? (
               <Link
@@ -278,6 +296,32 @@ const Sidebar: React.FC = () => {
               </div>
             )}
 
+            {/* Risks & Opportunities - Disabled if R&O register not initialized */}
+            {isSetupComplete || (setupStatus?.riskOpportunityRegisterCreated) ? (
+              <Link
+                to={`/programs/${programId}/risks`}
+                className={getNavLinkClassName()}
+                style={{ width: '100%' }}
+              >
+                <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>⚠️</span>
+                {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Risks & Opportunities</span>}
+              </Link>
+            ) : (
+              <div
+                className={getNavLinkClassName(false)}
+                style={{ width: '100%' }}
+                onClick={(e) => handleDisabledLinkClick(e, `/programs/${programId}/setup`)}
+                title="Initialize Risk & Opportunity register in setup"
+              >
+                <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>⚠️</span>
+                {sidebarOpen && (
+                  <span style={{ textAlign: 'left', width: '100%' }}>
+                    Risks & Opportunities <span className="text-xs text-gray-400">(Setup Required)</span>
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Upload Actuals - Disabled if setup not complete */}
             {isSetupComplete ? (
               <Link
@@ -304,6 +348,24 @@ const Sidebar: React.FC = () => {
               </div>
             )}
 
+            {/* ===== SETUP & CONFIGURATION SECTION ===== */}
+            {sidebarOpen && (
+              <div
+                style={{
+                  width: '100%',
+                  padding: '8px 20px',
+                  marginTop: '16px',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: '#9ca3af',
+                }}
+              >
+                Setup & Configuration
+              </div>
+            )}
+
             {/* BOE Link - Always available (needed for setup) */}
             <Link
               to={`/programs/${programId}/boe`}
@@ -313,32 +375,6 @@ const Sidebar: React.FC = () => {
               <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>📊</span>
               {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>BOE</span>}
             </Link>
-
-            {/* Risks & Opportunities - Disabled if R&O register not initialized */}
-            {isSetupComplete || (setupStatus?.riskOpportunityRegisterCreated) ? (
-              <Link
-                to={`/programs/${programId}/risks`}
-                className={getNavLinkClassName()}
-                style={{ width: '100%' }}
-              >
-                <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>⚠️</span>
-                {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Risks & Opportunities</span>}
-              </Link>
-            ) : (
-              <div
-                className={getNavLinkClassName(false)}
-                style={{ width: '100%' }}
-                onClick={(e) => handleDisabledLinkClick(e, `/programs/${programId}/setup`)}
-                title="Initialize Risk & Opportunity register in setup"
-              >
-                <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>⚠️</span>
-                {sidebarOpen && (
-                  <span style={{ textAlign: 'left', width: '100%' }}>
-                    Risks & Opportunities <span className="text-xs text-gray-400">(Setup Required)</span>
-                  </span>
-                )}
-              </div>
-            )}
 
             {/* Program Settings - Always available */}
             <Link

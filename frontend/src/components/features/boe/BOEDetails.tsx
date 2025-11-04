@@ -1248,25 +1248,35 @@ const BOEDetails: React.FC<BOEDetailsProps> = ({ programId }) => {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {calculationResult.costCategoryBreakdown.map((category) => (
-                            <tr key={category.costCategoryId}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {category.costCategoryName}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {category.elementCount}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatCurrency(category.estimatedCost)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {category.allocatedCost > 0 
-                                  ? formatCurrency(category.allocatedCost)
-                                  : <span className="text-gray-400">—</span>
-                                }
-                              </td>
-                            </tr>
-                          ))}
+                          {calculationResult.costCategoryBreakdown.map((category) => {
+                            // Look up the actual category name from costCategories
+                            const actualCategory = costCategories.find(cat => cat.id === category.costCategoryId);
+                            const displayName = actualCategory 
+                              ? actualCategory.name 
+                              : category.costCategoryId === 'uncategorized' 
+                                ? 'Uncategorized' 
+                                : category.costCategoryName;
+                            
+                            return (
+                              <tr key={category.costCategoryId}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {displayName}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {category.elementCount}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {formatCurrency(category.estimatedCost)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {category.allocatedCost > 0 
+                                    ? formatCurrency(category.allocatedCost)
+                                    : <span className="text-gray-400">—</span>
+                                  }
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

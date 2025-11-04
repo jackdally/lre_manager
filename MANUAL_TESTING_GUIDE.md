@@ -1,7 +1,7 @@
 # Manual Testing Guide - Program Setup Flow
 
 ## Overview
-This guide walks you through testing the complete program setup flow, from program creation to dashboard access.
+This guide walks you through testing the complete 7-step program setup flow, from program creation to dashboard access. The new workflow includes Initial MR, optional R&O Analysis, Final MR, and Baseline steps.
 
 ---
 
@@ -106,47 +106,163 @@ For each of the 3 elements you created (Software Development, Testing & QA, Proj
 
 ---
 
-## Step 4: Set Management Reserve (MR)
+## Step 4: Set Initial Management Reserve (MR)
 
-After allocations are created, you need to configure Management Reserve.
+After allocations are created, you need to set your **Initial Management Reserve**. This is your preliminary MR estimate that you can refine later.
 
 ### Navigate to Management Reserve Tab:
 - On the BOE page, click the **"Management Reserve"** tab
 - You should see the MR calculator/configuration interface
 
-### Configure Management Reserve:
+### Configure Initial Management Reserve:
 1. **Select Calculation Method**: Choose one:
-   - **Percentage of Estimated Cost**: Recommended for testing
-   - **Fixed Amount**: Alternative option
-   - **Custom**: Advanced option
+   - **Standard**: Industry standard percentage (10-15% based on project size)
+   - **Risk-Based**: Adjust based on project complexity and risk factors
+   - **Custom**: User-defined percentage
+   - **R&O-Driven**: (Not available yet - requires risk data)
 
-2. **If using Percentage method:**
-   - Enter percentage: `10%` (standard for testing)
-   - Or use the default calculation
+2. **For Standard method (recommended for testing):**
+   - The system will calculate a standard percentage based on total cost
    - Review the calculated MR amount
+   - For a $100,000 program, expect ~10-12% MR
 
 3. **Provide Justification** (Required):
    - Enter justification text, e.g.:
      ```
-     Standard 10% management reserve to cover unforeseen risks and opportunities
-     for this program. Based on program complexity and historical data.
+     Initial Management Reserve set at standard 10% to cover preliminary 
+     risk assessment. Will be refined in Final MR step after R&O analysis.
      ```
 
 4. **Save/Apply Management Reserve**
 
 ### Expected Result:
-- Management Reserve amount is calculated and displayed
+- Initial Management Reserve amount is calculated and displayed
 - MR justification is saved
-- BOE Progress tracker should show "Set MR" as complete
-- Total with MR is updated in BOE overview
+- Setup Step 2 (Initial MR) should be marked complete
+- You can proceed to Step 3 (Initialize R&O Register)
 
 ### Note:
-- Management Reserve is required before submitting BOE for approval
-- The justification field is mandatory - you cannot submit without it
+- Initial MR is a preliminary estimate - you'll have a chance to refine it in Step 6
+- The justification field is mandatory
 
 ---
 
-## Step 5: Submit BOE for Approval
+## Step 5: Initialize Risk & Opportunity Register
+
+You should now see the **"Initialize Risk & Opportunity Register"** step.
+
+### Actions:
+1. Read the information about R&O register initialization
+2. Click **"Initialize Risk & Opportunity Register"** button
+3. Should see confirmation: "Risk & Opportunity Register Initialized!"
+4. Step 3 (R&O Register) should be marked complete
+
+### Expected Result:
+- R&O register is initialized for the program
+- You can proceed to Step 4 (Optional R&O Analysis)
+
+---
+
+## Step 6: [OPTIONAL] Analyze Risks & Opportunities
+
+This step is **completely optional**. You can skip it and proceed directly to Final MR.
+
+### Option A: Skip R&O Analysis
+1. Click **"Skip R&O Analysis"** button
+2. Step 4 will be marked as skipped
+3. Proceed directly to Step 5 (Finalize MR)
+
+### Option B: Complete R&O Analysis
+1. Click **"Go to R&O Page"** button
+2. Navigate to the Risks & Opportunities page
+3. Add risks with:
+   - Cost impact estimates (min, most likely, max)
+   - Probability (0-100%)
+   - Severity levels (Low, Medium, High, Critical)
+4. Return to setup page
+5. Click **"Complete R&O Analysis"** button
+6. Step 4 will be marked as complete
+
+### Expected Result:
+- If skipped: Step 4 marked as skipped, proceed to Final MR
+- If completed: Step 4 marked as complete, R&O-Driven MR calculation available in next step
+
+### Note:
+- Completing R&O analysis enables the **R&O-Driven** calculation method in Final MR
+- R&O-Driven uses actual risk data to calculate MR automatically
+
+---
+
+## Step 7: Finalize Management Reserve
+
+Now you'll set your **Final Management Reserve** - the MR amount that will be baselined with your BOE.
+
+### Navigate to Management Reserve Tab:
+- Click **"Go to BOE to Finalize MR"** button
+- Or navigate to BOE page → Management Reserve tab
+
+### Configure Final Management Reserve:
+1. **Review Initial MR** (shown for comparison):
+   - See your Initial MR amount
+   - Compare with Final MR you're about to set
+
+2. **Select Calculation Method**:
+   - **R&O-Driven** (if you completed R&O analysis):
+     - Automatically calculates MR based on risk data
+     - Shows breakdown of risk adjustments
+     - Recommended if you have risk data
+   - **Standard/Risk-Based/Custom**:
+     - Adjust from Initial MR if needed
+     - Use if you skipped R&O analysis or want manual control
+
+3. **Review Calculated MR**:
+   - Compare Final MR to Initial MR
+   - See the difference and percentage change
+
+4. **Provide Justification** (if changed):
+   - Explain any adjustments from Initial MR
+
+5. **Save/Apply Final Management Reserve**
+
+6. **Return to Setup Page**:
+   - Click **"Mark Final MR as Set"** button on setup page
+   - Step 5 (Final MR) should be marked complete
+
+### Expected Result:
+- Final Management Reserve amount is calculated and displayed
+- Comparison view shows Initial MR vs Final MR
+- Setup Step 5 (Final MR) is marked complete
+- You can proceed to Step 6 (Submit BOE for Approval)
+
+---
+
+## Step 8: Submit BOE for Approval
+
+Now that WBS, Allocations, Initial MR, and Final MR are complete, you can submit the BOE for approval.
+
+### Navigate to BOE Overview Tab:
+- On the BOE page, go to the **"Overview"** tab
+- Review the BOE summary
+
+### Submit for Approval:
+1. Click **"Submit for Approval"** button
+2. Review any validation messages
+3. Confirm submission
+
+### Approval (if needed):
+- If approval workflow is configured, you may need to approve it
+- For testing, you can approve it yourself if you have permissions
+- Once approved, BOE status becomes "Approved"
+- Step 6 (BOE Approval) should be marked complete
+
+### Expected Result:
+- BOE status changes to "Under Review" or "Approved"
+- Program Setup page updates to show BOE approval step as complete
+- You can proceed to Step 7 (Baseline)
+
+---
+
+## Step 9: Baseline Budget to Ledger
 
 Now that WBS, Allocations, and MR are complete, you can submit the BOE for approval.
 
@@ -176,34 +292,30 @@ Now that WBS, Allocations, and MR are complete, you can submit the BOE for appro
 
 You should now see the **"Baseline Budget to Ledger"** step.
 
+### Pre-Baseline Checklist:
+The setup page will show a checklist verifying:
+- ✅ BOE Created
+- ✅ Initial MR Set
+- ✅ BOE Approved (must be in "Approved" status)
+- ✅ Final MR Set (required before baseline)
+
 ### Actions:
-1. Review the BOE summary shown
-2. Click **"Push to Ledger"** button
-3. Wait for confirmation message
-4. Should see: "Budget Baselined!" with number of ledger entries created
-5. Step 2 (Baseline) should be marked complete
+1. Review the pre-baseline checklist
+2. Review the BOE summary shown
+3. Review "What Happens When You Baseline" information
+4. **Read the warning** - this action cannot be undone
+5. Click **"Push to Ledger"** button
+6. Wait for confirmation message
+7. Should see: "Successfully Baselined!" with number of ledger entries created
+8. Step 7 (Baseline) should be marked complete
 
 ### Expected Result:
 - BOE status changes to "Baseline"
+- Management Reserve is locked and available for utilization
 - Ledger entries are created for each BOE allocation
-- You can verify this by checking the Ledger page later
-
----
-
-## Step 7: Initialize Risk & Opportunity Register
-
-You should now see the **"Initialize Risk & Opportunity Register"** step.
-
-### Actions:
-1. Read the information about R&O register
-2. Click **"Create Risk & Opportunity Register"** button
-3. Should see confirmation: "Risk & Opportunity Register Initialized!"
-4. Step 3 (R&O) should be marked complete
-
-### Expected Result:
-- R&O register is initialized
 - All setup steps are now complete
 - You should be automatically redirected to the Dashboard
+- MR utilization is now managed from the R&O page
 
 ---
 
@@ -253,20 +365,28 @@ After setup is complete, you should be redirected to `/programs/{id}/dashboard`.
 
 ## Quick Verification Checklist
 
+### Setup Steps (7 steps):
 - [x] Program created successfully
 - [x] Redirected to setup page automatically
-- [x] Setup progress indicator shows 0/3 steps
-- [x] BOE created successfully with WBS structure (3 elements)
-- [ ] Allocations created for all 3 elements with vendors
-- [ ] Management Reserve configured with justification
-- [ ] BOE submitted for approval
-- [ ] BOE approved (or auto-approved if no workflow)
-- [ ] BOE pushed to ledger successfully
-- [ ] R&O register initialized
+- [x] Setup progress indicator shows 0/7 steps
+- [x] Step 1: BOE created successfully with WBS structure (3 elements)
+- [ ] Step 1: Allocations created for all 3 elements with vendors
+- [ ] Step 2: Initial Management Reserve configured with justification
+- [ ] Step 3: R&O register initialized
+- [ ] Step 4: R&O analysis completed (optional) or skipped
+- [ ] Step 5: Final Management Reserve finalized (with comparison to Initial MR)
+- [ ] Step 6: BOE submitted for approval
+- [ ] Step 6: BOE approved (or auto-approved if no workflow)
+- [ ] Step 7: Pre-baseline checklist verified
+- [ ] Step 7: BOE pushed to ledger successfully
+- [ ] All 7 setup steps marked complete
 - [ ] Redirected to dashboard after setup complete
+
+### Post-Setup Verification:
 - [ ] Dashboard accessible (no redirect loop)
 - [ ] All navigation tabs enabled
 - [ ] Program Manager Email field visible and editable
+- [ ] MR utilization available on R&O page (not on BOE page)
 - [ ] No errors in console
 
 ---
@@ -284,13 +404,16 @@ After setup is complete, you should be redirected to `/programs/{id}/dashboard`.
 
 If you encounter issues:
 
-1. **Setup page keeps showing**: Check if all steps are actually marked complete
+1. **Setup page keeps showing**: Check if all 7 steps are actually marked complete
 2. **Can't create allocations**: Verify vendors exist in the database, check element selection
-3. **MR justification required**: Make sure you've entered justification text in the MR tab
-4. **BOE won't approve**: Check validation errors - ensure all required elements have allocations and MR is set
-5. **Can't push to ledger**: Ensure BOE is in "Approved" status
-6. **Navigation tabs disabled**: Check setup status in database or via API
-7. **Email field missing**: Check if migration ran successfully
+3. **Initial MR not set**: Make sure you've entered justification text and saved MR in the BOE page
+4. **Final MR not set**: Ensure you've set Final MR and clicked "Mark Final MR as Set" button on setup page
+5. **R&O-Driven not available**: Complete R&O analysis in Step 4 to enable this calculation method
+6. **BOE won't approve**: Check validation errors - ensure all required elements have allocations and Final MR is set
+7. **Can't push to ledger**: Ensure BOE is in "Approved" status and Final MR is set
+8. **Navigation tabs disabled**: Check setup status in database or via API - all 7 steps must be complete
+9. **Email field missing**: Check if migration ran successfully
+10. **MR utilization not showing**: After baselining, MR utilization is only available on the R&O page, not the BOE page
 
 ---
 

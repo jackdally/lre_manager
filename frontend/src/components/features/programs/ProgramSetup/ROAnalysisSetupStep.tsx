@@ -51,27 +51,50 @@ const ROAnalysisSetupStep: React.FC<ROAnalysisSetupStepProps> = ({ programId, on
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <div className="flex items-start">
           <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-blue-800">
-            <p className="font-medium mb-2">Risk & Opportunity Analysis (Optional)</p>
-            <p className="mb-2">
-              This step allows you to enter risks and opportunities with cost impacts and probabilities. 
-              This data can be used to calculate a more accurate Management Reserve in the next step.
-            </p>
-            <p>
-              <strong>Note:</strong> This step is optional. You can skip it and proceed directly to Finalizing your MR.
-            </p>
+          <div className="text-sm text-blue-800 space-y-3">
+            <div>
+              <p className="font-semibold text-base mb-2">Risk & Opportunity Analysis (Optional)</p>
+              <p>
+                This step is <strong>completely optional</strong>. You can skip it and proceed directly to Finalizing 
+                your Management Reserve using your Initial MR estimate.
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold mb-2">What is R&O Analysis?</p>
+              <p>
+                Risk & Opportunity analysis involves identifying specific risks (threats) and opportunities 
+                (potential benefits) for your program, along with their:
+              </p>
+              <ul className="list-disc list-inside space-y-1 ml-2 mt-2">
+                <li>Cost impact estimates (min, most likely, max)</li>
+                <li>Probability of occurrence (0-100%)</li>
+                <li>Severity levels (Low, Medium, High, Critical)</li>
+              </ul>
+            </div>
+            <div className="bg-blue-100 border border-blue-300 rounded p-3">
+              <p className="font-semibold mb-2">💡 Why Perform R&O Analysis?</p>
+              <p className="mb-2">
+                If you enter risk data, you can use the <strong>R&O-Driven calculation method</strong> in the next step 
+                to automatically calculate your Final MR based on actual risk data. This provides:
+              </p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>More accurate MR calculation using severity-weighted expected values</li>
+                <li>Data-driven budget adjustments instead of standard percentages</li>
+                <li>Better visibility into program risks for proactive management</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Benefits Box */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-        <h3 className="text-sm font-medium text-gray-900 mb-3">Benefits of R&O Analysis:</h3>
-        <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
-          <li>More accurate Management Reserve calculation based on actual risk data</li>
-          <li>Better visibility into program risks and opportunities</li>
-          <li>Data-driven decision making for budget adjustments</li>
-          <li>Improved risk management throughout the program lifecycle</li>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+        <h3 className="text-sm font-semibold text-green-900 mb-3">Benefits of Completing R&O Analysis:</h3>
+        <ul className="list-disc list-inside space-y-2 text-sm text-green-800">
+          <li><strong>R&O-Driven MR Calculation:</strong> Automatically calculate Final MR based on actual risk data with severity weighting</li>
+          <li><strong>Risk Visibility:</strong> Track and monitor risks throughout the program lifecycle</li>
+          <li><strong>Informed Decisions:</strong> Make budget adjustments based on quantitative risk analysis</li>
+          <li><strong>Opportunity Tracking:</strong> Identify and track potential cost savings or benefits</li>
         </ul>
       </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
-import { boeVersionsApi } from '../../../services/boeApi';
+import { boeVersionsApi, boeApprovalsApi } from '../../../services/boeApi';
 import { boeCommentsApi } from '../../../services/boeApi';
 import { formatCurrency, formatDate } from '../../../utils/currencyUtils';
 import { 
@@ -17,7 +17,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   PencilIcon,
-  ChatBubbleLeftIcon
+  ChatBubbleLeftIcon,
+  ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
@@ -62,8 +63,11 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
   const [showComparisonModal, setShowComparisonModal] = useState(false);
   const [showRollbackModal, setShowRollbackModal] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showApprovalHistoryModal, setShowApprovalHistoryModal] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<any>(null);
   const [compareVersion, setCompareVersion] = useState<any>(null);
+  const [approvalHistory, setApprovalHistory] = useState<any[]>([]);
+  const [approvalHistoryLoading, setApprovalHistoryLoading] = useState(false);
   
   // Form states
   const [rollbackReason, setRollbackReason] = useState('');
@@ -320,7 +324,7 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
                             {version.name}
                           </h5>
                           <span className="text-xs text-gray-500 flex-shrink-0">
-                            v{version.versionNumber}
+                            {version.versionNumber.startsWith('v') ? version.versionNumber : `v${version.versionNumber}`}
                           </span>
                           {version.isCurrent && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 flex-shrink-0">
@@ -388,6 +392,29 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
                           >
                             <ArrowPathIcon className="h-3 w-3" />
                             Rollback
+                          </button>
+                        )}
+                        
+                        {version.status !== 'Draft' && (
+                          <button
+                            onClick={async () => {
+                              setSelectedVersion(version);
+                              setShowApprovalHistoryModal(true);
+                              setApprovalHistoryLoading(true);
+                              try {
+                                const approvals = await boeApprovalsApi.getApprovals(version.id);
+                                setApprovalHistory(approvals);
+                              } catch (error) {
+                                console.error('Error loading approval history:', error);
+                                setApprovalHistory([]);
+                              } finally {
+                                setApprovalHistoryLoading(false);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 transition-colors"
+                          >
+                            <ClipboardDocumentCheckIcon className="h-3 w-3" />
+                            Approval History
                           </button>
                         )}
                       </div>
@@ -472,13 +499,13 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-50 rounded-lg p-4">
                 <h5 className="font-medium text-gray-900 mb-2">Base Version</h5>
-                <p className="text-sm text-gray-600">v{comparison.baseVersion.versionNumber}</p>
+                <p className="text-sm text-gray-600">{comparison.baseVersion.versionNumber.startsWith('v') ? comparison.baseVersion.versionNumber : `v${comparison.baseVersion.versionNumber}`}</p>
                 <p className="text-sm text-gray-600">{formatDate(comparison.baseVersion.createdAt)}</p>
                 <p className="text-sm font-medium mt-2">{formatCurrency(comparison.baseVersion.totalEstimatedCost)}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <h5 className="font-medium text-gray-900 mb-2">Compare Version</h5>
-                <p className="text-sm text-gray-600">v{comparison.compareVersion.versionNumber}</p>
+                <p className="text-sm text-gray-600">{comparison.compareVersion.versionNumber.startsWith('v') ? comparison.compareVersion.versionNumber : `v${comparison.compareVersion.versionNumber}`}</p>
                 <p className="text-sm text-gray-600">{formatDate(comparison.compareVersion.createdAt)}</p>
                 <p className="text-sm font-medium mt-2">{formatCurrency(comparison.compareVersion.totalEstimatedCost)}</p>
               </div>
@@ -660,6 +687,73 @@ const BOEHistory: React.FC<BOEHistoryProps> = ({ programId, sidebarWidth = 500 }
                 {addingComment ? 'Adding...' : 'Add Comment'}
               </Button>
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Approval History Modal */}
+      <Modal
+        isOpen={showApprovalHistoryModal}
+        onClose={() => {
+          setShowApprovalHistoryModal(false);
+          setApprovalHistory([]);
+        }}
+        title={`Approval History - ${selectedVersion?.name || 'Version'}`}
+      >
+        <div className="space-y-4">
+          {approvalHistoryLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : approvalHistory.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No approval history available for this version.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {approvalHistory.map((approval, index) => (
+                <div key={approval.id || index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-gray-900">{approval.approverName || 'Unknown Approver'}</p>
+                      <p className="text-sm text-gray-600">{approval.approverRole || 'Approver'}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        approval.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                        approval.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {approval.status || 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                  {approval.comments && (
+                    <p className="text-sm text-gray-700 mt-2">{approval.comments}</p>
+                  )}
+                  {approval.rejectionReason && (
+                    <p className="text-sm text-red-700 mt-2">
+                      <strong>Rejection Reason:</strong> {approval.rejectionReason}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">
+                    {approval.createdAt ? formatDate(approval.createdAt) : 'Date not available'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-end pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => {
+                setShowApprovalHistoryModal(false);
+                setApprovalHistory([]);
+              }}
+              variant="secondary"
+              size="sm"
+            >
+              Close
+            </Button>
           </div>
         </div>
       </Modal>

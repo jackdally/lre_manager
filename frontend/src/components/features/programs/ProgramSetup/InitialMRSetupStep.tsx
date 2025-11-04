@@ -146,15 +146,31 @@ const InitialMRSetupStep: React.FC<InitialMRSetupStepProps> = ({ programId, onSt
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <div className="flex items-start">
           <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-blue-800">
-            <p className="font-medium mb-2">Set Initial Management Reserve</p>
-            <p>
-              Set your initial Management Reserve (MR) using Standard, Risk-Based, or Custom calculation methods. 
-              This is your preliminary MR estimate that you can refine later based on Risk & Opportunity analysis.
-            </p>
-            <p className="mt-2">
-              <strong>Note:</strong> You'll have the opportunity to adjust this MR in the Final MR step after analyzing risks and opportunities.
-            </p>
+          <div className="text-sm text-blue-800 space-y-3">
+            <div>
+              <p className="font-semibold text-base mb-2">What is Initial Management Reserve?</p>
+              <p>
+                Initial Management Reserve (MR) is your preliminary estimate of the contingency funds needed to 
+                address unforeseen costs and risks in your program. This initial estimate is based on standard 
+                industry practices, your assessment of project complexity, or custom calculations.
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold mb-2">Why Set Initial MR Now?</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Establishes a baseline for budget planning and approval discussions</li>
+                <li>Provides an initial estimate before detailed risk analysis</li>
+                <li>Can be refined later based on actual Risk & Opportunity data</li>
+              </ul>
+            </div>
+            <div className="bg-blue-100 border border-blue-300 rounded p-3">
+              <p className="font-medium mb-1">📝 Next Steps:</p>
+              <p>
+                After setting your Initial MR, you'll have the option to analyze Risks & Opportunities. 
+                In the Final MR step, you can then refine your MR using the R&O-Driven calculation method 
+                (if R&O data is available) or adjust your Initial MR based on your analysis.
+              </p>
+            </div>
           </div>
         </div>
       </div>
