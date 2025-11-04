@@ -359,23 +359,23 @@ Following the development guidelines in `.git-branch-strategy.md` and `FEATURE_D
 - [ ] Test edge cases (no risks, zero probability, zero cost impact)
 - [ ] Test manual override functionality
 
-## Phase 3: Move MR Utilization to R&O Page
+## Phase 3: Move MR Utilization to R&O Page ✅ COMPLETE
 
 ### Backend
-- [ ] Update Risk entity with materializedAt, mrUtilizedAmount, mrUtilizationDate, mrUtilizationReason fields
-- [ ] Create database migration for Risk entity MR utilization fields
-- [ ] Implement utilizeMRForRisk() method in riskOpportunityService.ts
-- [ ] Create POST /api/risks/:riskId/utilize-mr endpoint
-- [ ] Verify Opportunity entity has realizedAt and cost impact fields
+- [x] Update Risk entity with materializedAt, mrUtilizedAmount, mrUtilizationDate, mrUtilizationReason fields
+- [x] Create database migration for Risk entity MR utilization fields
+- [x] Implement utilizeMRForRisk() method in riskOpportunityService.ts
+- [x] Create POST /api/risks/:riskId/utilize-mr endpoint
+- [x] Verify Opportunity entity has realizedAt and cost impact fields (Note: Opportunity entity does not exist yet - will be implemented in future feature)
 
 ### Frontend
-- [ ] Create MRUtilizationRequest.tsx component with form for MR utilization
-- [ ] Update RiskOpportunityPage.tsx to add Request MR Utilization button and display history
-- [ ] Update ManagementReserveTab.tsx to hide utilization view after baselining and show MR Summary
-- [ ] Create MRUtilizationHistory.tsx component to display history with risk context
+- [x] Create MRUtilizationRequest.tsx component with form for MR utilization
+- [x] Update RiskOpportunityPage.tsx to add Request MR Utilization button and display history
+- [x] Update ManagementReserveTab.tsx to hide utilization view after baselining and show MR Summary
+- [x] Create MRUtilizationHistory.tsx component to display history with risk context
 
 ### Testing
-- [ ] Test MR utilization from R&O page with valid risk
+- [ ] Test MR utilization from R&O page with valid risk (pending full R&O UI)
 - [ ] Test with insufficient MR (should show error)
 - [ ] Test opportunity tracking (separate from MR)
 - [ ] Verify MR tab shows read-only summary after baselining

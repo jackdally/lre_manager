@@ -40,5 +40,18 @@ export const riskOpportunityApi = {
       throw error;
     }
   },
+
+  // Utilize MR for a risk
+  utilizeMRForRisk: async (
+    riskId: string,
+    amount: number,
+    reason: string
+  ): Promise<{ risk: Risk; managementReserve: any }> => {
+    const response = await axios.post(`/api/risks/${riskId}/utilize-mr`, {
+      amount,
+      reason,
+    });
+    return response.data as { risk: Risk; managementReserve: any };
+  },
 };
 
