@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import ProgramDirectory from './components/features/programs/ProgramDirectory';
 import ProgramDashboard from './components/features/programs/ProgramDashboard';
+import ProgramSetup from './components/features/programs/ProgramSetup';
 import LedgerPage from './components/features/ledger/LedgerPage';
 import ProgramSettingsPage from './components/features/programs/ProgramSettings';
 import ActualsUploadPage from './components/features/actuals/ActualsUploadPage/index';
@@ -18,6 +19,7 @@ const App: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/" element={<ProgramDirectory />} />
+        <Route path="/programs/:id/setup" element={<ProgramSetup />} />
         <Route path="/programs/:id/dashboard" element={<ProgramDashboard />} />
         <Route path="/programs/:id/ledger" element={<LedgerPage />} />
         <Route path="/programs/:id/actuals" element={<ActualsUploadPage />} />
