@@ -193,14 +193,26 @@ const ProgramDirectory: React.FC = () => {
     try {
       if (editMode && editProgramId !== null) {
         await axios.put(`/api/programs/${editProgramId}`, newProgram);
+        await fetchPrograms();
+        setOpenDialog(false);
+        setEditMode(false);
+        setEditProgramId(null);
+        setNewProgram({ type: 'Annual', status: 'Active' });
       } else {
-        await axios.post('/api/programs', newProgram);
+        // Create new program
+        const response = await axios.post<Program>('/api/programs', newProgram);
+        const createdProgram = response.data;
+        await fetchPrograms();
+        setOpenDialog(false);
+        setEditMode(false);
+        setEditProgramId(null);
+        setNewProgram({ type: 'Annual', status: 'Active' });
+        
+        // Redirect to setup page for new programs
+        if (createdProgram && createdProgram.id) {
+          navigate(`/programs/${createdProgram.id}/setup`);
+        }
       }
-      await fetchPrograms();
-      setOpenDialog(false);
-      setEditMode(false);
-      setEditProgramId(null);
-      setNewProgram({ type: 'Annual', status: 'Active' });
     } catch (error) {
       console.error('Error saving program:', error);
     } finally {

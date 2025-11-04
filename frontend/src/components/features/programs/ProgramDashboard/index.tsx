@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Layout from '../../../layout';
+import { programSetupApi } from '../../../../services/programSetupApi';
 import LedgerTable from '../../ledger/LedgerTable/LedgerTable';
 import { ProgramSummaryBar } from './ProgramSummaryBar';
 import { SummaryMetrics } from './SummaryMetrics';
@@ -15,6 +16,7 @@ import { getYearMonth, CATEGORY_COLORS } from './utils';
 
 const ProgramDashboard: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [program, setProgram] = useState<Program | null>(null);
   const [summary, setSummary] = useState<SummaryType | null>(null);
   const [topRowSummary, setTopRowSummary] = useState<TopRowSummaryType | null>(null);
@@ -49,6 +51,18 @@ const ProgramDashboard: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Check setup status first - if not complete, redirect to setup page
+      try {
+        const setupStatus = await programSetupApi.getSetupStatus(id);
+        if (!setupStatus.setupComplete) {
+          navigate(`/programs/${id}/setup`);
+          return;
+        }
+      } catch (setupError) {
+        // If setup status check fails, continue to dashboard (might be old program without setup status)
+        console.warn('Could not check setup status, continuing to dashboard:', setupError);
+      }
 
       // Fetch program details
       const programResponse = await axios.get<Program>(`/api/programs/${id}`);
