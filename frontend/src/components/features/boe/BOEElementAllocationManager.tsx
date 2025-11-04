@@ -103,6 +103,7 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     [month: string]: { amount: number; quantity?: number; date: string; }
   }>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
 
   // Check if selected element is a parent
@@ -242,27 +243,28 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     return breakdown;
   };
 
-  const validateForm = (): boolean => {
-    const errors: string[] = [];
+  // Real-time field validation
+  useEffect(() => {
+    const fieldErrs: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      errors.push('Name is required');
+    if (formData.name.trim() === '' && (showCreateModal || editingAllocation)) {
+      fieldErrs.name = 'Allocation name is required';
     }
 
-    if (!formData.description.trim()) {
-      errors.push('Description is required');
+    if (formData.description.trim() === '' && (showCreateModal || editingAllocation)) {
+      fieldErrs.description = 'Description is required';
     }
 
-    if (formData.totalAmount <= 0) {
-      errors.push('Total amount must be greater than 0');
+    if (formData.totalAmount <= 0 && (showCreateModal || editingAllocation)) {
+      fieldErrs.totalAmount = 'Total amount must be greater than $0';
     }
 
-    if (!formData.startDate) {
-      errors.push('Start date is required');
+    if (!formData.startDate && (showCreateModal || editingAllocation)) {
+      fieldErrs.startDate = 'Start date is required';
     }
 
-    if (!formData.endDate) {
-      errors.push('End date is required');
+    if (!formData.endDate && (showCreateModal || editingAllocation)) {
+      fieldErrs.endDate = 'End date is required';
     }
 
     if (formData.startDate && formData.endDate) {
@@ -270,20 +272,63 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
       const endDate = new Date(formData.endDate);
       
       if (startDate >= endDate) {
-        errors.push('End date must be after start date');
+        fieldErrs.endDate = 'End date must be after start date';
+      }
+    }
+
+    if (formData.totalQuantity && formData.totalQuantity <= 0) {
+      fieldErrs.totalQuantity = 'Quantity must be greater than 0';
+    }
+
+    if (formData.totalQuantity && !formData.quantityUnit) {
+      fieldErrs.quantityUnit = 'Quantity unit is required when quantity is provided';
+    }
+
+    setFieldErrors(fieldErrs);
+  }, [formData, showCreateModal, editingAllocation]);
+
+  const validateForm = (): boolean => {
+    const errors: string[] = [];
+
+    if (!formData.name.trim()) {
+      errors.push('Allocation name is required to identify this allocation');
+    }
+
+    if (!formData.description.trim()) {
+      errors.push('Description is required to explain what this allocation covers');
+    }
+
+    if (formData.totalAmount <= 0) {
+      errors.push('Total amount must be greater than $0. Enter the total cost for this allocation');
+    }
+
+    if (!formData.startDate) {
+      errors.push('Start date is required to schedule when this allocation begins');
+    }
+
+    if (!formData.endDate) {
+      errors.push('End date is required to schedule when this allocation completes');
+    }
+
+    if (formData.startDate && formData.endDate) {
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+      
+      if (startDate >= endDate) {
+        errors.push('End date must be after start date. The allocation period must span at least one day');
       }
     }
 
     if (!['Linear', 'Front-Loaded', 'Back-Loaded', 'Custom'].includes(formData.allocationType)) {
-      errors.push('Valid allocation type is required');
+      errors.push('Please select a valid allocation type (Linear, Front-Loaded, Back-Loaded, or Custom)');
     }
 
     if (formData.totalQuantity && formData.totalQuantity <= 0) {
-      errors.push('Total quantity must be greater than 0 if provided');
+      errors.push('If you provide a quantity, it must be greater than 0');
     }
 
     if (formData.totalQuantity && !formData.quantityUnit) {
-      errors.push('Quantity unit is required when total quantity is provided');
+      errors.push('Quantity unit is required when quantity is provided (e.g., "hours", "units", "items")');
     }
 
     setValidationErrors(errors);
