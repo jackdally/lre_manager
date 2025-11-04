@@ -96,11 +96,18 @@ export class MonthlyActualsReminderService {
    */
   private static async sendEmailNotification(program: Program, month: string, reminderId: string): Promise<void> {
     // TODO: Integrate with email service when available
+    // Import email template functions when ready
+    // import { generateMonthlyActualsReminderSubject, generateMonthlyActualsReminderBody } from '../templates/monthlyActualsReminderEmail';
+    
     // For now, just log the notification
+    const uploadUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/programs/${program.id}/actuals`;
     console.log(`[Email Notification] Program: ${program.name}, Month: ${month}, Reminder ID: ${reminderId}`);
+    console.log(`[Email Notification] Upload URL: ${uploadUrl}`);
     
     // Placeholder: Would send email here
-    // await NotificationService.sendMonthlyActualsReminderEmail(program, month, reminderId);
+    // const subject = generateMonthlyActualsReminderSubject({ programName: program.name, programCode: program.code, month, reminderId, uploadUrl });
+    // const body = generateMonthlyActualsReminderBody({ programName: program.name, programCode: program.code, month, reminderId, uploadUrl });
+    // await NotificationService.sendEmail(program.program_manager || '', subject, body);
   }
 
   /**

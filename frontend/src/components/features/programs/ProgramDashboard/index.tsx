@@ -11,6 +11,7 @@ import { MainChart } from './MainChart';
 import { CategoryBreakdown } from './CategoryBreakdown';
 import { MissingActualsAlert } from './MissingActualsAlert';
 import { MonthSelector } from './MonthSelector';
+import MonthlyActualsReminder from '../../../common/MonthlyActualsReminder';
 import { Program, SummaryType, FullSummaryType, TopRowSummaryType, LedgerEntry, CategoryDataItem } from './types';
 import { getYearMonth, CATEGORY_COLORS } from './utils';
 
@@ -190,6 +191,9 @@ const ProgramDashboard: React.FC = () => {
                                   return (
     <Layout>
       <div className="p-6">
+        {/* Monthly Actuals Reminder */}
+        {id && <MonthlyActualsReminder programId={id} />}
+        
         {/* Missing Actuals Alert */}
         <MissingActualsAlert missingActuals={missingActuals} />
 
