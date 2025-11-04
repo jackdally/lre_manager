@@ -34,4 +34,3 @@ export const monthlyRemindersApi = {
     return response.data;
   },
 };
-

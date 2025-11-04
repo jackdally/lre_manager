@@ -123,4 +123,3 @@ const MonthlyActualsReminder: React.FC<MonthlyActualsReminderProps> = ({ program
 };
 
 export default MonthlyActualsReminder;
-
