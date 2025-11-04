@@ -1,8 +1,10 @@
 import { AppDataSource } from '../config/database';
 import { Program } from '../entities/Program';
+import { Risk } from '../entities/Risk';
 import { ProgramSetupService } from './programSetupService';
 
 const programRepository = AppDataSource.getRepository(Program);
+const riskRepository = AppDataSource.getRepository(Risk);
 
 export class RiskOpportunityService {
   /**
@@ -38,6 +40,29 @@ export class RiskOpportunityService {
       console.error('Error checking register initialization:', error);
       return false;
     }
+  }
+
+  /**
+   * Get risks for a program that are eligible for MR calculation
+   * Filters out closed/mitigated risks and returns only active risks
+   */
+  static async getRisksForMRCalculation(programId: string): Promise<Risk[]> {
+    const risks = await riskRepository.find({
+      where: {
+        program: { id: programId },
+        status: 'Identified', // Only include active/identified risks
+      },
+      order: {
+        createdAt: 'ASC',
+      },
+    });
+
+    // Filter out risks with zero probability or zero cost impact
+    return risks.filter(
+      (risk) =>
+        Number(risk.probability) > 0 &&
+        Number(risk.costImpactMostLikely) > 0
+    );
   }
 }
 

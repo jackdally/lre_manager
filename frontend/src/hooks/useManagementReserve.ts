@@ -25,7 +25,7 @@ export const useManagementReserve = (boeVersionId?: string) => {
 
     setMRLoading(true);
     setMRError(null);
-    
+
     try {
       const mr = await managementReserveApi.getManagementReserve(boeVersionId);
       setManagementReserve(mr);
@@ -56,7 +56,7 @@ export const useManagementReserve = (boeVersionId?: string) => {
 
   // Calculate MR
   const calculateManagementReserve = useCallback(async (
-    method: string, 
+    method: string,
     customPercentage?: number,
     projectComplexity?: string,
     riskFactors?: string[]
@@ -85,8 +85,8 @@ export const useManagementReserve = (boeVersionId?: string) => {
 
   // Utilize MR
   const utilizeManagementReserve = useCallback(async (
-    amount: number, 
-    reason: string, 
+    amount: number,
+    reason: string,
     description?: string
   ) => {
     if (!boeVersionId) return;
@@ -111,7 +111,7 @@ export const useManagementReserve = (boeVersionId?: string) => {
 
     setMRUtilizationLoading(true);
     setMRUtilizationError(null);
-    
+
     try {
       const history = await managementReserveApi.getManagementReserveHistory(boeVersionId);
       setMRUtilizationHistory(history);
@@ -156,22 +156,22 @@ export const useManagementReserve = (boeVersionId?: string) => {
     }
   }, [boeVersionId]);
 
-  const calculateRODrivenMR = useCallback(async (riskMatrixData: any) => {
+  const calculateRODrivenMR = useCallback(async () => {
     if (!boeVersionId) return;
 
     setMRLoading(true);
     setMRError(null);
     try {
-      const updatedMR = await managementReserveApi.calculateRODrivenMR(boeVersionId, riskMatrixData);
-      setManagementReserve(updatedMR);
-      return updatedMR;
+      // This returns a calculation result, not a ManagementReserve entity
+      const calculationResult = await managementReserveApi.calculateRODrivenMR(boeVersionId);
+      return calculationResult;
     } catch (error) {
       setMRError(error instanceof Error ? error.message : 'Failed to calculate R&O-driven MR');
       throw error;
     } finally {
       setMRLoading(false);
     }
-  }, [boeVersionId, setManagementReserve, setMRLoading, setMRError]);
+  }, [boeVersionId, setMRLoading, setMRError]);
 
   return {
     // State

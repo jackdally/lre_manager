@@ -16,6 +16,8 @@ import { AuditSource } from '../entities/LedgerAuditTrail';
 import { BOEElementAllocationService } from './boeElementAllocationService';
 import { BOEValidationService } from './boeValidationService';
 import { ProgramSetupService } from './programSetupService';
+import { RiskOpportunityService } from './riskOpportunityService';
+import { getSeverityWeight } from '../constants/severityWeights';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
@@ -156,8 +158,8 @@ export class BOEService {
    * Create BOE from template with allocations
    */
   static async createBOEFromTemplateWithAllocations(
-    programId: string, 
-    templateId: string, 
+    programId: string,
+    templateId: string,
     versionData: any,
     allocations: any[]
   ): Promise<any> {
@@ -191,7 +193,7 @@ export class BOEService {
     // Create BOE elements from template
     const templateElements = template.elements || [];
     const createdElements: BOEElement[] = [];
-    
+
     for (const templateElement of templateElements) {
       const boeElement = new BOEElement();
       boeElement.code = templateElement.code;
@@ -216,7 +218,7 @@ export class BOEService {
       for (const allocationData of allocations) {
         // Find the corresponding BOE element
         const boeElement = createdElements.find(element => element.name === allocationData.elementName);
-        
+
         if (boeElement) {
           // Calculate monthly breakdown
           const startDate = new Date(allocationData.startDate);
@@ -292,7 +294,7 @@ export class BOEService {
     const startMonth = startDate.getMonth();
     const endYear = endDate.getFullYear();
     const endMonth = endDate.getMonth();
-    
+
     // Calculate the difference in months
     const months = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
     return Math.max(1, months); // Ensure at least 1 month
@@ -314,7 +316,7 @@ export class BOEService {
     const monthKeys: string[] = [];
     const endMonthKey = endDate.toISOString().slice(0, 7); // YYYY-MM format
     let currentDate = new Date(startDate);
-    
+
     // Build complete list of months first
     while (true) {
       const monthKey = currentDate.toISOString().slice(0, 7);
@@ -324,7 +326,7 @@ export class BOEService {
       monthKeys.push(monthKey);
       currentDate.setMonth(currentDate.getMonth() + 1);
     }
-    
+
     const numberOfMonths = monthKeys.length;
     if (numberOfMonths === 0) {
       return breakdown;
@@ -337,7 +339,7 @@ export class BOEService {
     for (let i = 0; i < monthKeys.length; i++) {
       const monthKey = monthKeys[i];
       const monthDate = new Date(monthKey + '-01'); // First day of month
-      
+
       let monthlyAmount: number;
       let monthlyQuantity: number | null = null;
 
@@ -416,7 +418,7 @@ export class BOEService {
 
     // Recalculate total cost
     const totalCost = await this.calculateTotalEstimatedCost(boeVersionId);
-    
+
     // Recalculate management reserve
     const managementReserve = this.calculateManagementReserve(totalCost);
 
@@ -456,9 +458,9 @@ export class BOEService {
     }
 
     const currentBOE = program.boeVersions?.find(v => v.id === program.currentBOEVersionId) ||
-                      (program.boeVersions && program.boeVersions.length > 0 ? 
-                       program.boeVersions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] : 
-                       null);
+      (program.boeVersions && program.boeVersions.length > 0 ?
+        program.boeVersions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] :
+        null);
 
     if (!currentBOE) {
       return {
@@ -518,11 +520,11 @@ export class BOEService {
     // Build hierarchical structure for cost calculation
     const elementMap = new Map<string, any>();
     const rootElements: any[] = [];
-    
+
     elements.forEach(element => {
       elementMap.set(element.id, { ...element, childElements: [] });
     });
-    
+
     elements.forEach(element => {
       const mappedElement = elementMap.get(element.id)!;
       if (element.parentElementId) {
@@ -539,12 +541,12 @@ export class BOEService {
     // Helper to calculate aggregated cost from children (sum of all leaf descendants)
     const calculateAggregatedCost = (element: any): number => {
       const hasChildren = element.childElements && element.childElements.length > 0;
-      
+
       if (!hasChildren) {
         // Leaf element: return its own cost
         return Number(element.estimatedCost) || 0;
       }
-      
+
       // Parent element: sum all leaf descendants
       let total = 0;
       const sumLeafCosts = (children: any[]) => {
@@ -558,7 +560,7 @@ export class BOEService {
           }
         });
       };
-      
+
       sumLeafCosts(element.childElements);
       return total;
     };
@@ -580,7 +582,7 @@ export class BOEService {
     const requiredElements = elements.filter(e => e.isRequired);
     for (const element of requiredElements) {
       const isLeaf = isLeafElement(element);
-      
+
       // Cost validation: only check leaf elements
       if (isLeaf) {
         if (!element.estimatedCost || element.estimatedCost <= 0) {
@@ -651,7 +653,7 @@ export class BOEService {
     // Create BOE elements
     const createdElements: BOEElement[] = [];
     const elementIdMapping: { [tempId: string]: string } = {}; // Map temp IDs to database IDs
-    
+
     for (const elementData of elements) {
       const boeElement = new BOEElement();
       boeElement.code = elementData.code;
@@ -670,7 +672,7 @@ export class BOEService {
 
       const savedElement = await boeElementRepository.save(boeElement);
       createdElements.push(savedElement);
-      
+
       // Store mapping from temp ID to database ID
       if (elementData.id) {
         elementIdMapping[elementData.id] = savedElement.id;
@@ -696,7 +698,7 @@ export class BOEService {
         // Find the corresponding BOE element using the ID mapping
         const databaseElementId = elementIdMapping[allocationData.elementId];
         const boeElement = createdElements.find(element => element.id === databaseElementId);
-        
+
         if (boeElement) {
           // Calculate monthly breakdown
           const startDate = new Date(allocationData.startDate);
@@ -767,7 +769,7 @@ export class BOEService {
       const parentBoeElement = await boeElementRepository.findOne({
         where: { id: boeElement.parentElementId }
       });
-      
+
       if (parentBoeElement) {
         // Recursively create parent WBS element if it doesn't exist
         const parentWbsElement = await this.createWbsElementFromBoeElement(parentBoeElement, program);
@@ -820,7 +822,7 @@ export class BOEService {
     for (const allocation of allocations) {
       if (!allocation.isLocked) {
         await BOEElementAllocationService.pushToLedger(allocation.id, userId);
-        
+
         // Count the entries created for this allocation
         const monthlyBreakdown = allocation.monthlyBreakdown;
         if (monthlyBreakdown) {
@@ -920,7 +922,7 @@ export class BOEService {
       if (templateElement.parentId) {
         const newElementId = elementMap.get(templateElement.id);
         const newParentId = elementMap.get(templateElement.parentId);
-        
+
         if (newElementId && newParentId) {
           await boeElementRepository.update(newElementId, {
             parentElementId: newParentId
@@ -1004,7 +1006,7 @@ export class BOEService {
 
     const program = boeVersion.program;
     const boeElements = boeVersion.elements || [];
-    
+
     // Get existing program WBS elements
     const existingWbsElements = await wbsElementRepository.find({
       where: { program: { id: program.id } }
@@ -1018,7 +1020,7 @@ export class BOEService {
     for (const boeElement of boeElements) {
       // Check if WBS element already exists with same code
       const existingWbsElement = existingWbsElements.find(e => e.code === boeElement.code);
-      
+
       if (existingWbsElement) {
         // Update existing WBS element with BOE data
         await wbsElementRepository.update(existingWbsElement.id, {
@@ -1050,7 +1052,7 @@ export class BOEService {
       if (boeElement.parentElementId) {
         const wbsElementId = elementMap.get(boeElement.id);
         const wbsParentId = elementMap.get(boeElement.parentElementId);
-        
+
         if (wbsElementId && wbsParentId) {
           await wbsElementRepository.update(wbsElementId, {
             parentId: wbsParentId
@@ -1128,5 +1130,86 @@ export class BOEService {
       console.error('Error deleting BOE version:', error);
       throw error;
     }
+  }
+
+  /**
+   * Calculate R&O-Driven Management Reserve
+   * 
+   * Formula:
+   * Expected Value = Probability × Most Likely Cost Impact × Severity Multiplier
+   * Risk Adjustment = Sum of all risk expected values
+   * Final MR = Base MR (Standard calculation) + Risk Adjustment
+   * 
+   * @param boeVersionId - BOE version ID
+   * @param totalCost - Total cost from BOE (for base MR calculation)
+   * @returns Calculation result with breakdown
+   */
+  static async calculateRODrivenMR(boeVersionId: string, totalCost: number): Promise<{
+    amount: number;
+    percentage: number;
+    baseMR: number;
+    baseMRPercentage: number;
+    riskAdjustment: number;
+    breakdown: Array<{
+      riskId: string;
+      riskTitle: string;
+      costImpact: number;
+      probability: number;
+      severity: string;
+      severityMultiplier: number;
+      expectedValue: number;
+    }>;
+  }> {
+    // Get BOE version to find program
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId },
+      relations: ['program'],
+    });
+
+    if (!boeVersion || !boeVersion.program) {
+      throw new Error('BOE version or program not found');
+    }
+
+    // Calculate base MR using Standard method
+    const baseMR = this.calculateManagementReserve(totalCost, 'Standard');
+    const baseMRAmount = baseMR.amount;
+
+    // Get risks for MR calculation
+    const risks = await RiskOpportunityService.getRisksForMRCalculation(boeVersion.program.id);
+
+    // Calculate risk adjustments
+    let totalRiskAdjustment = 0;
+    const breakdown = risks.map((risk) => {
+      const costImpact = Number(risk.costImpactMostLikely);
+      const probability = Number(risk.probability) / 100; // Convert percentage to decimal
+      const severityMultiplier = getSeverityWeight(risk.severity as 'Low' | 'Medium' | 'High' | 'Critical');
+
+      // Expected Value = Probability × Most Likely Cost Impact × Severity Multiplier
+      const expectedValue = probability * costImpact * severityMultiplier;
+      totalRiskAdjustment += expectedValue;
+
+      return {
+        riskId: risk.id,
+        riskTitle: risk.title,
+        costImpact,
+        probability: Number(risk.probability),
+        severity: risk.severity,
+        severityMultiplier,
+        expectedValue: Math.round(expectedValue * 100) / 100, // Round to 2 decimal places
+      };
+    });
+
+    // Final MR = Base MR + Risk Adjustment
+    const finalMRAmount = baseMRAmount + totalRiskAdjustment;
+    const finalMRPercentage = totalCost > 0 ? (finalMRAmount / totalCost) * 100 : 0;
+
+    return {
+      amount: Math.round(finalMRAmount * 100) / 100,
+      percentage: Math.round(finalMRPercentage * 100) / 100,
+      baseMR: Math.round(baseMRAmount * 100) / 100,
+      baseMRPercentage: baseMR.percentage,
+      riskAdjustment: Math.round(totalRiskAdjustment * 100) / 100,
+      breakdown,
+    };
   }
 } 

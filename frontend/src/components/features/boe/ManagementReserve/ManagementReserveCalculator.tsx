@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  CalculatorIcon, 
-  ExclamationTriangleIcon, 
+import {
+  CalculatorIcon,
+  ExclamationTriangleIcon,
   CheckCircleIcon,
   InformationCircleIcon,
   CurrencyDollarIcon,
@@ -9,7 +9,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { ManagementReserve } from '../../../../store/boeStore';
 import { formatCurrency } from '../../../../utils/currencyUtils';
+import { managementReserveApi } from '../../../../services/boeApi';
 import Button from '../../../common/Button';
+import ROImpactBreakdown from './ROImpactBreakdown';
 
 interface ManagementReserveCalculatorProps {
   boeVersionId: string;
@@ -55,9 +57,55 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
   const [projectComplexity, setProjectComplexity] = useState<'Low' | 'Medium' | 'High'>('Medium');
   const [notes, setNotes] = useState<string>(currentMR?.notes || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [roCalculationResult, setRoCalculationResult] = useState<any>(null);
+  const [loadingROCalculation, setLoadingROCalculation] = useState(false);
+  const [roCalculationError, setRoCalculationError] = useState<string | null>(null);
+
+  const fetchRODrivenCalculation = React.useCallback(async () => {
+    if (!boeVersionId) return;
+
+    setLoadingROCalculation(true);
+    setRoCalculationError(null);
+
+    try {
+      const result = await managementReserveApi.calculateRODrivenMR(boeVersionId);
+      setRoCalculationResult(result);
+    } catch (error: any) {
+      console.error('Error calculating R&O-Driven MR:', error);
+      setRoCalculationError(error?.response?.data?.message || error?.message || 'Failed to calculate R&O-Driven MR');
+      setRoCalculationResult(null);
+    } finally {
+      setLoadingROCalculation(false);
+    }
+  }, [boeVersionId]);
+
+  // Fetch R&O-Driven calculation when method is selected
+  useEffect(() => {
+    if (calculationMethod === 'R&O-Driven' && boeVersionId) {
+      fetchRODrivenCalculation();
+    } else {
+      setRoCalculationResult(null);
+      setRoCalculationError(null);
+    }
+  }, [calculationMethod, boeVersionId, fetchRODrivenCalculation]);
 
   // Calculate MR based on selected method
   const calculatedMR = useMemo((): CalculationResult => {
+    // If R&O-Driven, use the fetched result
+    if (calculationMethod === 'R&O-Driven' && roCalculationResult) {
+      return {
+        amount: roCalculationResult.amount,
+        percentage: roCalculationResult.percentage,
+        breakdown: {
+          basePercentage: roCalculationResult.baseMRPercentage,
+          complexityAdjustment: 0,
+          riskAdjustment: roCalculationResult.riskAdjustment,
+          finalPercentage: roCalculationResult.percentage,
+          roAdjustment: roCalculationResult.riskAdjustment
+        }
+      };
+    }
+
     let basePercentage = 10;
     let complexityAdjustment = 0;
     let riskAdjustment = 0;
@@ -69,31 +117,36 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
         basePercentage = totalCost > 1000000 ? 10 : totalCost > 500000 ? 12 : 15;
         finalPercentage = basePercentage;
         break;
-      
+
       case 'Risk-Based':
         // Base percentage based on project size
         basePercentage = totalCost > 1000000 ? 8 : totalCost > 500000 ? 10 : 12;
-        
+
         // Complexity adjustment
         complexityAdjustment = projectComplexity === 'High' ? 3 : projectComplexity === 'Medium' ? 1 : 0;
-        
+
         // Risk factors adjustment
         riskAdjustment = riskFactors.length * 0.5; // 0.5% per risk factor
-        
+
         finalPercentage = Math.min(25, basePercentage + complexityAdjustment + riskAdjustment);
         break;
-      
+
       case 'Custom':
         finalPercentage = customPercentage;
         break;
-      
+
       case 'R&O-Driven':
-        // Placeholder: will use actual R&O data later
-        console.log('R&O-Driven calculation placeholder - will use actual risk matrix data');
-        basePercentage = totalCost > 1000000 ? 10 : totalCost > 500000 ? 12 : 15;
-        finalPercentage = basePercentage;
+        // If calculation is loading or failed, show placeholder
+        if (loadingROCalculation) {
+          basePercentage = totalCost > 1000000 ? 10 : totalCost > 500000 ? 12 : 15;
+          finalPercentage = basePercentage;
+        } else if (roCalculationError || !roCalculationResult) {
+          // Show base calculation if error
+          basePercentage = totalCost > 1000000 ? 10 : totalCost > 500000 ? 12 : 15;
+          finalPercentage = basePercentage;
+        }
         break;
-      
+
       default:
         finalPercentage = 10;
     }
@@ -108,15 +161,15 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
         complexityAdjustment,
         riskAdjustment,
         finalPercentage,
-        roAdjustment: 0 // Placeholder for R&O adjustments
+        roAdjustment: calculationMethod === 'R&O-Driven' && roCalculationResult ? roCalculationResult.riskAdjustment : 0
       }
     };
-  }, [calculationMethod, totalCost, customPercentage, projectComplexity, riskFactors]);
+  }, [calculationMethod, totalCost, customPercentage, projectComplexity, riskFactors, roCalculationResult, loadingROCalculation, roCalculationError]);
 
   // Handle save
   const handleSave = async () => {
     if (!isEditable) return;
-    
+
     setIsSubmitting(true);
     try {
       const newMR: Partial<ManagementReserve> = {
@@ -124,7 +177,7 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
         baselinePercentage: calculatedMR.percentage,
         adjustedAmount: calculatedMR.amount,
         adjustedPercentage: calculatedMR.percentage,
-        calculationMethod: calculationMethod as 'Standard' | 'Risk-Based' | 'Custom',
+        calculationMethod: calculationMethod as 'Standard' | 'Risk-Based' | 'Custom' | 'R&O-Driven',
         justification,
         notes,
         riskFactors: riskFactors.join(', '),
@@ -143,7 +196,7 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
   // Risk factor options
   const riskFactorOptions = [
     'Technology Risk',
-    'Schedule Risk', 
+    'Schedule Risk',
     'Resource Risk',
     'External Dependencies',
     'Regulatory Changes',
@@ -177,7 +230,7 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
                 Using Estimated Cost
               </h4>
               <p className="text-sm text-yellow-700">
-                Management Reserve is currently calculated from estimated costs because not all required allocations have been assigned. 
+                Management Reserve is currently calculated from estimated costs because not all required allocations have been assigned.
                 Once all allocations are complete, the calculation will automatically use allocated amounts instead.
               </p>
             </div>
@@ -218,14 +271,53 @@ const ManagementReserveCalculator: React.FC<ManagementReserveCalculatorProps> = 
           <RODrivenCalculationCard
             selected={calculationMethod === 'R&O-Driven'}
             onClick={() => setCalculationMethod('R&O-Driven')}
-            disabled={!showROIntegration || !isEditable}
+            disabled={!isEditable}
           />
         </div>
       </div>
 
-      {/* R&O Integration Placeholder */}
+      {/* R&O-Driven Calculation Display */}
       {calculationMethod === 'R&O-Driven' && (
-        <ROIntegrationPlaceholder />
+        <div className="space-y-4">
+          {loadingROCalculation && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+                <p className="text-sm text-blue-800">Calculating R&O-Driven MR...</p>
+              </div>
+            </div>
+          )}
+
+          {roCalculationError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <ExclamationTriangleIcon className="h-5 w-5 text-red-600 mr-2 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800 mb-1">Calculation Error</p>
+                  <p className="text-sm text-red-700">{roCalculationError}</p>
+                  <button
+                    onClick={fetchRODrivenCalculation}
+                    className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {roCalculationResult && (
+            <ROImpactBreakdown result={roCalculationResult} totalCost={totalCost} />
+          )}
+
+          {!loadingROCalculation && !roCalculationError && !roCalculationResult && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm text-gray-600">
+                No risks found for this program. R&O-Driven calculation requires at least one active risk with cost impact and probability.
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Calculation Interface */}
@@ -415,11 +507,10 @@ const CalculationMethodCard: React.FC<CalculationMethodCardProps> = ({
   <button
     onClick={onClick}
     disabled={disabled}
-    className={`p-4 rounded-lg border-2 text-left transition-all ${
-      selected
+    className={`p-4 rounded-lg border-2 text-left transition-all ${selected
         ? 'border-blue-500 bg-blue-50'
         : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
   >
     <div className="flex items-center justify-between mb-2">
       <h4 className="font-medium text-gray-900">{title}</h4>
@@ -444,53 +535,17 @@ const RODrivenCalculationCard: React.FC<RODrivenCalculationCardProps> = ({
   <button
     onClick={onClick}
     disabled={disabled}
-    className={`p-4 rounded-lg border-2 text-left transition-all ${
-      selected
+    className={`p-4 rounded-lg border-2 text-left transition-all ${selected
         ? 'border-blue-500 bg-blue-50'
         : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
   >
     <div className="flex items-center justify-between mb-2">
       <h4 className="font-medium text-gray-900">R&O-Driven</h4>
-      <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Coming Soon</span>
+      {selected && <CheckCircleIcon className="h-5 w-5 text-blue-600" />}
     </div>
     <p className="text-sm text-gray-600">Based on actual risk and opportunity analysis</p>
-    {disabled && (
-      <p className="text-xs text-gray-500 mt-1">
-        Available when R&O system is implemented
-      </p>
-    )}
   </button>
-);
-
-// R&O Integration Placeholder Component
-const ROIntegrationPlaceholder: React.FC = () => (
-  <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
-    <div className="flex items-center justify-between mb-4">
-      <h3 className="text-lg font-medium text-blue-700">R&O Integration</h3>
-      <span className="text-xs bg-blue-200 text-blue-600 px-2 py-1 rounded">Coming Soon</span>
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="bg-white rounded-lg p-4 border border-blue-100">
-        <h4 className="font-medium text-gray-700 mb-2">Risk Analysis</h4>
-        <p className="text-sm text-gray-600">
-          Calculate MR based on identified risks, their probability, and potential cost impact.
-        </p>
-      </div>
-      <div className="bg-white rounded-lg p-4 border border-blue-100">
-        <h4 className="font-medium text-gray-700 mb-2">Opportunity Analysis</h4>
-        <p className="text-sm text-gray-600">
-          Factor in opportunities that may reduce MR requirements.
-        </p>
-      </div>
-    </div>
-    <div className="mt-4 p-3 bg-blue-100 rounded-lg">
-      <p className="text-sm text-blue-700">
-        <strong>Note:</strong> This feature will be available when the R&O system is implemented. 
-        For now, please use Standard, Risk-Based, or Custom calculation methods.
-      </p>
-    </div>
-  </div>
 );
 
 export default ManagementReserveCalculator; 

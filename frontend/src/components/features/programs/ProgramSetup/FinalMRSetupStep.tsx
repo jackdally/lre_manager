@@ -160,8 +160,12 @@ const FinalMRSetupStep: React.FC<FinalMRSetupStepProps> = ({ programId, onStepCo
           <div className="text-sm text-blue-800">
             <p className="font-medium mb-2">Finalize Management Reserve</p>
             <p>
-              Set your final Management Reserve (MR) amount. You can use R&O-Driven calculation if you've entered 
-              risks and opportunities, or adjust from your Initial MR based on your analysis.
+              Set your final Management Reserve (MR) amount. You can use <strong>R&O-Driven calculation</strong> if you've entered 
+              risks and opportunities, or use Standard, Risk-Based, or Custom methods to adjust from your Initial MR.
+            </p>
+            <p className="mt-2">
+              <strong>R&O-Driven Calculation:</strong> Automatically calculates MR based on actual risk data with severity-weighted expected values.
+              Available when you have active risks entered in the R&O register.
             </p>
             <p className="mt-2">
               <strong>Note:</strong> This final MR will be included when you baseline your BOE to the ledger.
