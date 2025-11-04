@@ -22,8 +22,11 @@ import { ledgerSplittingRouter } from './routes/ledgerSplitting';
 import { transactionAdjustmentRouter } from './routes/transactionAdjustment';
 import programSetupRouter from './routes/programSetup';
 import riskOpportunityRouter from './routes/riskOpportunity';
+import monthlyRemindersRouter from './routes/monthlyReminders';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
+import * as cron from 'node-cron';
+import { MonthlyActualsReminderService } from './services/monthlyActualsReminderService';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -74,6 +77,7 @@ app.use('/api/ledger-splitting', ledgerSplittingRouter);
 app.use('/api/transaction-adjustment', transactionAdjustmentRouter);
 app.use('/api', programSetupRouter);
 app.use('/api', riskOpportunityRouter);
+app.use('/api', monthlyRemindersRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {
@@ -130,6 +134,25 @@ AppDataSource.initialize()
   .then(() => {
     console.log('Database connection established');
     printRoutes(app); // Print all routes after DB is ready
+    
+    // Schedule monthly actuals reminder check (runs on 5th of each month at 9:00 AM)
+    // Cron format: minute hour day month day-of-week
+    // '0 9 5 * *' = 9:00 AM on the 5th of every month
+    const cronExpression = process.env.MONTHLY_REMINDER_CRON || '0 9 5 * *';
+    
+    if (process.env.NODE_ENV !== 'test') {
+      cron.schedule(cronExpression, async () => {
+        console.log('[Monthly Reminder] Running scheduled check for missing actuals...');
+        try {
+          const result = await MonthlyActualsReminderService.checkAndCreateReminders();
+          console.log(`[Monthly Reminder] Check completed: ${result.remindersCreated} reminders created for ${result.programsChecked} programs`);
+        } catch (error) {
+          console.error('[Monthly Reminder] Error during scheduled check:', error);
+        }
+      });
+      console.log(`[Monthly Reminder] Scheduled job configured with cron: ${cronExpression}`);
+    }
+    
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
