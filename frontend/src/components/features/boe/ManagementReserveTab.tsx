@@ -5,7 +5,7 @@ import {
   ManagementReserveCalculator, 
   ManagementReserveDisplay
 } from './ManagementReserve';
-import { PencilIcon, EyeIcon, CalculatorIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, EyeIcon, CalculatorIcon, CheckCircleIcon, InformationCircleIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import { elementAllocationApi } from '../../../services/boeApi';
 import { BOECalculationService } from '../../../services/boeCalculationService';
 import type { BOEElementAllocation } from '../../../store/boeStore';
@@ -137,7 +137,7 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
       <div className="p-6">
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
-            <ChartBarIcon className="h-12 w-12 mx-auto" />
+            <CurrencyDollarIcon className="h-12 w-12 mx-auto" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No BOE Available</h3>
           <p className="text-gray-600">
@@ -253,7 +253,7 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
             ) : (
               <div className="text-center py-12">
                 <div className="text-gray-400 mb-4">
-                  <ChartBarIcon className="h-12 w-12 mx-auto" />
+                  <CurrencyDollarIcon className="h-12 w-12 mx-auto" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Management Reserve</h3>
                 <p className="text-gray-600 mb-4">
