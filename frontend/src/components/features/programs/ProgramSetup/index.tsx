@@ -4,8 +4,12 @@ import axios from 'axios';
 import Layout from '../../../layout';
 import SetupProgress from './SetupProgress';
 import BOESetupStep from './BOESetupStep';
+import InitialMRSetupStep from './InitialMRSetupStep';
 import BaselineSetupStep from './BaselineSetupStep';
 import RiskOpportunitySetupStep from './RiskOpportunitySetupStep';
+import ROAnalysisSetupStep from './ROAnalysisSetupStep';
+import FinalMRSetupStep from './FinalMRSetupStep';
+import BOEApprovalSetupStep from './BOEApprovalSetupStep';
 import { programSetupApi, SetupStatus } from '../../../../services/programSetupApi';
 
 interface Program {
@@ -20,6 +24,7 @@ interface SetupStep {
   title: string;
   description: string;
   completed: boolean;
+  optional?: boolean;
 }
 
 const ProgramSetup: React.FC = () => {
@@ -72,12 +77,19 @@ const ProgramSetup: React.FC = () => {
   const handleStepComplete = async () => {
     // Refresh setup status after step completion
     if (id) {
-      const updatedStatus = await programSetupApi.getSetupStatus(id);
-      setSetupStatus(updatedStatus);
-      
-      // If setup is now complete, redirect to dashboard
-      if (updatedStatus.setupComplete) {
-        navigate(`/programs/${id}/dashboard`);
+      try {
+        setLoading(true); // Show loading state to prevent jumpy UI
+        const updatedStatus = await programSetupApi.getSetupStatus(id);
+        setSetupStatus(updatedStatus);
+        
+        // If setup is now complete, redirect to dashboard
+        if (updatedStatus.setupComplete) {
+          navigate(`/programs/${id}/dashboard`);
+        }
+      } catch (err: any) {
+        console.error('Error refreshing setup status:', err);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -90,13 +102,13 @@ const ProgramSetup: React.FC = () => {
         id: 'boe',
         title: 'Create Basis of Estimate (BOE)',
         description: 'Build your program budget estimate with cost breakdowns',
-        completed: setupStatus.boeCreated && setupStatus.boeApproved,
+        completed: setupStatus.boeCreated,
       },
       {
-        id: 'baseline',
-        title: 'Baseline Budget to Ledger',
-        description: 'Push approved BOE to the ledger as baseline budget entries',
-        completed: setupStatus.boeBaselined,
+        id: 'initial-mr',
+        title: 'Set Initial Management Reserve',
+        description: 'Establish your initial MR using Standard, Risk-Based, or Custom calculation',
+        completed: setupStatus.initialMRSet,
       },
       {
         id: 'risk-opportunity',
@@ -104,20 +116,64 @@ const ProgramSetup: React.FC = () => {
         description: 'Set up your risk and opportunity management framework',
         completed: setupStatus.riskOpportunityRegisterCreated,
       },
+      {
+        id: 'ro-analysis',
+        title: 'Analyze Risks & Opportunities',
+        description: 'Enter risks and opportunities with cost impacts and probabilities (Optional)',
+        completed: setupStatus.roAnalysisComplete !== null,
+        optional: true,
+      },
+      {
+        id: 'final-mr',
+        title: 'Finalize Management Reserve',
+        description: 'Set final MR based on R&O analysis or adjust from Initial MR',
+        completed: setupStatus.finalMRSet,
+      },
+      {
+        id: 'approval',
+        title: 'Submit BOE for Approval',
+        description: 'Submit your BOE with final MR for approval',
+        completed: setupStatus.boeApproved,
+      },
+      {
+        id: 'baseline',
+        title: 'Baseline Budget to Ledger',
+        description: 'Push approved BOE to the ledger as baseline budget entries',
+        completed: setupStatus.boeBaselined,
+      },
     ];
   };
 
   const getCurrentStep = (): string | null => {
     if (!setupStatus) return null;
 
-    if (!setupStatus.boeCreated || !setupStatus.boeApproved) {
+    // Step 1: Create BOE (only requires creation, not approval)
+    if (!setupStatus.boeCreated) {
       return 'boe';
     }
-    if (!setupStatus.boeBaselined) {
-      return 'baseline';
+    // Step 2: Set Initial MR
+    if (!setupStatus.initialMRSet) {
+      return 'initial-mr';
     }
+    // Step 3: Initialize R&O Register
     if (!setupStatus.riskOpportunityRegisterCreated) {
       return 'risk-opportunity';
+    }
+    // Step 4: R&O Analysis (optional - can be skipped)
+    if (setupStatus.roAnalysisComplete === null) {
+      return 'ro-analysis';
+    }
+    // Step 5: Finalize MR
+    if (!setupStatus.finalMRSet) {
+      return 'final-mr';
+    }
+    // Step 6: Submit BOE for Approval
+    if (!setupStatus.boeApproved) {
+      return 'approval';
+    }
+    // Step 7: Baseline to Ledger
+    if (!setupStatus.boeBaselined) {
+      return 'baseline';
     }
     return null; // All steps complete
   };
@@ -201,11 +257,23 @@ const ProgramSetup: React.FC = () => {
           {currentStep === 'boe' && (
             <BOESetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
-          {currentStep === 'baseline' && (
-            <BaselineSetupStep programId={id!} onStepComplete={handleStepComplete} />
+          {currentStep === 'initial-mr' && (
+            <InitialMRSetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
           {currentStep === 'risk-opportunity' && (
             <RiskOpportunitySetupStep programId={id!} onStepComplete={handleStepComplete} />
+          )}
+          {currentStep === 'ro-analysis' && (
+            <ROAnalysisSetupStep programId={id!} onStepComplete={handleStepComplete} />
+          )}
+          {currentStep === 'final-mr' && (
+            <FinalMRSetupStep programId={id!} onStepComplete={handleStepComplete} />
+          )}
+          {currentStep === 'approval' && (
+            <BOEApprovalSetupStep programId={id!} onStepComplete={handleStepComplete} />
+          )}
+          {currentStep === 'baseline' && (
+            <BaselineSetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
         </div>
       </div>

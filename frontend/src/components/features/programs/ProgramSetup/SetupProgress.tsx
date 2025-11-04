@@ -7,6 +7,7 @@ interface SetupStep {
   title: string;
   description: string;
   completed: boolean;
+  optional?: boolean;
 }
 
 interface SetupProgressProps {
@@ -64,13 +65,20 @@ const SetupProgress: React.FC<SetupProgressProps> = ({ steps }) => {
               )}
             </div>
             <div className="flex-1">
-              <h3
-                className={`font-semibold mb-1 ${
-                  step.completed ? 'text-green-800' : index === completedCount ? 'text-blue-800' : 'text-gray-600'
-                }`}
-              >
-                {step.title}
-              </h3>
+              <div className="flex items-center gap-2 mb-1">
+                <h3
+                  className={`font-semibold ${
+                    step.completed ? 'text-green-800' : index === completedCount ? 'text-blue-800' : 'text-gray-600'
+                  }`}
+                >
+                  {step.title}
+                </h3>
+                {step.optional && (
+                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                    Optional
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-600">{step.description}</p>
             </div>
           </div>
