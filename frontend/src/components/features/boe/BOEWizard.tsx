@@ -956,32 +956,56 @@ const BOEWizard: React.FC<BOEWizardProps> = ({ programId, onComplete, onCancel, 
       });
     };
 
-    if (editingWBSElement) {
+    // Check if element exists in current structure (for edit vs new)
+    const elementExistsInStructure = (elements: BOEElement[], elementId: string): boolean => {
+      for (const el of elements) {
+        if (el.id === elementId) {
+          return true;
+        }
+        if (el.childElements && elementExistsInStructure(el.childElements, elementId)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Determine if this is an edit or a new element
+    const isEditingExisting = editingWBSElement && 
+      elementExistsInStructure(currentData.wbsStructure, editingWBSElement.id);
+
+    if (isEditingExisting) {
       // Update existing element
+      console.log('[BOEWizard] Updating existing element:', elementData.id);
       setCurrentData(prev => ({
         ...prev,
-        wbsStructure: updateElementInArray(prev.wbsStructure, elementData)
+        wbsStructure: recalcWBSCodes(updateElementInArray(prev.wbsStructure, elementData))
       }));
     } else {
       // Add new element
       const newElement = {
         ...elementData,
-        id: `temp-${Date.now()}`,
+        id: elementData.id || `temp-${Date.now()}`,
         childElements: []
       };
 
       if (editingWBSElementParentId) {
         // Add as child
+        console.log('[BOEWizard] Adding child element to parent:', editingWBSElementParentId);
         setCurrentData(prev => ({
           ...prev,
           wbsStructure: recalcWBSCodes(addChildToParent(prev.wbsStructure, editingWBSElementParentId, newElement))
         }));
       } else {
         // Add as root
-        setCurrentData(prev => ({
-          ...prev,
-          wbsStructure: recalcWBSCodes([...prev.wbsStructure, newElement])
-        }));
+        console.log('[BOEWizard] Adding root element:', newElement.code, newElement.name);
+        setCurrentData(prev => {
+          const updated = recalcWBSCodes([...prev.wbsStructure, newElement]);
+          console.log('[BOEWizard] Updated WBS structure, new count:', updated.length);
+          return {
+            ...prev,
+            wbsStructure: updated
+          };
+        });
       }
     }
 

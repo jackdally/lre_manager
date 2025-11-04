@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBOEStore } from '../../../../store/boeStore';
-import { boeVersionsApi, boeApprovalsApi } from '../../../../services/boeApi';
+import { boeVersionsApi } from '../../../../services/boeApi';
+import { elementAllocationApi } from '../../../../services/boeApi';
 import { programSetupApi } from '../../../../services/programSetupApi';
 import BOEWizard from '../../boe/BOEWizard';
 import BOEApprovalWorkflow from '../../boe/BOEApprovalWorkflow';
-import { CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useManagementReserve } from '../../../../hooks/useManagementReserve';
+import BOECalculationService from '../../../../services/boeCalculationService';
+import { CheckCircleIcon, ExclamationTriangleIcon, ArrowRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 interface BOESetupStepProps {
   programId: string;
@@ -12,15 +16,30 @@ interface BOESetupStepProps {
 }
 
 const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }) => {
-  const { currentBOE, setCurrentBOE, openWizard, closeWizard, showWizard } = useBOEStore();
+  const navigate = useNavigate();
+  const { 
+    currentBOE, 
+    setCurrentBOE, 
+    elements,
+    setElements,
+    elementAllocations,
+    setElementAllocations,
+    openWizard, 
+    closeWizard, 
+    showWizard 
+  } = useBOEStore();
+  
   const [boeStatus, setBoeStatus] = useState<'none' | 'creating' | 'draft' | 'under-review' | 'approved' | 'error'>('none');
   const [error, setError] = useState<string | null>(null);
-  const [checkingApproval, setCheckingApproval] = useState(false);
   const [showWizardLocal, setShowWizardLocal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Load current BOE on mount
+  // Load Management Reserve
+  const { managementReserve: mrData } = useManagementReserve(currentBOE?.id);
+
+  // Load current BOE and related data on mount
   useEffect(() => {
-    loadCurrentBOE();
+    loadBOEData();
   }, [programId]);
 
   // Check BOE status and update setup status accordingly
@@ -57,20 +76,45 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
 
       return () => clearInterval(interval);
     }
-  }, [boeStatus, currentBOE?.id, programId]);
+  }, [boeStatus, currentBOE?.id, programId, setCurrentBOE]);
 
-  const loadCurrentBOE = async () => {
+  const loadBOEData = async () => {
     try {
+      setLoading(true);
+      setError(null);
+
       const boeData = await boeVersionsApi.getCurrentBOE(programId);
       if (boeData.currentBOE) {
-        setCurrentBOE(boeData.currentBOE);
-        updateBoeStatus(boeData.currentBOE.status);
+        const currentBOE = boeData.currentBOE;
+        setCurrentBOE(currentBOE);
+        
+        // Extract elements from currentBOE (they're included in relations)
+        // The API returns elements nested in currentBOE.elements, not at boeData.elements level
+        const elementsFromBOE = currentBOE.elements || [];
+        setElements(elementsFromBOE);
+        updateBoeStatus(currentBOE.status);
+        
+        // Load allocations
+        if (currentBOE.id) {
+          try {
+            const allocations = await elementAllocationApi.getElementAllocations(currentBOE.id);
+            setElementAllocations(allocations);
+          } catch (err) {
+            console.error('Error loading allocations:', err);
+            setElementAllocations([]);
+          }
+        }
       } else {
         setBoeStatus('none');
+        setElements([]);
+        setElementAllocations([]);
       }
     } catch (err: any) {
       console.error('Error loading BOE:', err);
       setBoeStatus('none');
+      setError(err?.message || 'Failed to load BOE data');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,6 +134,117 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
     }
   };
 
+  // Check if BOE is ready for approval (same logic as BOEProgressTracker)
+  const boeReadiness = useMemo(() => {
+    if (!currentBOE) {
+      return {
+        isReady: false,
+        incompleteSteps: ['Create BOE'],
+        missingItems: []
+      };
+    }
+
+    // Check if elements are loaded
+    if (!elements || elements.length === 0) {
+      return {
+        isReady: false,
+        incompleteSteps: ['Define WBS Structure'],
+        missingItems: ['No WBS elements found. Please add elements to your BOE.']
+      };
+    }
+
+    const hierarchical = BOECalculationService.buildHierarchicalStructure(elements);
+    const validation = hierarchical.length > 0
+      ? BOECalculationService.validateBOEStructure(hierarchical)
+      : { isValid: false, errors: [] as string[] };
+
+    // Determine WBS status (matching BOEProgressTracker logic)
+    // WBS is complete if elements exist and validation is valid
+    // WBS is in-progress if elements exist but validation fails
+    // WBS is not-started if no elements
+    const wbsIsComplete = elements.length > 0 && validation.isValid;
+
+    // If WBS is not complete, show that as incomplete
+    if (!wbsIsComplete) {
+      return {
+        isReady: false,
+        incompleteSteps: ['Define WBS Structure'],
+        missingItems: validation.errors.length > 0 
+          ? validation.errors 
+          : ['WBS structure needs to be completed and validated']
+      };
+    }
+
+    // WBS is complete, now check allocations and MR
+    // Check required leaf elements
+    const requiredLeaves: any[] = [];
+    const walk = (els: any[]) => {
+      els.forEach(el => {
+        const hasChildren = !!(el.childElements && el.childElements.length > 0);
+        if (!hasChildren) {
+          if (el.isRequired) requiredLeaves.push(el);
+        } else if (el.childElements) {
+          walk(el.childElements);
+        }
+      });
+    };
+    walk(hierarchical);
+
+    // Check allocations (matching BOEProgressTracker logic)
+    const allocatedRequiredLeaves = requiredLeaves.filter(leaf =>
+      (elementAllocations || []).some(a => a.boeElementId === leaf.id && (a.totalAmount || 0) > 0)
+    ).length;
+
+    const missingAllocations: string[] = [];
+    requiredLeaves.forEach(leaf => {
+      const total = (elementAllocations || [])
+        .filter(a => a.boeElementId === leaf.id)
+        .reduce((s, a) => s + (a.totalAmount || 0), 0);
+      if (total <= 0) {
+        missingAllocations.push(`${leaf.code} - ${leaf.name}`);
+      }
+    });
+
+    // Check Management Reserve (matching BOEProgressTracker logic)
+    const mrJustification = (mrData?.justification || '').trim();
+    const hasMRRecord = !!mrData;
+    const hasMRJustification = mrJustification.length > 0;
+    const mrAddressed = hasMRRecord && hasMRJustification;
+
+    const incompleteSteps: string[] = [];
+    const missingItems: string[] = [];
+
+    // Only show allocations as incomplete if there are required leaves that need allocations
+    if (requiredLeaves.length > 0 && allocatedRequiredLeaves < requiredLeaves.length) {
+      incompleteSteps.push('Create Allocations');
+      if (missingAllocations.length > 0) {
+        // Show up to 5 missing allocations, then summarize
+        const displayCount = Math.min(missingAllocations.length, 5);
+        missingItems.push(...missingAllocations.slice(0, displayCount).map(item => `Allocation needed: ${item}`));
+        if (missingAllocations.length > 5) {
+          missingItems.push(`... and ${missingAllocations.length - 5} more`);
+        }
+      }
+    }
+
+    if (!mrAddressed) {
+      incompleteSteps.push('Set Management Reserve');
+      if (!hasMRRecord) {
+        missingItems.push('Management Reserve record not created');
+      } else if (!hasMRJustification) {
+        missingItems.push('Management Reserve justification is required');
+      }
+    }
+
+    const isReady = incompleteSteps.length === 0 && allocatedRequiredLeaves === requiredLeaves.length && mrAddressed;
+
+    return {
+      isReady,
+      incompleteSteps,
+      missingItems
+    };
+  }, [currentBOE, elements, elementAllocations, mrData]);
+
   const handleBOECreated = async (boe: any) => {
     try {
       setCurrentBOE(boe);
@@ -98,43 +253,12 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
       // Update setup status to mark BOE as created
       await programSetupApi.updateSetupStatus(programId, { boeCreated: true });
       
-      // Check if approval is needed (based on BOE amount or other criteria)
-      // For now, we'll automatically submit for approval if BOE is complete
-      // In a real scenario, you might want to check if BOE meets approval criteria first
-      await handleSubmitForApproval(boe.id);
+      // Reload BOE data to get elements
+      await loadBOEData();
     } catch (err: any) {
       console.error('Error handling BOE creation:', err);
       setError(err?.message || 'Failed to process BOE creation');
       setBoeStatus('error');
-    }
-  };
-
-  const handleSubmitForApproval = async (boeVersionId?: string) => {
-    try {
-      setCheckingApproval(true);
-      setError(null);
-      
-      const boeId = boeVersionId || currentBOE?.id;
-      if (!boeId) {
-        throw new Error('BOE ID is required');
-      }
-
-      // Submit BOE for approval
-      const updatedBOE = await boeVersionsApi.submitForApproval(programId);
-      setCurrentBOE(updatedBOE);
-      setBoeStatus('under-review');
-      
-      // Setup status will be updated when BOE is approved
-    } catch (err: any) {
-      console.error('Error submitting for approval:', err);
-      const errorMessage = err?.response?.data?.message || err?.message || 'Failed to submit for approval';
-      setError(errorMessage);
-      
-      // If submission fails, BOE is still created, just not submitted for approval yet
-      // User can manually submit later
-      setBoeStatus('draft');
-    } finally {
-      setCheckingApproval(false);
     }
   };
 
@@ -250,26 +374,85 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
     );
   }
 
-  // Show draft status
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading BOE data...</p>
+      </div>
+    );
+  }
+
+  // Show draft status with completion check
   if (boeStatus === 'draft') {
+    const { isReady, incompleteSteps, missingItems } = boeReadiness;
+
     return (
       <div className="space-y-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div className={`border rounded-lg p-6 ${isReady ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
           <div className="flex items-start">
-            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 mr-3 mt-0.5" />
+            {isReady ? (
+              <CheckCircleIcon className="h-6 w-6 text-green-600 mr-3 mt-0.5" />
+            ) : (
+              <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 mr-3 mt-0.5" />
+            )}
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-yellow-900 mb-2">BOE Created</h3>
-              <p className="text-yellow-800 mb-4">
-                Your BOE has been created successfully. {error ? `Error: ${error}` : 'Submitting for approval...'}
-              </p>
-              {error && (
-                <button
-                  onClick={() => handleSubmitForApproval()}
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium"
-                  disabled={checkingApproval}
-                >
-                  {checkingApproval ? 'Submitting...' : 'Submit for Approval'}
-                </button>
+              <h3 className="text-lg font-semibold mb-2 text-gray-900">BOE Created</h3>
+              {isReady ? (
+                <div>
+                  <p className="text-green-800 mb-4">
+                    Your BOE is complete and ready to submit for approval! All required steps have been completed.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => navigate(`/programs/${programId}/boe`)}
+                      className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                    >
+                      <DocumentTextIcon className="h-5 w-5 mr-2" />
+                      Go to BOE to Submit
+                      <ArrowRightIcon className="h-5 w-5 ml-2" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-yellow-800 mb-4">
+                    Your BOE has been created, but you need to complete additional steps before it can be submitted for approval.
+                  </p>
+                  
+                  {incompleteSteps.length > 0 && (
+                    <div className="mb-4">
+                      <p className="font-medium text-yellow-900 mb-2">Still need to complete:</p>
+                      <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                        {incompleteSteps.map((step, idx) => (
+                          <li key={idx}>{step}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {missingItems.length > 0 && missingItems.length <= 5 && (
+                    <div className="mb-4 text-sm">
+                      <p className="font-medium text-yellow-900 mb-2">Details:</p>
+                      <ul className="list-disc list-inside space-y-1 text-yellow-700">
+                        {missingItems.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => navigate(`/programs/${programId}/boe`)}
+                      className="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium"
+                    >
+                      <DocumentTextIcon className="h-5 w-5 mr-2" />
+                      Complete BOE Setup
+                      <ArrowRightIcon className="h-5 w-5 ml-2" />
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -287,6 +470,14 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
           <p className="text-blue-800 mb-4">
             Your BOE has been submitted for approval. Please wait for approval before proceeding.
           </p>
+          <button
+            onClick={() => navigate(`/programs/${programId}/boe`)}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          >
+            <DocumentTextIcon className="h-5 w-5 mr-2" />
+            View BOE Approval Status
+            <ArrowRightIcon className="h-5 w-5 ml-2" />
+          </button>
         </div>
         <BOEApprovalWorkflow programId={programId} />
       </div>
@@ -323,7 +514,7 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
             onClick={() => {
               setError(null);
               setBoeStatus('none');
-              loadCurrentBOE();
+              loadBOEData();
             }}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
           >
@@ -344,4 +535,3 @@ const BOESetupStep: React.FC<BOESetupStepProps> = ({ programId, onStepComplete }
 };
 
 export default BOESetupStep;
-
