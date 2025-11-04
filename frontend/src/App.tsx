@@ -10,9 +10,7 @@ import UploadSessionDetails from './components/features/actuals/UploadSessionDet
 import SettingsPage from './components/features/settings/SettingsPage';
 import { BOEPage } from './components/features/boe';
 import DocsPage from './components/features/docs/DocsPage';
-
-// Placeholder component for Risks & Opportunities
-const RisksPage = () => <div className="p-8"><h1 className="text-2xl font-bold mb-4">Risks & Opportunities</h1><p>This is a placeholder for the Risks & Opportunities page.</p></div>;
+import RiskOpportunityPage from './components/features/riskOpportunity/RiskOpportunityPage';
 
 const App: React.FC = () => {
   return (
@@ -24,7 +22,7 @@ const App: React.FC = () => {
         <Route path="/programs/:id/ledger" element={<LedgerPage />} />
         <Route path="/programs/:id/actuals" element={<ActualsUploadPage />} />
         <Route path="/programs/:id/boe" element={<BOEPage />} />
-        <Route path="/programs/:id/risks" element={<RisksPage />} />
+        <Route path="/programs/:id/risks" element={<RiskOpportunityPage />} />
         <Route path="/programs/:id/settings" element={<ProgramSettingsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/uploads/:id" element={<UploadSessionDetails />} />
