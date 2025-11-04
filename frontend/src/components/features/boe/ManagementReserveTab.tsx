@@ -3,10 +3,9 @@ import { useBOEStore } from '../../../store/boeStore';
 import { useManagementReserve } from '../../../hooks/useManagementReserve';
 import { 
   ManagementReserveCalculator, 
-  ManagementReserveDisplay, 
-  ManagementReserveUtilization 
+  ManagementReserveDisplay
 } from './ManagementReserve';
-import { PencilIcon, EyeIcon, ChartBarIcon, CalculatorIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, EyeIcon, CalculatorIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { elementAllocationApi } from '../../../services/boeApi';
 import { BOECalculationService } from '../../../services/boeCalculationService';
 import type { BOEElementAllocation } from '../../../store/boeStore';
@@ -15,7 +14,7 @@ interface ManagementReserveTabProps {
   programId: string;
 }
 
-type MRViewMode = 'calculator' | 'display' | 'utilization';
+type MRViewMode = 'calculator' | 'display';
 
 const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }) => {
   const { currentBOE, elements, elementAllocations, setElementAllocations } = useBOEStore();
@@ -27,11 +26,8 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
     managementReserve,
     mrLoading,
     mrError,
-    mrUtilizationHistory,
     loadManagementReserve,
     updateManagementReserve,
-    utilizeManagementReserve,
-    loadMRUtilizationHistory,
   } = useManagementReserve(currentBOE?.id);
 
   // Check if BOE is baselined (MR utilization moved to R&O page)
@@ -41,9 +37,8 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
   useEffect(() => {
     if (currentBOE?.id) {
       loadManagementReserve();
-      loadMRUtilizationHistory();
     }
-  }, [currentBOE?.id, loadManagementReserve, loadMRUtilizationHistory]);
+  }, [currentBOE?.id, loadManagementReserve]);
 
   // Load element allocations
   useEffect(() => {
@@ -79,15 +74,6 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
     }
   };
 
-  const handleUtilizeMR = async (amount: number, reason: string, description?: string) => {
-    try {
-      await utilizeManagementReserve(amount, reason, description);
-      // Refresh utilization history
-      loadMRUtilizationHistory();
-    } catch (error) {
-      console.error('Error utilizing MR:', error);
-    }
-  };
 
   // Calculate totals and check if all required allocations are complete
   const { totalCost, totalAllocatedCost, allRequiredAllocated, usingEstimatedCost } = useMemo(() => {
@@ -236,20 +222,6 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
                 </button>
               )
             )}
-            {/* Hide utilization view after baselining - MR utilization moved to R&O page */}
-            {!isBaselined && (
-              <button
-                onClick={() => setViewMode('utilization')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  viewMode === 'utilization'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <ChartBarIcon className="h-4 w-4 inline mr-1" />
-                Utilization
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -312,30 +284,6 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
           </div>
         )}
 
-        {/* Utilization view - hidden after baselining (moved to R&O page) */}
-        {viewMode === 'utilization' && !isBaselined && (
-          <div>
-            {managementReserve ? (
-              <ManagementReserveUtilization
-                managementReserve={managementReserve}
-                utilizationHistory={mrUtilizationHistory}
-                onUtilizeMR={handleUtilizeMR}
-                isEditable={currentBOE.status === 'Draft'}
-              />
-            ) : (
-              <div className="text-center py-12">
-                <div className="text-gray-400 mb-4">
-                  <ChartBarIcon className="h-12 w-12 mx-auto" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Management Reserve</h3>
-                <p className="text-gray-600">
-                  Management reserve must be calculated before tracking utilization.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Show read-only MR Summary after baselining */}
         {isBaselined && managementReserve && (
           <div>
@@ -349,9 +297,9 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
               <div className="flex items-start">
                 <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h4 className="text-sm font-medium text-blue-900 mb-1">MR Utilization Moved to R&O Page</h4>
+                  <h4 className="text-sm font-medium text-blue-900 mb-1">MR Utilization on R&O Page</h4>
                   <p className="text-sm text-blue-800">
-                    After baselining, MR utilization is managed from the Risks & Opportunities page. 
+                    MR utilization is managed from the Risks & Opportunities page. 
                     This allows you to link MR utilization directly to materialized risks.
                   </p>
                 </div>

@@ -51,7 +51,7 @@ export const riskOpportunityApi = {
       amount,
       reason,
     });
-    return response.data;
+    return response.data as { risk: Risk; managementReserve: any };
   },
 };
 
