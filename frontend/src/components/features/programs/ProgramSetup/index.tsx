@@ -4,6 +4,7 @@ import axios from 'axios';
 import Layout from '../../../layout';
 import SetupProgress from './SetupProgress';
 import BOESetupStep from './BOESetupStep';
+import BaselineSetupStep from './BaselineSetupStep';
 import { programSetupApi, SetupStatus } from '../../../../services/programSetupApi';
 
 interface Program {
@@ -200,15 +201,7 @@ const ProgramSetup: React.FC = () => {
             <BOESetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
           {currentStep === 'baseline' && (
-            <div className="text-center py-12">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Baseline Your Budget</h2>
-              <p className="text-gray-600 mb-6">
-                Push your approved BOE to the ledger to create baseline budget entries.
-              </p>
-              <div className="text-sm text-gray-500">
-                <p>Baseline step component will be implemented in the next phase.</p>
-              </div>
-            </div>
+            <BaselineSetupStep programId={id!} onStepComplete={handleStepComplete} />
           )}
           {currentStep === 'risk-opportunity' && (
             <div className="text-center py-12">

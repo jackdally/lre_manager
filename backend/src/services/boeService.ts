@@ -15,6 +15,7 @@ import { LedgerAuditTrailService } from './ledgerAuditTrailService';
 import { AuditSource } from '../entities/LedgerAuditTrail';
 import { BOEElementAllocationService } from './boeElementAllocationService';
 import { BOEValidationService } from './boeValidationService';
+import { ProgramSetupService } from './programSetupService';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeElementRepository = AppDataSource.getRepository(BOEElement);
@@ -807,6 +808,16 @@ export class BOEService {
     boeVersion.status = 'Baseline';
     boeVersion.updatedAt = new Date();
     await boeVersionRepository.save(boeVersion);
+
+    // Update setup status to mark BOE as baselined
+    try {
+      if (boeVersion.program) {
+        await ProgramSetupService.markBOEBaselined(boeVersion.program.id);
+      }
+    } catch (error) {
+      console.error('Error updating setup status after BOE baseline:', error);
+      // Don't fail the baseline operation if setup status update fails
+    }
 
     return {
       success: true,
