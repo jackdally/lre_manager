@@ -1,7 +1,5 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
-
 export interface SetupStatus {
   programId: string;
   boeCreated: boolean;
@@ -18,7 +16,7 @@ export const programSetupApi = {
    * Get setup status for a program
    */
   getSetupStatus: async (programId: string): Promise<SetupStatus> => {
-    const response = await axios.get(`${API_BASE_URL}/programs/${programId}/setup-status`);
+    const response = await axios.get(`/api/programs/${programId}/setup-status`);
     return response.data as SetupStatus;
   },
 
@@ -34,7 +32,7 @@ export const programSetupApi = {
       riskOpportunityRegisterCreated?: boolean;
     }
   ): Promise<SetupStatus> => {
-    const response = await axios.put(`${API_BASE_URL}/programs/${programId}/setup-status`, updates);
+    const response = await axios.put(`/api/programs/${programId}/setup-status`, updates);
     return response.data as SetupStatus;
   },
 };
