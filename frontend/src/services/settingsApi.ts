@@ -59,6 +59,17 @@ export const settingsApi = {
     return (response.data as { vendors: Vendor[] }).vendors;
   },
 
+  // Get vendors with pagination (for infinite scroll)
+  getVendorsPaginated: async (params: { 
+    page?: number; 
+    limit?: number; 
+    search?: string; 
+    isActive?: boolean 
+  } = {}): Promise<{ vendors: Vendor[]; total: number; page: number; limit: number; totalPages: number }> => {
+    const response = await axios.get(`${API_BASE_URL}/vendors`, { params });
+    return response.data as { vendors: Vendor[]; total: number; page: number; limit: number; totalPages: number };
+  },
+
   getActiveVendors: async (): Promise<Vendor[]> => {
     const response = await axios.get(`${API_BASE_URL}/vendors/active`);
     return (response.data as { vendors: Vendor[] }).vendors;

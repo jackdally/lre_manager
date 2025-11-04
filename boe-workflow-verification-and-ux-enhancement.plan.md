@@ -315,26 +315,82 @@ Following the development guidelines in `.git-branch-strategy.md` and `FEATURE_D
 
 ### To-dos
 
-- [ ] Verify BOE creation workflow logic - review code, test creation flow, validate error handling
-- [ ] Verify BOE approval workflow - test state transitions, approval levels, notifications
-- [ ] Verify BOE to ledger push - test allocation conversion, monthly breakdowns, WBS linking
-- [x] Create ProgramSetupStatus entity and database migration
-- [x] Create programSetupService.ts with setup status management methods
-- [x] Create programSetup.ts routes for setup status endpoints
-- [x] Create ProgramSetup page component with progress indicator
-- [x] Implement BOE setup step in ProgramSetup - embed BOE wizard, handle approval flow
-- [ ] Implement Risk & Opportunity register setup step - create basic register structure
-- [ ] Create basic R&O backend endpoints and service for register initialization
-- [x] Implement baseline step - show BOE status, push to ledger button, completion check
-- [x] Update ProgramDashboard to check setup status and redirect to setup page if incomplete
-- [x] Update ProgramDirectory to redirect to setup page after program creation
-- [ ] Create monthlyActualsReminderService.ts with cron job for 5th of month reminders
-- [ ] Create MonthlyReminder entity to track reminder status
-- [ ] Create reminder API endpoints for getting and dismissing reminders
-- [ ] Create MonthlyActualsReminder banner component for in-app notifications
-- [ ] Create email notification template for monthly actuals reminders
-- [ ] Integrate reminder banner into Program Dashboard
-- [ ] Add program health indicators to dashboard
-- [ ] Update navigation to show setup status
-- [ ] Enhance error messages in BOE workflow
+## Phase 1: Workflow Reordering
+
+### Backend
+- [ ] Update ProgramSetupStatus entity with initialMRSet, roAnalysisComplete (nullable), finalMRSet fields
+- [ ] Create database migration for ProgramSetupStatus new fields
+- [ ] Update programSetupService with markInitialMRSet, markROAnalysisComplete, markROAnalysisSkipped, markFinalMRSet methods
+- [ ] Update programSetup routes to support new status fields and endpoints
+
+### Frontend
+- [ ] Update ProgramSetup/index.tsx with new step order (7 steps instead of 3)
+- [ ] Create InitialMRSetupStep.tsx component with ManagementReserveCalculator
+- [ ] Create ROAnalysisSetupStep.tsx optional step component
+- [ ] Create FinalMRSetupStep.tsx component with Initial MR comparison
+- [ ] Update BaselineSetupStep.tsx to require finalMRSet before allowing baseline
+- [ ] Update SetupProgress.tsx with new step labels and optional step indicator
+- [ ] Update programSetupApi.ts with new fields and API methods
+
+### Testing
+- [ ] Test complete setup flow with R&O analysis
+- [ ] Test complete setup flow without R&O analysis (skip optional step)
+- [ ] Verify Initial MR → Final MR workflow
+- [ ] Test that setup cannot complete without final MR
+
+## Phase 2: R&O-Driven MR Calculation
+
+### Backend
+- [ ] Create severity weight constants file (Low=0.5x, Medium=1.0x, High=1.5x, Critical=2.0x)
+- [ ] Implement calculateRODrivenMR() method in boeService.ts
+- [ ] Update riskOpportunityService.ts with getRisksForMRCalculation method
+- [ ] Create POST /api/boe-versions/:boeVersionId/management-reserve/calculate-ro-driven endpoint
+- [ ] Verify ManagementReserve entity supports 'R&O-Driven' calculation method
+
+### Frontend
+- [ ] Create roImpactCalculationService.ts with severity weights and calculation helpers
+- [ ] Update ManagementReserveCalculator.tsx to fetch risks and show R&O-Driven option
+- [ ] Update FinalMRSetupStep.tsx to enable R&O-Driven calculation
+- [ ] Create ROImpactBreakdown.tsx component to display risk adjustments
+
+### Testing
+- [ ] Test with various risk scenarios (Low/Medium/High/Critical severity)
+- [ ] Test with opportunities (verify they don't affect MR)
+- [ ] Test edge cases (no risks, zero probability, zero cost impact)
+- [ ] Test manual override functionality
+
+## Phase 3: Move MR Utilization to R&O Page
+
+### Backend
+- [ ] Update Risk entity with materializedAt, mrUtilizedAmount, mrUtilizationDate, mrUtilizationReason fields
+- [ ] Create database migration for Risk entity MR utilization fields
+- [ ] Implement utilizeMRForRisk() method in riskOpportunityService.ts
+- [ ] Create POST /api/risks/:riskId/utilize-mr endpoint
+- [ ] Verify Opportunity entity has realizedAt and cost impact fields
+
+### Frontend
+- [ ] Create MRUtilizationRequest.tsx component with form for MR utilization
+- [ ] Update RiskOpportunityPage.tsx to add Request MR Utilization button and display history
+- [ ] Update ManagementReserveTab.tsx to hide utilization view after baselining and show MR Summary
+- [ ] Create MRUtilizationHistory.tsx component to display history with risk context
+
+### Testing
+- [ ] Test MR utilization from R&O page with valid risk
+- [ ] Test with insufficient MR (should show error)
+- [ ] Test opportunity tracking (separate from MR)
+- [ ] Verify MR tab shows read-only summary after baselining
+- [ ] Test end-to-end utilization workflow
+
+## Phase 4: UI/UX Polish
+
+- [ ] Update all setup step components with improved guidance text
+- [ ] Add tooltips explaining Initial MR vs Final MR
+- [ ] Add clear note about R&O analysis being optional
+- [ ] Update MR calculator UI to clearly show R&O-Driven option
+- [ ] Improve calculation breakdown display and comparison view
+- [ ] Update R&O page to clearly separate risk MR utilization from opportunity tracking
+- [ ] Improve MR utilization request form UI and utilization history display
+- [ ] Update MANUAL_TESTING_GUIDE.md with new steps
+- [ ] End-to-end testing of all workflows
+- [ ] Code review and consistency check
 

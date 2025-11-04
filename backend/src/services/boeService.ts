@@ -286,9 +286,16 @@ export class BOEService {
    * Calculate number of months between two dates
    */
   static calculateNumberOfMonths(startDate: Date, endDate: Date): number {
-    const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
-                   (endDate.getMonth() - startDate.getMonth());
-    return Math.max(1, months + 1); // Ensure at least 1 month
+    // Calculate inclusive months from start to end
+    // For Jan 1 to Dec 31, we want 12 months (Jan through Dec)
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth();
+    const endYear = endDate.getFullYear();
+    const endMonth = endDate.getMonth();
+    
+    // Calculate the difference in months
+    const months = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+    return Math.max(1, months); // Ensure at least 1 month
   }
 
   /**
@@ -301,15 +308,36 @@ export class BOEService {
     endDate: Date,
     allocationType: 'Linear' | 'Front-Loaded' | 'Back-Loaded' | 'Custom'
   ): { [month: string]: any } {
-    const numberOfMonths = this.calculateNumberOfMonths(startDate, endDate);
     const breakdown: { [month: string]: any } = {};
 
+    // First, build the list of month keys we'll actually process
+    const monthKeys: string[] = [];
+    const endMonthKey = endDate.toISOString().slice(0, 7); // YYYY-MM format
     let currentDate = new Date(startDate);
+    
+    // Build complete list of months first
+    while (true) {
+      const monthKey = currentDate.toISOString().slice(0, 7);
+      if (monthKey > endMonthKey) {
+        break;
+      }
+      monthKeys.push(monthKey);
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    const numberOfMonths = monthKeys.length;
+    if (numberOfMonths === 0) {
+      return breakdown;
+    }
+
     let remainingAmount = totalAmount;
     let remainingQuantity = totalQuantity;
 
-    for (let i = 0; i < numberOfMonths; i++) {
-      const monthKey = currentDate.toISOString().slice(0, 7); // YYYY-MM format
+    // Now iterate through the month keys
+    for (let i = 0; i < monthKeys.length; i++) {
+      const monthKey = monthKeys[i];
+      const monthDate = new Date(monthKey + '-01'); // First day of month
+      
       let monthlyAmount: number;
       let monthlyQuantity: number | null = null;
 
@@ -366,12 +394,9 @@ export class BOEService {
       breakdown[monthKey] = {
         amount: Math.round(monthlyAmount * 100) / 100, // Round to 2 decimal places
         quantity: monthlyQuantity ? Math.round(monthlyQuantity * 100) / 100 : null,
-        date: currentDate.toISOString().slice(0, 10),
+        date: monthDate.toISOString().slice(0, 10),
         isLocked: false
       };
-
-      // Move to next month
-      currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
     return breakdown;

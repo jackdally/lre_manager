@@ -281,21 +281,20 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {/* Estimated - show planning badge; emphasize until ALL allocations complete */}
         <div className={`${emphasizeAllocated ? 'bg-white border-gray-200 opacity-80' : 'bg-white border-blue-200'} rounded-lg border p-6`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              {/* Use a clipboard-like metaphor for planning (reuse dollar but green subtle) */}
-              <CurrencyDollarIcon className={`h-8 w-8 ${emphasizeAllocated ? 'text-green-500' : 'text-green-600'}`} />
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3">
+              <CurrencyDollarIcon className={`h-8 w-8 mx-auto ${emphasizeAllocated ? 'text-green-500' : 'text-green-600'}`} />
             </div>
-            <div className="ml-4">
-              <div className="flex items-center gap-2">
+            <div className="w-full">
+              <div className="flex items-center justify-center gap-2 mb-1">
                 <p className="text-sm font-medium text-gray-500">Total Estimated Cost</p>
                 <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">Planning</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalEstimatedCost)}</p>
+              <p className="text-2xl font-bold text-gray-900 text-center">{formatCurrency(totalEstimatedCost)}</p>
               {emphasizeAllocated ? (
-                <p className="text-xs text-gray-500 mt-1">Initial planning value</p>
+                <p className="text-xs text-gray-500 mt-1 text-center">Initial planning value</p>
               ) : (
-                <p className="text-xs text-blue-600 mt-1">Awaiting allocations</p>
+                <p className="text-xs text-blue-600 mt-1 text-center">Awaiting allocations</p>
               )}
             </div>
           </div>
@@ -303,20 +302,20 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
 
         {/* Allocated - emphasize only when ALL allocations complete; dim otherwise */}
         <div className={`${emphasizeAllocated ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 opacity-70'} rounded-lg border p-6`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <ChartBarIcon className="h-8 w-8 text-blue-600" />
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3">
+              <ChartBarIcon className="h-8 w-8 mx-auto text-blue-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Allocated Cost</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalAllocatedCost)}</p>
+            <div className="w-full">
+              <p className="text-sm font-medium text-gray-500 mb-1">Total Allocated Cost</p>
+              <p className="text-2xl font-bold text-gray-900 text-center">{formatCurrency(totalAllocatedCost)}</p>
               {totalAllocatedCost > 0 && totalAllocatedCost !== totalEstimatedCost && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 mt-1 text-center">
                   {totalAllocatedCost > totalEstimatedCost ? '↑ Over' : '↓ Under'} estimate
                 </p>
               )}
               {!emphasizeAllocated && (
-                <p className="text-xs text-gray-500 mt-1">Awaiting allocations</p>
+                <p className="text-xs text-gray-500 mt-1 text-center">Awaiting allocations</p>
               )}
             </div>
           </div>
@@ -324,17 +323,17 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
 
         {/* MR - unchanged logic, stays neutral */}
         <div className={`rounded-lg border p-6 ${hasMRSet ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200 opacity-75'}`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <BuildingOfficeIcon className={`h-8 w-8 ${hasMRSet ? 'text-blue-600' : 'text-gray-400'}`} />
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3">
+              <BuildingOfficeIcon className={`h-8 w-8 mx-auto ${hasMRSet ? 'text-blue-600' : 'text-gray-400'}`} />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Management Reserve</p>
-              <p className={`text-2xl font-bold ${hasMRSet ? 'text-gray-900' : 'text-gray-500'}`}>{formatCurrency(managementReserveAmount)}</p>
+            <div className="w-full">
+              <p className="text-sm font-medium text-gray-500 mb-1">Management Reserve</p>
+              <p className={`text-2xl font-bold text-center ${hasMRSet ? 'text-gray-900' : 'text-gray-500'}`}>{formatCurrency(managementReserveAmount)}</p>
               {hasMRSet ? (
-                <p className="text-sm text-gray-500">{managementReservePercentage.toFixed(1)}%</p>
+                <p className="text-sm text-gray-500 mt-1 text-center">{managementReservePercentage.toFixed(1)}%</p>
               ) : (
-                <p className="text-sm text-gray-500 italic">MR not set</p>
+                <p className="text-sm text-gray-500 mt-1 text-center italic">MR not set</p>
               )}
             </div>
           </div>
@@ -342,18 +341,18 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
 
         {/* Total with MR - match allocated icon; emphasize only when all allocations complete */}
         <div className={`${emphasizeAllocated ? 'bg-purple-50 border-purple-200' : 'bg-white border-gray-200 opacity-70'} rounded-lg border p-6`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <ChartBarIcon className="h-8 w-8 text-purple-600" />
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3">
+              <ChartBarIcon className="h-8 w-8 mx-auto text-purple-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total with MR</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalWithMR)}</p>
+            <div className="w-full">
+              <p className="text-sm font-medium text-gray-500 mb-1">Total with MR</p>
+              <p className="text-2xl font-bold text-gray-900 text-center">{formatCurrency(totalWithMR)}</p>
               {!hasMRSet && (
-                <p className="text-xs text-gray-400 mt-1 italic">MR not set</p>
+                <p className="text-xs text-gray-400 mt-1 text-center italic">MR not set</p>
               )}
               {!emphasizeAllocated && (
-                <p className="text-xs text-gray-500 mt-1">Calculated from Estimated + MR until allocations complete</p>
+                <p className="text-xs text-gray-500 mt-1 text-center">Calculated from Estimated + MR until allocations complete</p>
               )}
             </div>
           </div>
@@ -363,37 +362,37 @@ const BOEOverview: React.FC<BOEOverviewProps> = ({ programId }) => {
       {/* Element Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <UserGroupIcon className="h-8 w-8 text-indigo-600" />
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3">
+              <UserGroupIcon className="h-8 w-8 mx-auto text-indigo-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Elements</p>
-              <p className="text-2xl font-bold text-gray-900">{totalElements}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <CheckCircleIcon className="h-8 w-8 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Required Elements</p>
-              <p className="text-2xl font-bold text-gray-900">{requiredElements}</p>
+            <div className="w-full">
+              <p className="text-sm font-medium text-gray-500 mb-1">Total Elements</p>
+              <p className="text-2xl font-bold text-gray-900 text-center">{totalElements}</p>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <ClockIcon className="h-8 w-8 text-yellow-600" />
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3">
+              <CheckCircleIcon className="h-8 w-8 mx-auto text-green-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Optional Elements</p>
-              <p className="text-2xl font-bold text-gray-900">{optionalElements}</p>
+            <div className="w-full">
+              <p className="text-sm font-medium text-gray-500 mb-1">Required Elements</p>
+              <p className="text-2xl font-bold text-gray-900 text-center">{requiredElements}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3">
+              <ClockIcon className="h-8 w-8 mx-auto text-yellow-600" />
+            </div>
+            <div className="w-full">
+              <p className="text-sm font-medium text-gray-500 mb-1">Optional Elements</p>
+              <p className="text-2xl font-bold text-gray-900 text-center">{optionalElements}</p>
             </div>
           </div>
         </div>

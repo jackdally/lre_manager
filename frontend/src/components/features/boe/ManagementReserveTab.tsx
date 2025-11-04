@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useBOEStore } from '../../../store/boeStore';
 import { useManagementReserve } from '../../../hooks/useManagementReserve';
 import { 
@@ -7,6 +7,9 @@ import {
   ManagementReserveUtilization 
 } from './ManagementReserve';
 import { PencilIcon, EyeIcon, ChartBarIcon, CalculatorIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { elementAllocationApi } from '../../../services/boeApi';
+import { BOECalculationService } from '../../../services/boeCalculationService';
+import type { BOEElementAllocation } from '../../../store/boeStore';
 
 interface ManagementReserveTabProps {
   programId: string;
@@ -15,9 +18,10 @@ interface ManagementReserveTabProps {
 type MRViewMode = 'calculator' | 'display' | 'utilization';
 
 const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }) => {
-  const { currentBOE } = useBOEStore();
+  const { currentBOE, elements, elementAllocations, setElementAllocations } = useBOEStore();
   const [viewMode, setViewMode] = useState<MRViewMode>('display');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [allocationsLoading, setAllocationsLoading] = useState(false);
 
   const {
     managementReserve,
@@ -37,6 +41,26 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
       loadMRUtilizationHistory();
     }
   }, [currentBOE?.id, loadManagementReserve, loadMRUtilizationHistory]);
+
+  // Load element allocations
+  useEffect(() => {
+    const loadAllocations = async () => {
+      if (!currentBOE?.id) return;
+      
+      try {
+        setAllocationsLoading(true);
+        const allocations = await elementAllocationApi.getElementAllocations(currentBOE.id);
+        setElementAllocations(allocations);
+      } catch (error) {
+        console.error('Error loading allocations:', error);
+        setElementAllocations([]);
+      } finally {
+        setAllocationsLoading(false);
+      }
+    };
+
+    loadAllocations();
+  }, [currentBOE?.id, setElementAllocations]);
 
   const handleMRChange = async (mr: any) => {
     try {
@@ -62,7 +86,62 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
     }
   };
 
-  const totalCost = Number(currentBOE?.totalEstimatedCost) || 0;
+  // Calculate totals and check if all required allocations are complete
+  const { totalCost, totalAllocatedCost, allRequiredAllocated, usingEstimatedCost } = useMemo(() => {
+    // Use elements from store, or fall back to currentBOE.elements if store doesn't have them
+    const boeElements = elements && elements.length > 0 ? elements : (currentBOE?.elements || []);
+    
+    if (!currentBOE || !boeElements || boeElements.length === 0) {
+      return {
+        totalCost: Number(currentBOE?.totalEstimatedCost) || 0,
+        totalAllocatedCost: 0,
+        allRequiredAllocated: false,
+        usingEstimatedCost: true
+      };
+    }
+
+    // Build hierarchical structure for calculations
+    const hierarchicalElements = BOECalculationService.buildHierarchicalStructure(boeElements);
+    
+    // Calculate totals using BOECalculationService
+    const calculationResult = BOECalculationService.calculateBOETotals(
+      hierarchicalElements,
+      0, // MR percentage not needed for this calculation
+      elementAllocations || []
+    );
+
+    const totalEstimatedCost = calculationResult.totalEstimatedCost;
+    const totalAllocatedCost = calculationResult.totalAllocatedCost;
+
+    // Check if all required allocations are complete (same logic as BOEOverview)
+    const requiredLeaves: any[] = [];
+    const walk = (els: any[]) => {
+      els.forEach(el => {
+        const hasChildren = el.childElements && el.childElements.length > 0;
+        if (!hasChildren) {
+          if (el.isRequired) requiredLeaves.push(el);
+        } else {
+          walk(el.childElements);
+        }
+      });
+    };
+    walk(hierarchicalElements);
+
+    const allRequiredAllocated = requiredLeaves.length === 0 || requiredLeaves.every(leaf =>
+      (elementAllocations || []).some(a => a.boeElementId === leaf.id && (a.totalAmount || 0) > 0)
+    );
+
+    // Use allocated cost if all required allocations are complete, otherwise use estimated
+    const finalCost = allRequiredAllocated && totalAllocatedCost > 0 ? totalAllocatedCost : totalEstimatedCost;
+    const usingEstimatedCost = !allRequiredAllocated || totalAllocatedCost === 0;
+
+    return {
+      totalCost: finalCost,
+      totalAllocatedCost,
+      allRequiredAllocated,
+      usingEstimatedCost
+    };
+  }, [currentBOE, elements, elementAllocations, currentBOE?.elements]);
 
   if (!currentBOE) {
     return (
@@ -220,6 +299,7 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
               onMRChange={handleMRChange}
               isEditable={currentBOE.status === 'Draft'}
               showROIntegration={false} // Placeholder for future R&O integration
+              usingEstimatedCost={usingEstimatedCost}
             />
           </div>
         )}

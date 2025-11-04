@@ -40,6 +40,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     activeTab,
     setActiveTab,
     setCurrentBOE,
+    setElements,
+    setElementAllocations,
     setBOELoading,
     setBOEError,
     openWizard,
@@ -110,9 +112,29 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         // Load current BOE from API
         const boeData = await boeApiService.versions.getCurrentBOE(programId);
         // The API returns { program, currentBOE, hasBOE, lastBOEUpdate }
-        // not the BOESummary structure we expected
-        setCurrentBOE(boeData.currentBOE || null);
-
+        // currentBOE includes elements in relations
+        const currentBOE = boeData.currentBOE || null;
+        setCurrentBOE(currentBOE);
+        
+        // Extract elements from BOE response
+        if (currentBOE?.elements) {
+          setElements(currentBOE.elements);
+        } else {
+          setElements([]);
+        }
+        
+        // Load allocations if BOE exists
+        if (currentBOE?.id) {
+          try {
+            const allocations = await boeApiService.elementAllocations.getElementAllocations(currentBOE.id);
+            setElementAllocations(allocations);
+          } catch (err) {
+            console.error('Error loading allocations:', err);
+            setElementAllocations([]);
+          }
+        } else {
+          setElementAllocations([]);
+        }
 
         setBOELoading(false);
         setIsInitialized(true);
@@ -136,7 +158,28 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
           // Load complete BOE data with elements and allocations
           const boeData = await boeApiService.versions.getCurrentBOE(programId);
-          setCurrentBOE(boeData.currentBOE || null);
+          const currentBOE = boeData.currentBOE || null;
+          setCurrentBOE(currentBOE);
+          
+          // Extract elements from BOE response
+          if (currentBOE?.elements) {
+            setElements(currentBOE.elements);
+          } else {
+            setElements([]);
+          }
+          
+          // Load allocations if BOE exists
+          if (currentBOE?.id) {
+            try {
+              const allocations = await boeApiService.elementAllocations.getElementAllocations(currentBOE.id);
+              setElementAllocations(allocations);
+            } catch (err) {
+              console.error('Error loading allocations:', err);
+              setElementAllocations([]);
+            }
+          } else {
+            setElementAllocations([]);
+          }
 
           setBOELoading(false);
         } catch (error) {
