@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../layout';
+import SummaryKpis from '../../../common/SummaryKpis';
 import LedgerTable from '../LedgerTable/LedgerTable';
 import BulkImportModal from '../BulkImport/BulkImportModal';
 import axios from 'axios';
@@ -58,6 +59,7 @@ const LedgerPage: React.FC = () => {
           <h1 className="text-2xl font-bold">Ledger Page</h1>
           <button className="btn btn-primary" onClick={() => setShowBulkImportModal(true)}>Bulk Import</button>
         </div>
+        <SummaryKpis programId={programId} />
         
         <LedgerTable 
           programId={programId} 
