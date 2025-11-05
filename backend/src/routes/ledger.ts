@@ -2,16 +2,19 @@ import { Router, Request } from 'express';
 import { AppDataSource } from '../config/database';
 import { LedgerEntry } from '../entities/LedgerEntry';
 import { Program } from '../entities/Program';
+import { Risk } from '../entities/Risk';
 import { Between, Like, In } from 'typeorm';
 import multer from 'multer';
 import path from 'path';
 import { importLedgerFromFile } from '../services/ledger';
 import * as XLSX from 'xlsx';
 import { PotentialMatch } from '../entities/PotentialMatch';
+import { RiskOpportunityService } from '../services/riskOpportunityService';
 
 const router = Router();
 const ledgerRepo = AppDataSource.getRepository(LedgerEntry);
 const programRepo = AppDataSource.getRepository(Program);
+const riskRepo = AppDataSource.getRepository(Risk);
 const upload = multer({ dest: '/tmp' });
 
 // Get all unique dropdown options for a program (vendors, wbs elements)
@@ -86,11 +89,15 @@ router.get('/:programId/ledger', async (req, res) => {
       .leftJoinAndSelect('ledger.program', 'program')
       .leftJoinAndSelect('ledger.wbsElement', 'wbsElement')
       .leftJoinAndSelect('ledger.costCategory', 'costCategory')
+      .leftJoinAndSelect('ledger.risk', 'risk')
       .where('program.id = :programId', { programId });
 
-    // Add search filter
+    // Add search filter across multiple fields
     if (search) {
-      queryBuilder.andWhere('ledger.vendor_name LIKE :search', { search: `%${search}%` });
+      queryBuilder.andWhere(
+        '(ledger.vendor_name LIKE :search OR ledger.expense_description LIKE :search OR ledger.notes LIKE :search OR ledger.invoice_link_text LIKE :search)',
+        { search: `%${search}%` }
+      );
     }
 
     // Add filterType logic
@@ -262,11 +269,46 @@ router.delete('/ledger/:id', async (req, res) => {
   }
 });
 
-// Summary endpoint for a selected month
+// Summary endpoint
+// If `month` (YYYY-MM) is provided, return detailed EVM-style metrics for that month (existing behavior).
+// If `month` is omitted, return lightweight KPI counts for the current state to power the Ledger page top bar.
 router.get('/:programId/ledger/summary', async (req, res) => {
   const { programId } = req.params;
   const { month } = req.query; // format: YYYY-MM
-  if (!month) return res.status(400).json({ message: 'Month is required' });
+
+  // Lightweight KPI mode (no month provided)
+  if (!month) {
+    try {
+      const entries = await ledgerRepo.find({
+        where: { program: { id: programId } },
+        relations: ['program'],
+      });
+
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startStr = startOfMonth.toISOString().slice(0, 10);
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const endStr = new Date(nextMonth.getTime() - 1).toISOString().slice(0, 10);
+
+      const totalRecords = entries.length;
+      const withActualsCount = entries.filter(e => e.actual_amount != null && e.actual_date != null).length;
+      const missingActualsCount = totalRecords - withActualsCount;
+      const inMonthCount = entries.filter(e => !!e.planned_date && e.planned_date >= startStr && e.planned_date <= endStr).length;
+
+      return res.json({
+        totalRecords,
+        currentAccountingMonth: currentMonth,
+        inMonthCount,
+        withActualsCount,
+        missingActualsCount,
+      });
+    } catch (err) {
+      return res.status(500).json({ message: 'Error fetching summary KPIs', error: err });
+    }
+  }
+
+  // Detailed month summary mode
   try {
     const start = new Date(`${month}-01`);
     const end = new Date(start);
@@ -583,6 +625,141 @@ router.get('/:programId/ledger/rejected-match-ids', async (req, res) => {
   } catch (err) {
     console.error('Error fetching rejected match IDs:', err);
     res.status(500).json({ error: 'Failed to fetch rejected match IDs' });
+  }
+});
+
+// Link ledger entry to risk
+router.post('/:programId/ledger/:entryId/link-risk', async (req, res) => {
+  const { programId, entryId } = req.params;
+  const { riskId } = req.body;
+
+  try {
+    const ledgerEntry = await ledgerRepo.findOne({
+      where: { id: entryId, program: { id: programId } },
+      relations: ['program']
+    });
+
+    if (!ledgerEntry) {
+      return res.status(404).json({ message: 'Ledger entry not found' });
+    }
+
+    if (riskId) {
+      const risk = await riskRepo.findOne({
+        where: { id: riskId, program: { id: programId } }
+      });
+
+      if (!risk) {
+        return res.status(404).json({ message: 'Risk not found' });
+      }
+
+      ledgerEntry.riskId = riskId;
+    } else {
+      ledgerEntry.riskId = undefined;
+    }
+
+    await ledgerRepo.save(ledgerEntry);
+
+    const updatedEntry = await ledgerRepo.findOne({
+      where: { id: entryId },
+      relations: ['risk', 'risk.program']
+    });
+
+    res.json({ ledgerEntry: updatedEntry });
+  } catch (error: any) {
+    console.error('Error linking risk to ledger entry:', error);
+    res.status(500).json({ message: 'Failed to link risk', error: error.message });
+  }
+});
+
+// Get linked risk for a ledger entry
+router.get('/:programId/ledger/:entryId/linked-risk', async (req, res) => {
+  const { programId, entryId } = req.params;
+
+  try {
+    const ledgerEntry = await ledgerRepo.findOne({
+      where: { id: entryId, program: { id: programId } },
+      relations: ['risk', 'risk.program']
+    });
+
+    if (!ledgerEntry) {
+      return res.status(404).json({ message: 'Ledger entry not found' });
+    }
+
+    if (!ledgerEntry.risk) {
+      return res.json({ risk: null });
+    }
+
+    res.json({ risk: ledgerEntry.risk });
+  } catch (error: any) {
+    console.error('Error fetching linked risk:', error);
+    res.status(500).json({ message: 'Failed to fetch linked risk', error: error.message });
+  }
+});
+
+// Utilize MR from ledger entry
+router.post('/:programId/ledger/:entryId/utilize-mr', async (req, res) => {
+  const { programId, entryId } = req.params;
+  const { riskId, amount, reason } = req.body;
+
+  try {
+    const ledgerEntry = await ledgerRepo.findOne({
+      where: { id: entryId, program: { id: programId } },
+      relations: ['program']
+    });
+
+    if (!ledgerEntry) {
+      return res.status(404).json({ message: 'Ledger entry not found' });
+    }
+
+    // Validate that ledger entry has actuals
+    if (!ledgerEntry.actual_amount || !ledgerEntry.actual_date) {
+      return res.status(400).json({ message: 'Ledger entry must have actual amount and date to utilize MR' });
+    }
+
+    // Use provided riskId or the linked riskId
+    const targetRiskId = riskId || ledgerEntry.riskId;
+
+    if (!targetRiskId) {
+      return res.status(400).json({ message: 'Risk ID is required. Either provide riskId in request or link a risk to the ledger entry first.' });
+    }
+
+    // Validate risk exists and belongs to program
+    const risk = await riskRepo.findOne({
+      where: { id: targetRiskId, program: { id: programId } }
+    });
+
+    if (!risk) {
+      return res.status(404).json({ message: 'Risk not found' });
+    }
+
+    // Use actual amount if amount not provided
+    const utilizationAmount = amount || ledgerEntry.actual_amount;
+
+    // Utilize MR
+    const result = await RiskOpportunityService.utilizeMRForRisk(
+      targetRiskId,
+      Number(utilizationAmount),
+      reason || `MR utilization from ledger entry: ${ledgerEntry.expense_description}`
+    );
+
+    // Link the ledger entry to the risk if not already linked
+    if (!ledgerEntry.riskId) {
+      ledgerEntry.riskId = targetRiskId;
+      await ledgerRepo.save(ledgerEntry);
+    }
+
+    res.json({
+      success: true,
+      risk: result.risk,
+      managementReserve: result.managementReserve,
+      ledgerEntry: await ledgerRepo.findOne({
+        where: { id: entryId },
+        relations: ['risk']
+      })
+    });
+  } catch (error: any) {
+    console.error('Error utilizing MR from ledger entry:', error);
+    res.status(500).json({ message: 'Failed to utilize MR', error: error.message });
   }
 });
 
