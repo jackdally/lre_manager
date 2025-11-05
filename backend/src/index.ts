@@ -24,6 +24,7 @@ import { transactionAdjustmentRouter } from './routes/transactionAdjustment';
 import programSetupRouter from './routes/programSetup';
 import riskOpportunityRouter from './routes/riskOpportunity';
 import monthlyRemindersRouter from './routes/monthlyReminders';
+import presetsRouter from './routes/presets';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 import * as cron from 'node-cron';
@@ -81,6 +82,7 @@ app.use('/api/transaction-adjustment', transactionAdjustmentRouter);
 app.use('/api', programSetupRouter);
 app.use('/api', riskOpportunityRouter);
 app.use('/api', monthlyRemindersRouter);
+app.use('/api', presetsRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {
