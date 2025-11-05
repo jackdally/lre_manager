@@ -8,6 +8,7 @@ export interface ProgramCreateRequest {
   startDate?: string;
   endDate?: string;
   program_manager?: string;
+  program_manager_email?: string;
 }
 
 export interface LedgerEntryCreateRequest {

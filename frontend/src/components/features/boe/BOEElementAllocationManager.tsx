@@ -19,6 +19,7 @@ import { elementAllocationApi } from '../../../services/boeApi';
 import { formatCurrency, formatDate } from '../../../utils/formatters';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
+import VendorAutocomplete from '../../common/VendorAutocomplete';
 import { 
   CalendarIcon, 
   CurrencyDollarIcon,
@@ -103,13 +104,21 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
     [month: string]: { amount: number; quantity?: number; date: string; }
   }>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
 
   // Check if selected element is a parent
   const isParentElement = selectedElement?.childElements && selectedElement.childElements.length > 0;
 
-  // Calculate monthly breakdown when form data changes
+  // Calculate monthly breakdown when form data changes (but not for Custom if user has manually edited)
+  const [customBreakdownEdited, setCustomBreakdownEdited] = useState(false);
+  
   useEffect(() => {
+    // For Custom allocation type, only recalculate if user hasn't manually edited
+    if (formData.allocationType === 'Custom' && customBreakdownEdited) {
+      return;
+    }
+    
     if (formData.startDate && formData.endDate && formData.totalAmount > 0) {
       const breakdown = calculateMonthlyBreakdown(
         formData.totalAmount,
@@ -119,6 +128,10 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
         formData.allocationType
       );
       setMonthlyBreakdown(breakdown);
+      // Reset customBreakdownEdited flag when switching away from Custom or when dates change
+      if (formData.allocationType !== 'Custom') {
+        setCustomBreakdownEdited(false);
+      }
     }
   }, [formData.totalAmount, formData.totalQuantity, formData.startDate, formData.endDate, formData.allocationType]);
 
@@ -174,17 +187,37 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
   ) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const months = (end.getFullYear() - start.getFullYear()) * 12 + 
-                   (end.getMonth() - start.getMonth());
-    const numberOfMonths = Math.max(1, months + 1);
     
     const breakdown: { [month: string]: { amount: number; quantity?: number; date: string; } } = {};
+    
+    // First, build the list of month keys we'll actually process
+    const monthKeys: string[] = [];
+    const endMonthKey = end.toISOString().slice(0, 7); // YYYY-MM format
     let currentDate = new Date(start);
+    
+    // Build complete list of months first
+    while (true) {
+      const monthKey = currentDate.toISOString().slice(0, 7);
+      if (monthKey > endMonthKey) {
+        break;
+      }
+      monthKeys.push(monthKey);
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    const numberOfMonths = monthKeys.length;
+    if (numberOfMonths === 0) {
+      return breakdown;
+    }
+
     let remainingAmount = totalAmount;
     let remainingQuantity = totalQuantity;
 
-    for (let i = 0; i < numberOfMonths; i++) {
-      const monthKey = currentDate.toISOString().slice(0, 7);
+    // Now iterate through the month keys
+    for (let i = 0; i < monthKeys.length; i++) {
+      const monthKey = monthKeys[i];
+      const monthDate = new Date(monthKey + '-01'); // First day of month
+      
       let monthlyAmount: number;
       let monthlyQuantity: number | undefined;
 
@@ -233,36 +266,35 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
       breakdown[monthKey] = {
         amount: Math.round(monthlyAmount * 100) / 100,
         quantity: monthlyQuantity ? Math.round(monthlyQuantity * 100) / 100 : undefined,
-        date: currentDate.toISOString().slice(0, 10)
+        date: monthDate.toISOString().slice(0, 10)
       };
-
-      currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
     return breakdown;
   };
 
-  const validateForm = (): boolean => {
-    const errors: string[] = [];
+  // Real-time field validation
+  useEffect(() => {
+    const fieldErrs: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      errors.push('Name is required');
+    if (formData.name.trim() === '' && (showCreateModal || editingAllocation)) {
+      fieldErrs.name = 'Allocation name is required';
     }
 
-    if (!formData.description.trim()) {
-      errors.push('Description is required');
+    if (formData.description.trim() === '' && (showCreateModal || editingAllocation)) {
+      fieldErrs.description = 'Description is required';
     }
 
-    if (formData.totalAmount <= 0) {
-      errors.push('Total amount must be greater than 0');
+    if (formData.totalAmount <= 0 && (showCreateModal || editingAllocation)) {
+      fieldErrs.totalAmount = 'Total amount must be greater than $0';
     }
 
-    if (!formData.startDate) {
-      errors.push('Start date is required');
+    if (!formData.startDate && (showCreateModal || editingAllocation)) {
+      fieldErrs.startDate = 'Start date is required';
     }
 
-    if (!formData.endDate) {
-      errors.push('End date is required');
+    if (!formData.endDate && (showCreateModal || editingAllocation)) {
+      fieldErrs.endDate = 'End date is required';
     }
 
     if (formData.startDate && formData.endDate) {
@@ -270,20 +302,72 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
       const endDate = new Date(formData.endDate);
       
       if (startDate >= endDate) {
-        errors.push('End date must be after start date');
+        fieldErrs.endDate = 'End date must be after start date';
+      }
+    }
+
+    if (formData.totalQuantity && formData.totalQuantity <= 0) {
+      fieldErrs.totalQuantity = 'Quantity must be greater than 0';
+    }
+
+    if (formData.totalQuantity && !formData.quantityUnit) {
+      fieldErrs.quantityUnit = 'Quantity unit is required when quantity is provided';
+    }
+
+    setFieldErrors(fieldErrs);
+  }, [formData, showCreateModal, editingAllocation]);
+
+  const validateForm = (): boolean => {
+    const errors: string[] = [];
+
+    if (!formData.name.trim()) {
+      errors.push('Allocation name is required to identify this allocation');
+    }
+
+    if (!formData.description.trim()) {
+      errors.push('Description is required to explain what this allocation covers');
+    }
+
+    if (formData.totalAmount <= 0) {
+      errors.push('Total amount must be greater than $0. Enter the total cost for this allocation');
+    }
+
+    if (!formData.startDate) {
+      errors.push('Start date is required to schedule when this allocation begins');
+    }
+
+    if (!formData.endDate) {
+      errors.push('End date is required to schedule when this allocation completes');
+    }
+
+    if (formData.startDate && formData.endDate) {
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+      
+      if (startDate >= endDate) {
+        errors.push('End date must be after start date. The allocation period must span at least one day');
       }
     }
 
     if (!['Linear', 'Front-Loaded', 'Back-Loaded', 'Custom'].includes(formData.allocationType)) {
-      errors.push('Valid allocation type is required');
+      errors.push('Please select a valid allocation type (Linear, Front-Loaded, Back-Loaded, or Custom)');
     }
 
     if (formData.totalQuantity && formData.totalQuantity <= 0) {
-      errors.push('Total quantity must be greater than 0 if provided');
+      errors.push('If you provide a quantity, it must be greater than 0');
     }
 
     if (formData.totalQuantity && !formData.quantityUnit) {
-      errors.push('Quantity unit is required when total quantity is provided');
+      errors.push('Quantity unit is required when quantity is provided (e.g., "hours", "units", "items")');
+    }
+
+    // For Custom allocation type, validate that monthly breakdown total matches totalAmount
+    if (formData.allocationType === 'Custom' && Object.keys(monthlyBreakdown).length > 0) {
+      const breakdownTotal = Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0);
+      const difference = Math.abs(breakdownTotal - formData.totalAmount);
+      if (difference > 0.01) {
+        errors.push(`Monthly breakdown total (${formatCurrency(breakdownTotal)}) must equal total amount (${formatCurrency(formData.totalAmount)}). Difference: ${formatCurrency(difference)}`);
+      }
     }
 
     setValidationErrors(errors);
@@ -1110,26 +1194,36 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Vendor
               </label>
-              <select
-                value={formData.vendorId || ''}
-                onChange={(e) => setFormData({ ...formData, vendorId: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select vendor (optional)</option>
-                {vendors.filter(v => v.isActive).map(vendor => (
-                  <option key={vendor.id} value={vendor.id}>
-                    {vendor.name}
-                  </option>
-                ))}
-              </select>
+              <VendorAutocomplete
+                value={formData.vendorId ? (vendors.find(v => v.id === formData.vendorId)?.name || '') : ''}
+                onChange={(vendorName) => {
+                  // Handle text input changes
+                  setFormData({ ...formData, vendorId: undefined });
+                }}
+                onVendorSelect={(vendor) => {
+                  // Handle vendor selection from dropdown
+                  if (vendor) {
+                    setFormData({ ...formData, vendorId: vendor.id });
+                  } else {
+                    setFormData({ ...formData, vendorId: undefined });
+                  }
+                }}
+                placeholder="Search vendors (optional)..."
+                className="w-full"
+              />
             </div>
 
             {/* Monthly Breakdown Preview */}
             {Object.keys(monthlyBreakdown).length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Monthly Breakdown Preview
+                  Monthly Breakdown {formData.allocationType === 'Custom' ? '(Editable)' : 'Preview'}
                 </label>
+                {formData.allocationType === 'Custom' && (
+                  <p className="text-xs text-gray-500 mb-2">
+                    Adjust individual month amounts. Total must equal {formatCurrency(formData.totalAmount)}.
+                  </p>
+                )}
                 <div className="bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto">
                   <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-700 mb-2">
                     <div>Month</div>
@@ -1137,17 +1231,62 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
                     <div>Quantity</div>
                     <div>Date</div>
                   </div>
-                  {Object.entries(monthlyBreakdown).map(([month, data]) => (
+                  {Object.entries(monthlyBreakdown).sort(([a], [b]) => a.localeCompare(b)).map(([month, data]) => (
                     <div key={month} className="grid grid-cols-4 gap-4 text-sm text-gray-600 py-1 border-b border-gray-200">
-                      <div>{month}</div>
-                      <div>{formatCurrency(data.amount)}</div>
-                      <div>{data.quantity ? `${data.quantity} ${formData.quantityUnit || ''}` : '-'}</div>
-                      <div>{data.date}</div>
+                      <div className="flex items-center">{month}</div>
+                      <div>
+                        {formData.allocationType === 'Custom' ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={data.amount}
+                            onChange={(e) => {
+                              const newAmount = parseFloat(e.target.value) || 0;
+                              setMonthlyBreakdown(prev => ({
+                                ...prev,
+                                [month]: { ...prev[month], amount: newAmount }
+                              }));
+                              setCustomBreakdownEdited(true);
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          <span>{formatCurrency(data.amount)}</span>
+                        )}
+                      </div>
+                      <div>
+                        {formData.allocationType === 'Custom' && formData.totalQuantity ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={data.quantity || ''}
+                            onChange={(e) => {
+                              const newQuantity = parseFloat(e.target.value) || 0;
+                              setMonthlyBreakdown(prev => ({
+                                ...prev,
+                                [month]: { ...prev[month], quantity: newQuantity }
+                              }));
+                              setCustomBreakdownEdited(true);
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          <span>{data.quantity ? `${data.quantity} ${formData.quantityUnit || ''}` : '-'}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center">{data.date}</div>
                     </div>
                   ))}
-                  <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-900 pt-2 border-t border-gray-300">
+                  <div className="grid grid-cols-4 gap-4 text-sm font-medium pt-2 border-t border-gray-300">
                     <div>Total</div>
-                    <div>{formatCurrency(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0))}</div>
+                    <div className={formData.allocationType === 'Custom' && Math.abs(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0) - formData.totalAmount) > 0.01 ? 'text-red-600' : 'text-gray-900'}>
+                      {formatCurrency(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0))}
+                      {formData.allocationType === 'Custom' && (
+                        <span className="text-xs ml-2">
+                          (Target: {formatCurrency(formData.totalAmount)})
+                        </span>
+                      )}
+                    </div>
                     <div>{formData.totalQuantity ? `${formData.totalQuantity} ${formData.quantityUnit || ''}` : '-'}</div>
                     <div></div>
                   </div>
@@ -1360,26 +1499,36 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Vendor
               </label>
-              <select
-                value={formData.vendorId || ''}
-                onChange={(e) => setFormData({ ...formData, vendorId: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select vendor (optional)</option>
-                {vendors.filter(v => v.isActive).map(vendor => (
-                  <option key={vendor.id} value={vendor.id}>
-                    {vendor.name}
-                  </option>
-                ))}
-              </select>
+              <VendorAutocomplete
+                value={formData.vendorId ? (vendors.find(v => v.id === formData.vendorId)?.name || '') : ''}
+                onChange={(vendorName) => {
+                  // Handle text input changes
+                  setFormData({ ...formData, vendorId: undefined });
+                }}
+                onVendorSelect={(vendor) => {
+                  // Handle vendor selection from dropdown
+                  if (vendor) {
+                    setFormData({ ...formData, vendorId: vendor.id });
+                  } else {
+                    setFormData({ ...formData, vendorId: undefined });
+                  }
+                }}
+                placeholder="Search vendors (optional)..."
+                className="w-full"
+              />
             </div>
 
             {/* Monthly Breakdown Preview */}
             {Object.keys(monthlyBreakdown).length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Monthly Breakdown Preview
+                  Monthly Breakdown {formData.allocationType === 'Custom' ? '(Editable)' : 'Preview'}
                 </label>
+                {formData.allocationType === 'Custom' && (
+                  <p className="text-xs text-gray-500 mb-2">
+                    Adjust individual month amounts. Total must equal {formatCurrency(formData.totalAmount)}.
+                  </p>
+                )}
                 <div className="bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto">
                   <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-700 mb-2">
                     <div>Month</div>
@@ -1387,17 +1536,62 @@ const BOEElementAllocationManager: React.FC<BOEElementAllocationManagerProps> = 
                     <div>Quantity</div>
                     <div>Date</div>
                   </div>
-                  {Object.entries(monthlyBreakdown).map(([month, data]) => (
+                  {Object.entries(monthlyBreakdown).sort(([a], [b]) => a.localeCompare(b)).map(([month, data]) => (
                     <div key={month} className="grid grid-cols-4 gap-4 text-sm text-gray-600 py-1 border-b border-gray-200">
-                      <div>{month}</div>
-                      <div>{formatCurrency(data.amount)}</div>
-                      <div>{data.quantity ? `${data.quantity} ${formData.quantityUnit || ''}` : '-'}</div>
-                      <div>{data.date}</div>
+                      <div className="flex items-center">{month}</div>
+                      <div>
+                        {formData.allocationType === 'Custom' ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={data.amount}
+                            onChange={(e) => {
+                              const newAmount = parseFloat(e.target.value) || 0;
+                              setMonthlyBreakdown(prev => ({
+                                ...prev,
+                                [month]: { ...prev[month], amount: newAmount }
+                              }));
+                              setCustomBreakdownEdited(true);
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          <span>{formatCurrency(data.amount)}</span>
+                        )}
+                      </div>
+                      <div>
+                        {formData.allocationType === 'Custom' && formData.totalQuantity ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={data.quantity || ''}
+                            onChange={(e) => {
+                              const newQuantity = parseFloat(e.target.value) || 0;
+                              setMonthlyBreakdown(prev => ({
+                                ...prev,
+                                [month]: { ...prev[month], quantity: newQuantity }
+                              }));
+                              setCustomBreakdownEdited(true);
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          <span>{data.quantity ? `${data.quantity} ${formData.quantityUnit || ''}` : '-'}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center">{data.date}</div>
                     </div>
                   ))}
-                  <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-900 pt-2 border-t border-gray-300">
+                  <div className="grid grid-cols-4 gap-4 text-sm font-medium pt-2 border-t border-gray-300">
                     <div>Total</div>
-                    <div>{formatCurrency(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0))}</div>
+                    <div className={formData.allocationType === 'Custom' && Math.abs(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0) - formData.totalAmount) > 0.01 ? 'text-red-600' : 'text-gray-900'}>
+                      {formatCurrency(Object.values(monthlyBreakdown).reduce((sum, data) => sum + data.amount, 0))}
+                      {formData.allocationType === 'Custom' && (
+                        <span className="text-xs ml-2">
+                          (Target: {formatCurrency(formData.totalAmount)})
+                        </span>
+                      )}
+                    </div>
                     <div>{formData.totalQuantity ? `${formData.totalQuantity} ${formData.quantityUnit || ''}` : '-'}</div>
                     <div></div>
                   </div>

@@ -33,6 +33,9 @@ export class Program {
   @Column({ type: 'varchar', nullable: true })
   program_manager!: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  program_manager_email!: string | null;
+
   // BOE-related fields
   @Column({ nullable: true })
   currentBOEVersionId?: string;

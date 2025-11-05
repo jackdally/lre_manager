@@ -9,11 +9,10 @@ import {
   BOEElementAllocationSummary,
 } from '../store/boeStore';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
-
+// Use relative paths for proxy compatibility
 // API Client
 const boeApi = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -37,13 +36,13 @@ boeApi.interceptors.response.use(
   },
   (error) => {
     // Don't log 404 errors for MR endpoints (these are expected when no MR exists)
-    const isMR404Error = error.response?.status === 404 && 
+    const isMR404Error = error.response?.status === 404 &&
       error.config?.url?.includes('/management-reserve');
-    
+
     if (!isMR404Error) {
       console.error('BOE API Response Error:', error.response?.data || error.message);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -248,6 +247,42 @@ export const managementReserveApi = {
     return response.data as ManagementReserve;
   },
 
+  // Calculate R&O-Driven Management Reserve
+  calculateRODrivenMR: async (boeVersionId: string): Promise<{
+    amount: number;
+    percentage: number;
+    baseMR: number;
+    baseMRPercentage: number;
+    riskAdjustment: number;
+    breakdown: Array<{
+      riskId: string;
+      riskTitle: string;
+      costImpact: number;
+      probability: number;
+      severity: string;
+      severityMultiplier: number;
+      expectedValue: number;
+    }>;
+  }> => {
+    const response = await boeApi.post(`/boe-versions/${boeVersionId}/management-reserve/calculate-ro-driven`);
+    return response.data as {
+      amount: number;
+      percentage: number;
+      baseMR: number;
+      baseMRPercentage: number;
+      riskAdjustment: number;
+      breakdown: Array<{
+        riskId: string;
+        riskTitle: string;
+        costImpact: number;
+        probability: number;
+        severity: string;
+        severityMultiplier: number;
+        expectedValue: number;
+      }>;
+    };
+  },
+
   // Utilize management reserve
   utilizeManagementReserve: async (boeVersionId: string, amount: number, reason: string, description?: string): Promise<ManagementReserve> => {
     const response = await boeApi.post(`/boe-versions/${boeVersionId}/management-reserve/utilize`, {
@@ -315,10 +350,6 @@ export const managementReserveApi = {
     return response.data;
   },
 
-  calculateRODrivenMR: async (boeVersionId: string, riskMatrixData: any): Promise<ManagementReserve> => {
-    const response = await boeApi.post(`/boe-versions/${boeVersionId}/management-reserve/calculate-ro-driven`, riskMatrixData);
-    return response.data as ManagementReserve;
-  },
 };
 
 

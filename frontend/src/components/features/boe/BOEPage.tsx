@@ -13,6 +13,7 @@ import BOEWizardModal from './BOEWizardModal';
 import { BOETemplate } from '../../../store/boeStore';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
+import EnhancedErrorMessage from '../../common/EnhancedErrorMessage';
 import { boeApiService } from '../../../services/boeApi';
 import { boeVersionsApi } from '../../../services/boeApi';
 import BOECalculationService from '../../../services/boeCalculationService';
@@ -39,6 +40,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
     activeTab,
     setActiveTab,
     setCurrentBOE,
+    setElements,
+    setElementAllocations,
     setBOELoading,
     setBOEError,
     openWizard,
@@ -109,9 +112,29 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         // Load current BOE from API
         const boeData = await boeApiService.versions.getCurrentBOE(programId);
         // The API returns { program, currentBOE, hasBOE, lastBOEUpdate }
-        // not the BOESummary structure we expected
-        setCurrentBOE(boeData.currentBOE || null);
-
+        // currentBOE includes elements in relations
+        const currentBOE = boeData.currentBOE || null;
+        setCurrentBOE(currentBOE);
+        
+        // Extract elements from BOE response
+        if (currentBOE?.elements) {
+          setElements(currentBOE.elements);
+        } else {
+          setElements([]);
+        }
+        
+        // Load allocations if BOE exists
+        if (currentBOE?.id) {
+          try {
+            const allocations = await boeApiService.elementAllocations.getElementAllocations(currentBOE.id);
+            setElementAllocations(allocations);
+          } catch (err) {
+            console.error('Error loading allocations:', err);
+            setElementAllocations([]);
+          }
+        } else {
+          setElementAllocations([]);
+        }
 
         setBOELoading(false);
         setIsInitialized(true);
@@ -135,7 +158,28 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
 
           // Load complete BOE data with elements and allocations
           const boeData = await boeApiService.versions.getCurrentBOE(programId);
-          setCurrentBOE(boeData.currentBOE || null);
+          const currentBOE = boeData.currentBOE || null;
+          setCurrentBOE(currentBOE);
+          
+          // Extract elements from BOE response
+          if (currentBOE?.elements) {
+            setElements(currentBOE.elements);
+          } else {
+            setElements([]);
+          }
+          
+          // Load allocations if BOE exists
+          if (currentBOE?.id) {
+            try {
+              const allocations = await boeApiService.elementAllocations.getElementAllocations(currentBOE.id);
+              setElementAllocations(allocations);
+            } catch (err) {
+              console.error('Error loading allocations:', err);
+              setElementAllocations([]);
+            }
+          } else {
+            setElementAllocations([]);
+          }
 
           setBOELoading(false);
         } catch (error) {
@@ -417,8 +461,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
                 </span>
               </button>
 
-              {/* Create New Version Button */}
-              {currentBOE && (
+              {/* Create New Version Button - only show if not baselined */}
+              {currentBOE && currentBOE.status !== 'Baseline' && currentBOE.status !== 'PushedToProgram' && (
                 <button
                   onClick={handleCreateNewVersion}
                   className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors flex items-center gap-2"
@@ -540,76 +584,81 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
           />
         )}
 
-        {/* Approval Error Display */}
+        {/* Enhanced Approval Error Display */}
         {approvalError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium text-red-800">Approval Submission Failed</h3>
-                <div className="mt-2 text-sm text-red-700">
-                  {approvalError.startsWith('BOE validation failed:') ? (
-                    <div>
-                      <p className="font-medium mb-3">The following issues must be resolved before approval:</p>
-                      <div className="space-y-3">
-                        {(() => {
-                          const errorText = approvalError.replace('BOE validation failed: ', '');
-                          const errors = errorText.split(', ');
-
-                          // Group errors by category
-                          const categories: { [key: string]: string[] } = {};
-                          let currentCategory = '';
-
-                          errors.forEach(error => {
-                            if (error.includes(': ')) {
-                              // This is a category header
-                              const [category, items] = error.split(': ');
-                              currentCategory = category;
-                              categories[category] = items.split(', ').map(item => item.trim());
-                            } else if (currentCategory && !error.includes(':')) {
-                              // This is an item that belongs to the current category
-                              categories[currentCategory].push(error.trim());
-                            } else {
-                              // This is a standalone error
-                              categories[error] = [];
-                            }
-                          });
-
-                          return Object.entries(categories).map(([category, items], index) => (
-                            <div key={index}>
-                              <div className="font-medium text-red-800 mb-1">{category}:</div>
-                              {items.length > 0 ? (
-                                <ul className="list-disc list-inside ml-4 space-y-0.5">
-                                  {items.map((item, itemIndex) => (
-                                    <li key={itemIndex} className="text-red-700">{item}</li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <div className="ml-4 text-red-700">{category}</div>
-                              )}
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                    </div>
-                  ) : (
-                    approvalError
-                  )}
-                </div>
-                <div className="mt-3">
-                  <button
-                    onClick={() => setApprovalError(null)}
-                    className="text-sm text-red-600 hover:text-red-500 underline"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            </div>
+          <div className="mb-6">
+            <EnhancedErrorMessage
+              title="Approval Submission Failed"
+              message={
+                approvalError.startsWith('BOE validation failed:')
+                  ? "Your BOE cannot be submitted for approval until the following issues are resolved:"
+                  : approvalError
+              }
+              type="error"
+              details={
+                approvalError.startsWith('BOE validation failed:')
+                  ? (() => {
+                      const errorText = approvalError.replace('BOE validation failed: ', '');
+                      const errors = errorText.split(', ');
+                      const details: string[] = [];
+                      
+                      // Group errors by category
+                      const categories: { [key: string]: string[] } = {};
+                      let currentCategory = '';
+                      
+                      errors.forEach(error => {
+                        if (error.includes(': ')) {
+                          const [category, items] = error.split(': ');
+                          currentCategory = category;
+                          categories[category] = items.split(', ').map(item => item.trim());
+                        } else if (currentCategory && !error.includes(':')) {
+                          categories[currentCategory].push(error.trim());
+                        } else {
+                          categories[error] = [];
+                        }
+                      });
+                      
+                      Object.entries(categories).forEach(([category, items]) => {
+                        if (items.length > 0) {
+                          details.push(`${category}: ${items.join(', ')}`);
+                        } else {
+                          details.push(category);
+                        }
+                      });
+                      
+                      return details;
+                    })()
+                  : [approvalError]
+              }
+              recoverySuggestions={(() => {
+                const suggestions: string[] = [];
+                if (approvalError.includes('Missing Allocations')) {
+                  suggestions.push('Go to the Allocations tab and create allocations for all required elements');
+                }
+                if (approvalError.includes('Missing Vendors')) {
+                  suggestions.push('Edit WBS elements and assign vendors to all leaf elements');
+                }
+                if (approvalError.includes('Management Reserve')) {
+                  suggestions.push('Configure Management Reserve in the Management Reserve tab');
+                }
+                if (approvalError.includes('WBS element')) {
+                  suggestions.push('Ensure all required WBS elements have cost estimates and cost categories assigned');
+                }
+                if (suggestions.length === 0) {
+                  suggestions.push('Review the BOE Details tab and ensure all required fields are completed');
+                  suggestions.push('Check the Allocations tab to ensure all elements have allocations configured');
+                }
+                return suggestions;
+              })()}
+              onDismiss={() => setApprovalError(null)}
+              onAction={{
+                label: 'View BOE Details',
+                onClick: () => {
+                  setActiveTab('details');
+                  setApprovalError(null);
+                },
+              }}
+            />
           </div>
         )}
 
@@ -808,8 +857,8 @@ const BOEPage: React.FC<BOEPageProps> = ({ programId: propProgramId }) => {
         {/* Visual Separator */}
         <div className="bg-gray-100 h-px mx-6 my-6"></div>
 
-        {/* Progress Tracker */}
-        {currentBOE && (
+        {/* Progress Tracker - Hide after baselining */}
+        {currentBOE && currentBOE.status !== 'Baseline' && currentBOE.status !== 'PushedToProgram' && (
           <BOEProgressTracker
             boeVersionId={currentBOE.id}
             currentBOE={currentBOE}

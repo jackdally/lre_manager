@@ -135,12 +135,7 @@ const BOEStatusBanner: React.FC<BOEStatusBannerProps> = ({
         break;
       
       case 'Baseline':
-        actions.push({
-          label: 'View Approval Status',
-          icon: EyeIcon,
-          variant: 'info',
-          action: 'view-approval-status'
-        });
+      case 'PushedToProgram':
         actions.push({
           label: 'Create New Version',
           icon: DocumentCheckIcon,
@@ -210,50 +205,52 @@ const BOEStatusBanner: React.FC<BOEStatusBannerProps> = ({
           </div>
         </div>
 
-        {/* Workflow Progress Bar */}
-        <div className="bg-gray-50 rounded-lg border border-gray-300 p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-800">Approval Workflow</h3>
-            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
-              {workflowStages.filter(stage => stage.completed).length} of {workflowStages.length} stages complete
-            </span>
-          </div>
-          
-          <div className="flex items-center">
-            {workflowStages.map((stage, index) => (
-              <React.Fragment key={stage.key}>
-                <div className="flex flex-col items-center">
-                  <div className={`
-                    w-8 h-8 rounded-full flex items-center justify-center border-2
-                    ${stage.completed 
-                      ? 'bg-green-500 border-green-500 text-white' 
-                      : 'bg-gray-200 border-gray-300 text-gray-500'
-                    }
-                  `}>
-                    {stage.completed ? (
-                      <CheckCircleIconSolid className="h-4 w-4" />
-                    ) : (
-                      <stage.icon className="h-4 w-4" />
-                    )}
+        {/* Workflow Progress Bar - Hide after baselining */}
+        {currentBOE.status !== 'Baseline' && currentBOE.status !== 'PushedToProgram' && (
+          <div className="bg-gray-50 rounded-lg border border-gray-300 p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-800">Approval Workflow</h3>
+              <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                {workflowStages.filter(stage => stage.completed).length} of {workflowStages.length} stages complete
+              </span>
+            </div>
+            
+            <div className="flex items-center">
+              {workflowStages.map((stage, index) => (
+                <React.Fragment key={stage.key}>
+                  <div className="flex flex-col items-center">
+                    <div className={`
+                      w-8 h-8 rounded-full flex items-center justify-center border-2
+                      ${stage.completed 
+                        ? 'bg-green-500 border-green-500 text-white' 
+                        : 'bg-gray-200 border-gray-300 text-gray-500'
+                      }
+                    `}>
+                      {stage.completed ? (
+                        <CheckCircleIconSolid className="h-4 w-4" />
+                      ) : (
+                        <stage.icon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <span className={`
+                      text-xs mt-1 text-center max-w-16
+                      ${stage.completed ? 'text-green-600 font-medium' : 'text-gray-500'}
+                    `}>
+                      {stage.label}
+                    </span>
                   </div>
-                  <span className={`
-                    text-xs mt-1 text-center max-w-16
-                    ${stage.completed ? 'text-green-600 font-medium' : 'text-gray-500'}
-                  `}>
-                    {stage.label}
-                  </span>
-                </div>
-                
-                {index < workflowStages.length - 1 && (
-                  <div className={`
-                    flex-1 h-0.5 mx-2
-                    ${stage.completed && workflowStages[index + 1].completed ? 'bg-green-500' : 'bg-gray-300'}
-                  `} />
-                )}
-              </React.Fragment>
-            ))}
+                  
+                  {index < workflowStages.length - 1 && (
+                    <div className={`
+                      flex-1 h-0.5 mx-2
+                      ${stage.completed && workflowStages[index + 1].completed ? 'bg-green-500' : 'bg-gray-300'}
+                    `} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

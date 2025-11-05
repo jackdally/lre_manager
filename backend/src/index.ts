@@ -14,14 +14,21 @@ import { importRouter } from './routes/import';
 import settingsRouter from './routes/settings';
 import wbsReportingRouter from './routes/wbsReporting';
 import costCategoriesRouter from './routes/costCategories';
+import riskCategoryRouter from './routes/riskCategory';
 import boeRouter from './routes/boe';
 
 import boeElementAllocationRouter from './routes/boeElementAllocation';
 import ledgerAuditTrailRouter from './routes/ledgerAuditTrail';
 import { ledgerSplittingRouter } from './routes/ledgerSplitting';
 import { transactionAdjustmentRouter } from './routes/transactionAdjustment';
+import programSetupRouter from './routes/programSetup';
+import riskOpportunityRouter from './routes/riskOpportunity';
+import monthlyRemindersRouter from './routes/monthlyReminders';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
+import * as cron from 'node-cron';
+import { MonthlyActualsReminderService } from './services/monthlyActualsReminderService';
+import { RiskOpportunityService } from './services/riskOpportunityService';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -64,12 +71,16 @@ app.use('/api/programs', wbsReportingRouter);
 app.use('/api/import', importRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/cost-categories', costCategoriesRouter);
+app.use('/api/risk-categories', riskCategoryRouter);
 app.use('/api', boeRouter);
 
 app.use('/api', boeElementAllocationRouter);
 app.use('/api/ledger-audit-trail', ledgerAuditTrailRouter);
 app.use('/api/ledger-splitting', ledgerSplittingRouter);
 app.use('/api/transaction-adjustment', transactionAdjustmentRouter);
+app.use('/api', programSetupRouter);
+app.use('/api', riskOpportunityRouter);
+app.use('/api', monthlyRemindersRouter);
 
 // Dedicated endpoint for ledger template download
 app.get('/api/ledger/template', (req, res) => {
@@ -123,9 +134,38 @@ function printRoutes(app: Express) {
 
 // Initialize database connection
 AppDataSource.initialize()
-  .then(() => {
+  .then(async () => {
     console.log('Database connection established');
+    
+    // Ensure standard risk categories exist
+    try {
+      await RiskOpportunityService.ensureStandardCategories();
+      console.log('Standard risk categories verified');
+    } catch (error) {
+      console.error('Error seeding risk categories:', error);
+      // Don't fail startup if seeding fails, but log the error
+    }
+    
     printRoutes(app); // Print all routes after DB is ready
+    
+    // Schedule monthly actuals reminder check (runs on 5th of each month at 9:00 AM)
+    // Cron format: minute hour day month day-of-week
+    // '0 9 5 * *' = 9:00 AM on the 5th of every month
+    const cronExpression = process.env.MONTHLY_REMINDER_CRON || '0 9 5 * *';
+    
+    if (process.env.NODE_ENV !== 'test') {
+      cron.schedule(cronExpression, async () => {
+        console.log('[Monthly Reminder] Running scheduled check for missing actuals...');
+        try {
+          const result = await MonthlyActualsReminderService.checkAndCreateReminders();
+          console.log(`[Monthly Reminder] Check completed: ${result.remindersCreated} reminders created for ${result.programsChecked} programs`);
+        } catch (error) {
+          console.error('[Monthly Reminder] Error during scheduled check:', error);
+        }
+      });
+      console.log(`[Monthly Reminder] Scheduled job configured with cron: ${cronExpression}`);
+    }
+    
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });

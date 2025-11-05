@@ -3,6 +3,7 @@ import { useBOEStore } from '../../../store/boeStore';
 import { boeApprovalsApi, boeVersionsApi } from '../../../services/boeApi';
 import Button from '../../common/Button';
 import Modal from '../../common/Modal';
+import EnhancedErrorMessage from '../../common/EnhancedErrorMessage';
 import { 
   CheckCircleIcon, 
   XCircleIcon, 
@@ -208,259 +209,319 @@ const BOEApprovalWorkflow: React.FC<BOEApprovalWorkflowProps> = ({ programId }) 
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Error Display */}
+    <div className="p-4 space-y-4">
+      {/* Enhanced Error Display */}
       {approvalsError && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-sm font-medium text-red-800">Approval Submission Failed</h3>
-              <div className="mt-2 text-sm text-red-700">
-                {approvalsError.startsWith('BOE validation failed:') ? (
-                  <div>
-                    <p className="font-medium mb-2">The following issues must be resolved before approval:</p>
-                    <div className="space-y-3">
-                      {approvalsError.replace('BOE validation failed: ', '').split(', ').map((error, index) => {
-                        // Check if this is a category with items (e.g., "Missing Allocations: Backend Development, Frontend Development")
-                        if (error.includes(': ')) {
-                          const [category, items] = error.split(': ');
-                          const itemList = items.split(', ');
-                          
-                          return (
-                            <div key={index}>
-                              <div className="font-medium text-red-800 mb-1">{category}:</div>
-                              <ul className="list-disc list-inside ml-4 space-y-0.5">
-                                {itemList.map((item, itemIndex) => (
-                                  <li key={itemIndex} className="text-red-700">{item.trim()}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        } else {
-                          // Regular error without sub-items
-                          return (
-                            <div key={index} className="text-red-700">
-                              {error}
-                            </div>
-                          );
-                        }
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  approvalsError
-                )}
-              </div>
-              <div className="mt-3">
-                <button
-                  onClick={() => setApprovalsError(null)}
-                  className="text-sm text-red-600 hover:text-red-500 underline"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
+        <div className="mb-6">
+          <EnhancedErrorMessage
+            title="Approval Submission Failed"
+            message={
+              approvalsError.startsWith('BOE validation failed:')
+                ? "Your BOE cannot be submitted for approval until the following issues are resolved:"
+                : approvalsError
+            }
+            type="error"
+            details={
+              approvalsError.startsWith('BOE validation failed:')
+                ? (() => {
+                    const errorText = approvalsError.replace('BOE validation failed: ', '');
+                    const errors = errorText.split(', ');
+                    const details: string[] = [];
+                    
+                    errors.forEach(error => {
+                      if (error.includes(': ')) {
+                        const [category, items] = error.split(': ');
+                        const itemList = items.split(', ');
+                        details.push(`${category}: ${itemList.join(', ')}`);
+                      } else {
+                        details.push(error);
+                      }
+                    });
+                    
+                    return details;
+                  })()
+                : [approvalsError]
+            }
+            recoverySuggestions={(() => {
+              const suggestions: string[] = [];
+              if (approvalsError.includes('Missing Allocations')) {
+                suggestions.push('Navigate to the Allocations tab and create allocations for all required elements');
+              }
+              if (approvalsError.includes('Missing Vendors')) {
+                suggestions.push('Assign vendors to all leaf elements in the WBS Structure');
+              }
+              if (approvalsError.includes('Management Reserve')) {
+                suggestions.push('Configure Management Reserve in the BOE Overview section');
+              }
+              if (approvalsError.includes('WBS element')) {
+                suggestions.push('Ensure all required WBS elements have cost estimates and cost categories');
+              }
+              if (suggestions.length === 0) {
+                suggestions.push('Review the BOE details and ensure all required fields are completed');
+                suggestions.push('Check that all allocations are properly configured');
+              }
+              return suggestions;
+            })()}
+            onDismiss={() => setApprovalsError(null)}
+            onAction={{
+              label: 'Go to BOE Details',
+              onClick: () => {
+                // Scroll to BOE details section or navigate
+                window.location.hash = 'boe-details';
+                setApprovalsError(null);
+              },
+            }}
+          />
         </div>
       )}
 
       {/* Current Status Section */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Approval Status</h2>
-          <div className="flex items-center gap-2">
-            {getStatusIcon(currentBOE.status)}
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(currentBOE.status)}`}>
-              {currentBOE.status}
-            </span>
+      <div className="space-y-4">
+        {/* Status Header Card */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Approval Status</h2>
+              <p className="text-sm text-gray-600 mt-1">Current BOE approval workflow status</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {getStatusIcon(currentBOE.status)}
+              <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${getStatusColor(currentBOE.status)}`}>
+                {currentBOE.status}
+              </span>
+            </div>
+          </div>
+
+          {/* BOE Info Grid */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <div className="flex items-center gap-2 mb-1.5">
+                <UserIcon className="h-4 w-4 text-gray-500" />
+                <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Created By</span>
+              </div>
+              <p className="text-sm font-semibold text-gray-900">{currentBOE.createdBy || 'Unknown'}</p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <div className="flex items-center gap-2 mb-1.5">
+                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Created Date</span>
+              </div>
+              <p className="text-sm font-semibold text-gray-900">
+                {new Date(currentBOE.createdAt).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                })}
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <div className="flex items-center gap-2 mb-1.5">
+                <CurrencyDollarIcon className="h-4 w-4 text-gray-500" />
+                <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Cost</span>
+              </div>
+              <p className="text-sm font-semibold text-gray-900">{formatCurrency(currentBOE.totalEstimatedCost)}</p>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <UserIcon className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Created By</span>
-            </div>
-            <p className="text-sm text-gray-900">{currentBOE.createdBy || 'Unknown'}</p>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <CalendarIcon className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Created Date</span>
-            </div>
-            <p className="text-sm text-gray-900">
-              {new Date(currentBOE.createdAt).toLocaleDateString()}
-            </p>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <CurrencyDollarIcon className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Total Cost</span>
-            </div>
-            <p className="text-sm text-gray-900">{formatCurrency(currentBOE.totalEstimatedCost)}</p>
-          </div>
-        </div>
-
-        {/* Approval Workflow Status */}
+        {/* Approval Workflow Status Card */}
         {approvalStatus && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-3">Approval Workflow</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <span className="text-sm font-medium text-gray-700">Current Level:</span>
-                <p className="text-sm text-gray-900">{approvalStatus.currentLevel || 'None'}</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                <ClockIcon className="h-5 w-5 text-blue-600" />
+                Approval Workflow
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                <span className="text-xs font-medium text-blue-700 uppercase tracking-wide block mb-1">Current Level</span>
+                <p className="text-sm font-semibold text-blue-900">{approvalStatus.currentLevel || 'None'}</p>
               </div>
-              <div>
-                <span className="text-sm font-medium text-gray-700">Next Approver:</span>
-                <p className="text-sm text-gray-900">{approvalStatus.nextApprover || 'None'}</p>
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                <span className="text-xs font-medium text-blue-700 uppercase tracking-wide block mb-1">Next Approver</span>
+                <p className="text-sm font-semibold text-blue-900">{approvalStatus.nextApprover || 'None'}</p>
               </div>
-              <div>
-                <span className="text-sm font-medium text-gray-700">Can Approve:</span>
-                <p className="text-sm text-gray-900">{approvalStatus.canApprove ? 'Yes' : 'No'}</p>
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                <span className="text-xs font-medium text-gray-600 uppercase tracking-wide block mb-1">Can Approve</span>
+                <p className={`text-sm font-semibold ${approvalStatus.canApprove ? 'text-green-700' : 'text-gray-700'}`}>
+                  {approvalStatus.canApprove ? 'Yes' : 'No'}
+                </p>
               </div>
-              <div>
-                <span className="text-sm font-medium text-gray-700">Workflow Complete:</span>
-                <p className="text-sm text-gray-900">{approvalStatus.isComplete ? 'Yes' : 'No'}</p>
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                <span className="text-xs font-medium text-gray-600 uppercase tracking-wide block mb-1">Workflow Complete</span>
+                <p className={`text-sm font-semibold ${approvalStatus.isComplete ? 'text-green-700' : 'text-gray-700'}`}>
+                  {approvalStatus.isComplete ? 'Yes' : 'No'}
+                </p>
               </div>
             </div>
           </div>
         )}
 
         {/* Approval Actions */}
-        <div className="flex flex-wrap gap-3">
-          {canSubmitForApproval && (
-            <Button
-              onClick={handleSubmitForApproval}
-              disabled={submittingAction}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {submittingAction ? (
+        {(canSubmitForApproval || (approvalStatus?.canApprove && approvalStatus.currentLevel)) && (
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Actions</h3>
+            <div className="flex flex-wrap gap-2">
+              {canSubmitForApproval && (
+                <button
+                  onClick={handleSubmitForApproval}
+                  disabled={submittingAction}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  {submittingAction ? (
+                    <>
+                      <ArrowPathIcon className="h-4 w-4 animate-spin mr-2" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <DocumentCheckIcon className="h-4 w-4 mr-2" />
+                      Submit for Approval
+                    </>
+                  )}
+                </button>
+              )}
+
+              {approvalStatus?.canApprove && approvalStatus.currentLevel && approvalStatus.currentLevel.startsWith('Level ') && (
                 <>
-                  <ArrowPathIcon className="h-4 w-4 animate-spin mr-2" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <DocumentCheckIcon className="h-4 w-4 mr-2" />
-                  Submit for Approval
+                  <button
+                    onClick={() => {
+                      const levelNumber = parseInt(approvalStatus.currentLevel.replace('Level ', ''));
+                      openActionModal('approve', levelNumber);
+                    }}
+                    className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors shadow-sm"
+                  >
+                    <CheckCircleIcon className="h-4 w-4 mr-2" />
+                    Approve {approvalStatus.currentLevel}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const levelNumber = parseInt(approvalStatus.currentLevel.replace('Level ', ''));
+                      openActionModal('reject', levelNumber);
+                    }}
+                    className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors shadow-sm"
+                  >
+                    <XCircleIcon className="h-4 w-4 mr-2" />
+                    Reject {approvalStatus.currentLevel}
+                  </button>
                 </>
               )}
-            </Button>
-          )}
-
-          {approvalStatus?.canApprove && approvalStatus.currentLevel && approvalStatus.currentLevel.startsWith('Level ') && (
-            <>
-              <Button
-                onClick={() => {
-                  const levelNumber = parseInt(approvalStatus.currentLevel.replace('Level ', ''));
-                  openActionModal('approve', levelNumber);
-                }}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <CheckCircleIcon className="h-4 w-4 mr-2" />
-                Approve {approvalStatus.currentLevel}
-              </Button>
-
-              <Button
-                onClick={() => {
-                  const levelNumber = parseInt(approvalStatus.currentLevel.replace('Level ', ''));
-                  openActionModal('reject', levelNumber);
-                }}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                <XCircleIcon className="h-4 w-4 mr-2" />
-                Reject {approvalStatus.currentLevel}
-              </Button>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Approval History Section */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Approval History</h2>
-          <Button
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2">
+            <ChatBubbleLeftRightIcon className="h-5 w-5 text-gray-600" />
+            <h2 className="text-base font-semibold text-gray-900">Approval History</h2>
+          </div>
+          <button
             onClick={() => window.location.reload()}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
           >
-            <ArrowPathIcon className="h-4 w-4 mr-2" />
+            <ArrowPathIcon className="h-4 w-4 mr-1.5" />
             Refresh
-          </Button>
+          </button>
         </div>
 
-        {approvalsLoading ? (
-          <div className="text-center py-8">
-            <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-2" />
-            <p className="text-gray-500">Loading approval history...</p>
-          </div>
-        ) : approvals.length === 0 ? (
-          <div className="text-center py-8">
-            <ChatBubbleLeftRightIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-gray-500">No approval history found.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {approvals.map((approval) => (
-              <div key={approval.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    {getStatusIcon(approval.status)}
-                    <div>
-                      <h4 className="font-medium text-gray-900">
-                        {approval.approverRole} - {approval.approverName || 'Unassigned'}
-                      </h4>
-                      <p className="text-sm text-gray-500">
-                        Level {approval.approvalLevel} • {approval.isRequired ? 'Required' : 'Optional'}
-                      </p>
+        <div className="p-4">
+          {approvalsLoading ? (
+            <div className="text-center py-12">
+              <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-3" />
+              <p className="text-sm text-gray-600">Loading approval history...</p>
+            </div>
+          ) : approvals.length === 0 ? (
+            <div className="text-center py-12">
+              <ChatBubbleLeftRightIcon className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+              <p className="text-sm font-medium text-gray-900 mb-1">No Approval History</p>
+              <p className="text-xs text-gray-500">Approval entries will appear here once the workflow begins.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {approvals.map((approval) => (
+                <div key={approval.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="flex-shrink-0 mt-0.5">
+                        {getStatusIcon(approval.status)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-1">
+                          {approval.approverRole} - {approval.approverName || 'Unassigned'}
+                        </h4>
+                        <p className="text-xs text-gray-600 mb-2">
+                          Level {approval.approvalLevel} • {approval.isRequired ? 'Required' : 'Optional'}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="bg-white rounded p-2 border border-gray-200">
+                            <span className="text-gray-600 font-medium block mb-0.5">Submitted</span>
+                            <p className="text-gray-900 font-medium">
+                              {approval.submittedAt 
+                                ? new Date(approval.submittedAt).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
+                                : 'Not submitted'}
+                            </p>
+                          </div>
+                          <div className="bg-white rounded p-2 border border-gray-200">
+                            <span className="text-gray-600 font-medium block mb-0.5">Processed</span>
+                            <p className="text-gray-900 font-medium">
+                              {approval.approvedAt 
+                                ? new Date(approval.approvedAt).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
+                                : approval.rejectedAt 
+                                ? new Date(approval.rejectedAt).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
+                                : 'Pending'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${getStatusColor(approval.status)}`}>
+                      {approval.status}
+                    </span>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(approval.status)}`}>
-                    {approval.status}
-                  </span>
+
+                  {approval.comments && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <span className="text-xs font-medium text-gray-700 block mb-1.5">Comments</span>
+                      <p className="text-xs text-gray-900 bg-white rounded p-2 border border-gray-200">{approval.comments}</p>
+                    </div>
+                  )}
+
+                  {approval.rejectionReason && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <span className="text-xs font-medium text-red-700 block mb-1.5">Rejection Reason</span>
+                      <p className="text-xs text-red-900 bg-red-50 rounded p-2 border border-red-200">{approval.rejectionReason}</p>
+                    </div>
+                  )}
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Submitted:</span>
-                    <p className="text-sm text-gray-900">
-                      {approval.submittedAt ? new Date(approval.submittedAt).toLocaleString() : 'Not submitted'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Processed:</span>
-                    <p className="text-sm text-gray-900">
-                      {approval.approvedAt ? new Date(approval.approvedAt).toLocaleString() : 
-                       approval.rejectedAt ? new Date(approval.rejectedAt).toLocaleString() : 'Pending'}
-                    </p>
-                  </div>
-                </div>
-
-                {approval.comments && (
-                  <div className="mb-3">
-                    <span className="text-sm font-medium text-gray-700">Comments:</span>
-                    <p className="text-sm text-gray-900 mt-1">{approval.comments}</p>
-                  </div>
-                )}
-
-                {approval.rejectionReason && (
-                  <div>
-                    <span className="text-sm font-medium text-red-700">Rejection Reason:</span>
-                    <p className="text-sm text-red-900 mt-1">{approval.rejectionReason}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Approval Action Modal */}

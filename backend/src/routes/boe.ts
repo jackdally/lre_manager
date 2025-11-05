@@ -15,6 +15,7 @@ import { BOECommentService } from '../services/boeCommentService';
 import { WbsTemplate } from '../entities/WbsTemplate';
 import { ApprovalWorkflowService } from '../services/approvalWorkflowService';
 import { BOEValidationService } from '../services/boeValidationService';
+import { ProgramSetupService } from '../services/programSetupService';
 
 const router = Router();
 const programRepository = AppDataSource.getRepository(Program);
@@ -83,7 +84,7 @@ router.get('/boe/wbs-templates', async (req, res) => {
 router.get('/programs/:id/boe', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid program ID' });
     }
@@ -133,7 +134,7 @@ router.get('/programs/:id/boe', async (req, res) => {
 router.post('/programs/:id/boe', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid program ID' });
     }
@@ -146,7 +147,7 @@ router.post('/programs/:id/boe', async (req, res) => {
     // Validate required fields
     const requiredFields = ['name', 'description'];
     const missingFields = requiredFields.filter(field => !req.body[field]);
-    
+
     if (missingFields.length > 0) {
       return res.status(400).json({
         message: 'Missing required fields',
@@ -216,6 +217,14 @@ router.post('/programs/:id/boe', async (req, res) => {
     program.lastBOEUpdate = new Date();
     await programRepository.save(program);
 
+    // Update setup status to mark BOE as created
+    try {
+      await ProgramSetupService.markBOECreated(id);
+    } catch (error) {
+      console.error('Error updating setup status after BOE creation:', error);
+      // Don't fail BOE creation if setup status update fails
+    }
+
     // Load the complete BOE with elements and allocations for the response
     const completeBOE = await boeVersionRepository.findOne({
       where: { id: savedBOE.id },
@@ -251,7 +260,7 @@ router.post('/programs/:id/boe', async (req, res) => {
 router.put('/programs/:id/boe/:versionId', async (req, res) => {
   try {
     const { id, versionId } = req.params;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid ID' });
     }
@@ -268,7 +277,7 @@ router.put('/programs/:id/boe/:versionId', async (req, res) => {
     // Update BOE version
     Object.assign(boeVersion, req.body);
     boeVersion.updatedAt = new Date();
-    
+
     const updatedBOE = await boeVersionRepository.save(boeVersion);
 
     // Update program last update time
@@ -294,7 +303,7 @@ router.put('/programs/:id/boe/:versionId', async (req, res) => {
 router.get('/boe-templates', async (req, res) => {
   try {
     const { category, isActive } = req.query;
-    
+
     const whereClause: any = {};
     if (category) whereClause.category = category;
     if (isActive !== undefined) whereClause.isActive = isActive === 'true';
@@ -348,7 +357,7 @@ router.post('/boe-templates', async (req, res) => {
     // Validate required fields
     const requiredFields = ['name', 'description', 'category', 'version'];
     const missingFields = requiredFields.filter(field => !req.body[field]);
-    
+
     if (missingFields.length > 0) {
       return res.status(400).json({
         message: 'Missing required fields',
@@ -492,7 +501,7 @@ router.put('/boe-templates/:id', async (req, res) => {
 router.post('/programs/:id/boe/approve', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid program ID' });
     }
@@ -540,7 +549,7 @@ router.post('/programs/:id/boe/approve', async (req, res) => {
 router.post('/programs/:id/boe/:versionId/revert-to-draft', async (req, res) => {
   try {
     const { id, versionId } = req.params;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid ID' });
     }
@@ -596,7 +605,7 @@ router.post('/programs/:id/boe/approve/:versionId', async (req, res) => {
   try {
     const { id, versionId } = req.params;
     const { approvedBy, comments, approvalLevel, action } = req.body;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid ID' });
     }
@@ -642,7 +651,7 @@ router.post('/programs/:id/boe/approve/:versionId', async (req, res) => {
 router.get('/boe-versions/:versionId/approval-status', async (req, res) => {
   try {
     const { versionId } = req.params;
-    
+
     if (!isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid version ID' });
     }
@@ -715,7 +724,7 @@ router.post('/boe-approval/check-escalations', async (req, res) => {
 router.post('/boe-elements', async (req, res) => {
   try {
     const { boeVersionId, ...elementData } = req.body;
-    
+
     if (!boeVersionId || !isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Valid BOE version ID is required' });
     }
@@ -765,7 +774,7 @@ router.post('/boe-elements', async (req, res) => {
 router.put('/boe-elements/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid element ID' });
     }
@@ -781,9 +790,9 @@ router.put('/boe-elements/:id', async (req, res) => {
 
     Object.assign(element, req.body);
     element.updatedAt = new Date();
-    
+
     const updatedElement = await boeElementRepository.save(element);
-    
+
     // Reload with relations to include costCategory and vendor
     const elementWithRelations = await boeElementRepository.findOne({
       where: { id: updatedElement.id },
@@ -825,7 +834,7 @@ router.put('/boe-versions/:versionId/elements/bulk', async (req, res) => {
   try {
     const { versionId } = req.params;
     const { elements } = req.body;
-    
+
     if (!isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid version ID' });
     }
@@ -844,7 +853,7 @@ router.put('/boe-versions/:versionId/elements/bulk', async (req, res) => {
     }
 
     const updatedElements = [];
-    
+
     // Update each element
     for (const elementData of elements) {
       if (!elementData.id) {
@@ -862,7 +871,7 @@ router.put('/boe-versions/:versionId/elements/bulk', async (req, res) => {
       // Update element properties
       Object.assign(element, elementData);
       element.updatedAt = new Date();
-      
+
       const updatedElement = await boeElementRepository.save(element);
       updatedElements.push(updatedElement);
     }
@@ -893,7 +902,7 @@ router.put('/boe-versions/:versionId/elements/bulk', async (req, res) => {
 router.delete('/boe-elements/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid element ID' });
     }
@@ -937,7 +946,7 @@ router.delete('/boe-elements/:id', async (req, res) => {
 router.post('/programs/:id/boe/:versionId/push-to-ledger', async (req, res) => {
   try {
     const { id, versionId } = req.params;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid program ID or version ID' });
     }
@@ -974,7 +983,7 @@ router.post('/programs/:id/boe/:versionId/push-to-ledger', async (req, res) => {
 router.post('/programs/:id/boe/:versionId/clear-elements', async (req, res) => {
   try {
     const { id, versionId } = req.params;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid program ID or version ID' });
     }
@@ -1020,7 +1029,7 @@ router.post('/programs/:id/boe/:versionId/import-wbs-template', async (req, res)
   try {
     const { id, versionId } = req.params;
     const { wbsTemplateId } = req.body;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId) || !isValidUUID(wbsTemplateId)) {
       return res.status(400).json({ message: 'Invalid program ID, version ID, or WBS template ID' });
     }
@@ -1055,7 +1064,7 @@ router.post('/programs/:id/boe/:versionId/import-wbs-template', async (req, res)
 router.post('/programs/:id/boe/:versionId/push-to-program-wbs', async (req, res) => {
   try {
     const { id, versionId } = req.params;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid program ID or version ID' });
     }
@@ -1101,7 +1110,7 @@ router.post('/programs/:id/boe/:versionId/push-to-program-wbs', async (req, res)
 router.delete('/programs/:id/boe/:versionId', async (req, res) => {
   try {
     const { id, versionId } = req.params;
-    
+
     if (!isValidUUID(id) || !isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid program ID or version ID' });
     }
@@ -1110,7 +1119,7 @@ router.delete('/programs/:id/boe/:versionId', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error deleting BOE version:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('Cannot delete BOE with status')) {
         return res.status(403).json({ message: error.message });
@@ -1119,7 +1128,7 @@ router.delete('/programs/:id/boe/:versionId', async (req, res) => {
         return res.status(404).json({ message: error.message });
       }
     }
-    
+
     res.status(500).json({ message: 'Error deleting BOE version', error });
   }
 });
@@ -1144,7 +1153,7 @@ router.delete('/programs/:id/boe/:versionId', async (req, res) => {
 router.get('/boe-versions/:boeVersionId/management-reserve', async (req, res) => {
   try {
     const { boeVersionId } = req.params;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1182,7 +1191,7 @@ router.put('/boe-versions/:boeVersionId/management-reserve', async (req, res) =>
   try {
     const { boeVersionId } = req.params;
     const mrData = req.body;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1266,7 +1275,7 @@ router.post('/boe-versions/:boeVersionId/management-reserve/calculate', async (r
   try {
     const { boeVersionId } = req.params;
     const { method, customPercentage } = req.body;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1332,7 +1341,7 @@ router.post('/boe-versions/:boeVersionId/management-reserve/calculate-breakdown'
   try {
     const { boeVersionId } = req.params;
     const { method, customPercentage, projectComplexity, riskFactors } = req.body;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1346,26 +1355,26 @@ router.post('/boe-versions/:boeVersionId/management-reserve/calculate-breakdown'
     }
 
     const totalCost = boeVersion.totalEstimatedCost || 0;
-    
+
     // Calculate base percentage based on method
     let basePercentage = 10; // Default
     let complexityAdjustment = 0;
     let riskAdjustment = 0;
-    
+
     switch (method) {
       case 'Standard':
         basePercentage = totalCost > 1000000 ? 10 : totalCost > 500000 ? 12 : 15;
         break;
       case 'Risk-Based':
         basePercentage = totalCost > 1000000 ? 8 : totalCost > 500000 ? 10 : 12;
-        
+
         // Add complexity adjustment
         if (projectComplexity === 'High') {
           complexityAdjustment = 2;
         } else if (projectComplexity === 'Medium') {
           complexityAdjustment = 1;
         }
-        
+
         // Add risk factor adjustments
         if (riskFactors && Array.isArray(riskFactors)) {
           riskAdjustment = riskFactors.length * 0.5; // 0.5% per risk factor
@@ -1415,7 +1424,7 @@ router.post('/boe-versions/:boeVersionId/management-reserve/utilize', async (req
   try {
     const { boeVersionId } = req.params;
     const { amount, reason, description } = req.body;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1434,7 +1443,7 @@ router.post('/boe-versions/:boeVersionId/management-reserve/utilize', async (req
 
     // Check if utilization amount exceeds remaining amount
     if (amount > mr.remainingAmount) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Utilization amount exceeds remaining management reserve',
         remainingAmount: mr.remainingAmount,
         requestedAmount: amount
@@ -1475,7 +1484,7 @@ router.post('/boe-versions/:boeVersionId/management-reserve/utilize', async (req
 router.get('/boe-versions/:boeVersionId/management-reserve/history', async (req, res) => {
   try {
     const { boeVersionId } = req.params;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1491,7 +1500,7 @@ router.get('/boe-versions/:boeVersionId/management-reserve/history', async (req,
     // For now, return a simple history based on notes
     // In the future, this could be a separate table with detailed utilization records
     const history = [];
-    
+
     if (mr.notes) {
       const noteLines = mr.notes.split('\n').filter(line => line.trim().startsWith('Utilized'));
       history.push(...noteLines.map((line, index) => ({
@@ -1527,7 +1536,7 @@ router.get('/boe-versions/:boeVersionId/management-reserve/history', async (req,
 router.get('/boe-versions/:boeVersionId/management-reserve/utilization', async (req, res) => {
   try {
     const { boeVersionId } = req.params;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1591,7 +1600,7 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
   try {
     const { id } = req.params;
     const { creationMethod, changeSummary, wizardData } = req.body;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid program ID' });
     }
@@ -1626,7 +1635,15 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
       // Generate next version number
       versionNumber = await generateNextVersionNumber(id);
 
-      // Create new version using existing service method
+      // Get all allocations from the current BOE to copy them to the new version
+      const currentAllocations = await elementAllocationRepository.find({
+        where: { boeVersion: { id: currentBOE.id } },
+        relations: ['boeElement']
+      });
+
+      // Create new version - first create elements, then we'll map allocations
+      // The createBOEWithElements method will create new element IDs and map them
+      // We need to ensure allocations reference the correct (old) element IDs so they can be mapped
       newVersion = await BOEService.createBOEWithElements(
         id,
         {
@@ -1637,7 +1654,16 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
           justification: changeSummary
         },
         currentBOE.elements || [],
-        [] // No allocations for now - they'll be copied by the service
+        currentAllocations.map(allocation => ({
+          elementId: allocation.boeElement.id, // Old element ID - will be mapped to new ID in service
+          name: allocation.name,
+          description: allocation.description,
+          totalAmount: allocation.totalAmount,
+          allocationType: allocation.allocationType,
+          startDate: allocation.startDate,
+          endDate: allocation.endDate,
+          notes: allocation.notes
+        }))
       );
 
       // Update program's current BOE version
@@ -1647,7 +1673,7 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
       // Handle template-based creation - use existing BOE creation logic
       // For now, we'll use the same version-from-current logic since templates are handled in the wizard
       versionNumber = await generateNextVersionNumber(id);
-      
+
       // Create new version using existing service method with template data
       newVersion = await BOEService.createBOEWithElements(
         id,
@@ -1664,11 +1690,11 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
 
       // Update program's current BOE version
       await programRepository.update(id, { currentBOEVersionId: newVersion.id });
-      
+
     } else if (creationMethod === 'manual') {
       // Handle manual creation - use existing BOE creation logic
       versionNumber = await generateNextVersionNumber(id);
-      
+
       // Create new version using existing service method with manual data
       newVersion = await BOEService.createBOEWithElements(
         id,
@@ -1720,7 +1746,7 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
 router.get('/programs/:id/boe-versions', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid program ID' });
     }
@@ -1754,7 +1780,7 @@ router.get('/programs/:id/boe-versions', async (req, res) => {
 router.get('/boe-versions/:versionId/approvals', async (req, res) => {
   try {
     const { versionId } = req.params;
-    
+
     if (!isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid version ID' });
     }
@@ -1798,7 +1824,7 @@ router.post('/boe-versions/:versionId/approvals', async (req, res) => {
   try {
     const { versionId } = req.params;
     const approvalData = req.body;
-    
+
     if (!isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid version ID' });
     }
@@ -1843,7 +1869,7 @@ router.put('/boe-approvals/:approvalId', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const updateData = req.body;
-    
+
     if (!isValidUUID(approvalId)) {
       return res.status(400).json({ message: 'Invalid approval ID' });
     }
@@ -1859,7 +1885,7 @@ router.put('/boe-approvals/:approvalId', async (req, res) => {
 
     // Update approval
     await boeApprovalRepository.update(approvalId, updateData);
-    
+
     // Get updated approval
     const updatedApproval = await boeApprovalRepository.findOne({
       where: { id: approvalId }
@@ -1888,7 +1914,7 @@ router.put('/boe-approvals/:approvalId', async (req, res) => {
 router.get('/boe-versions/:id/history', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -1968,7 +1994,7 @@ router.get('/boe-versions/:id/history', async (req, res) => {
 router.get('/boe-versions/:id/compare/:compareId', async (req, res) => {
   try {
     const { id, compareId } = req.params;
-    
+
     if (!isValidUUID(id) || !isValidUUID(compareId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -2052,7 +2078,7 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
   try {
     const { id } = req.params;
     const { rollbackReason, createNewVersion = true } = req.body;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -2074,7 +2100,7 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
     if (createNewVersion) {
       // Create a new version based on the target version
       const versionNumber = await generateNextVersionNumber(targetVersion.program.id);
-      
+
       newVersion = boeVersionRepository.create({
         ...targetVersion,
         id: undefined, // Let TypeORM generate new ID
@@ -2097,7 +2123,7 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
 
       // Save the new version first to get the ID
       const savedVersion = await boeVersionRepository.save(newVersion);
-      
+
       // Copy elements with allocations
       if (targetVersion.elements && targetVersion.elements.length > 0) {
         for (const element of targetVersion.elements) {
@@ -2107,7 +2133,7 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
             boeVersion: savedVersion
           });
           const savedElement = await boeElementRepository.save(newElement);
-          
+
           // Copy allocations for this element
           if (element.allocations && element.allocations.length > 0) {
             for (const allocation of element.allocations) {
@@ -2127,7 +2153,7 @@ router.post('/boe-versions/:id/rollback', async (req, res) => {
       const targetManagementReserve = await managementReserveRepository.findOne({
         where: { boeVersion: { id: targetVersion.id } }
       });
-      
+
       if (targetManagementReserve) {
         const newManagementReserve = managementReserveRepository.create({
           ...targetManagementReserve,
@@ -2176,7 +2202,7 @@ router.put('/boe-versions/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
     const { comments, changeSummary, justification } = req.body;
-    
+
     if (!isValidUUID(id)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -2227,7 +2253,7 @@ async function generateNextVersionNumber(programId: string): Promise<string> {
   const latestVersion = existingVersions[0].versionNumber;
   const versionNumber = latestVersion.replace('v', '');
   const nextNumber = parseInt(versionNumber) + 1;
-  
+
   return `v${nextNumber}`;
 }
 
@@ -2235,7 +2261,7 @@ async function generateNextVersionNumber(programId: string): Promise<string> {
 router.get('/boe-versions/:boeVersionId/management-reserve/risk-matrix', async (req, res) => {
   try {
     const { boeVersionId } = req.params;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
@@ -2252,25 +2278,56 @@ router.get('/boe-versions/:boeVersionId/management-reserve/risk-matrix', async (
   }
 });
 
+/**
+ * @swagger
+ * /api/boe-versions/{boeVersionId}/management-reserve/calculate-ro-driven:
+ *   post:
+ *     summary: Calculate R&O-Driven Management Reserve
+ *     description: Calculates MR based on actual risk data using severity-weighted expected values
+ *     parameters:
+ *       - in: path
+ *         name: boeVersionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: BOE Version ID
+ *     responses:
+ *       200:
+ *         description: R&O-Driven MR calculation result
+ *       400:
+ *         description: Invalid BOE version ID
+ *       404:
+ *         description: BOE version not found
+ *       500:
+ *         description: Error calculating R&O-Driven MR
+ */
 router.post('/boe-versions/:boeVersionId/management-reserve/calculate-ro-driven', async (req, res) => {
   try {
     const { boeVersionId } = req.params;
-    const riskMatrixData = req.body;
-    
+
     if (!isValidUUID(boeVersionId)) {
       return res.status(400).json({ message: 'Invalid BOE version ID' });
     }
 
-    // Placeholder response for future R&O integration
-    res.json({
-      message: 'R&O-driven MR calculation not yet implemented',
-      placeholder: true,
-      amount: 0,
-      percentage: 0
+    const boeVersion = await boeVersionRepository.findOne({
+      where: { id: boeVersionId }
     });
+
+    if (!boeVersion) {
+      return res.status(404).json({ message: 'BOE version not found' });
+    }
+
+    // Get total cost from BOE
+    const totalCost = boeVersion.totalEstimatedCost || 0;
+
+    // Calculate R&O-Driven MR
+    const result = await BOEService.calculateRODrivenMR(boeVersionId, totalCost);
+
+    res.json(result);
   } catch (error) {
     console.error('Error calculating R&O-driven MR:', error);
-    res.status(500).json({ message: 'Error calculating R&O-driven MR', error });
+    const errorMessage = error instanceof Error ? error.message : 'Error calculating R&O-driven MR';
+    res.status(500).json({ message: errorMessage, error });
   }
 });
 
@@ -2492,7 +2549,7 @@ router.post('/boe-versions/:versionId/comments/resolve', async (req, res) => {
 router.get('/boe-versions/:versionId/validate', async (req, res) => {
   try {
     const { versionId } = req.params;
-    
+
     if (!isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid version ID' });
     }
@@ -2528,7 +2585,7 @@ router.get('/boe-versions/:versionId/validate', async (req, res) => {
 router.get('/boe-versions/:versionId/validate-ledger', async (req, res) => {
   try {
     const { versionId } = req.params;
-    
+
     if (!isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid version ID' });
     }
@@ -2564,7 +2621,7 @@ router.get('/boe-versions/:versionId/validate-ledger', async (req, res) => {
 router.get('/boe-versions/:versionId/validation-status', async (req, res) => {
   try {
     const { versionId } = req.params;
-    
+
     if (!isValidUUID(versionId)) {
       return res.status(400).json({ message: 'Invalid version ID' });
     }

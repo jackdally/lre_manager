@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Vendor } from '../../store/settingsStore';
+import { settingsApi } from '../../services/settingsApi';
 
 interface VendorAutocompleteProps {
-  vendors: Vendor[];
+  vendors?: Vendor[]; // Optional - if not provided, will fetch with pagination
   value: string;
   onChange: (value: string) => void;
+  onVendorSelect?: (vendor: Vendor | null) => void; // Optional callback with full vendor object
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -12,9 +14,10 @@ interface VendorAutocompleteProps {
 }
 
 const VendorAutocomplete: React.FC<VendorAutocompleteProps> = ({
-  vendors,
+  vendors: providedVendors,
   value,
   onChange,
+  onVendorSelect,
   placeholder = 'Search vendors...',
   disabled = false,
   className = '',
@@ -24,22 +27,118 @@ const VendorAutocomplete: React.FC<VendorAutocompleteProps> = ({
   const [inputValue, setInputValue] = useState(value);
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Filter vendors based on input value
-  useEffect(() => {
-    if (!inputValue.trim()) {
-      setFilteredVendors(vendors.filter(v => v.isActive));
-    } else {
-      const filtered = vendors.filter(vendor => 
-        vendor.isActive && 
-        vendor.name.toLowerCase().includes(inputValue.toLowerCase())
-      );
-      setFilteredVendors(filtered);
+  const PAGE_SIZE = 50;
+
+  // Load vendors with pagination
+  const loadVendors = useCallback(async (page: number = 1, search: string = '', reset: boolean = true) => {
+    if (providedVendors) {
+      // If vendors are provided, use client-side filtering (backward compatibility)
+      if (!search.trim()) {
+        setFilteredVendors(providedVendors.filter(v => v.isActive));
+      } else {
+        const filtered = providedVendors.filter(vendor => 
+          vendor.isActive && 
+          vendor.name.toLowerCase().includes(search.toLowerCase())
+        );
+        setFilteredVendors(filtered);
+      }
+      setHasMore(false);
+      return;
     }
-    setHighlightedIndex(-1);
-  }, [inputValue, vendors]);
+
+    // Otherwise, fetch from API with pagination
+    setLoading(true);
+    try {
+      const response = await settingsApi.getVendorsPaginated({
+        page,
+        limit: PAGE_SIZE,
+        search: search.trim() || undefined,
+        isActive: true
+      });
+
+      if (reset) {
+        setFilteredVendors(response.vendors);
+      } else {
+        setFilteredVendors(prev => [...prev, ...response.vendors]);
+      }
+
+      setHasMore(page < response.totalPages);
+      setCurrentPage(page);
+    } catch (error) {
+      console.error('Error loading vendors:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [providedVendors]);
+
+  // Initial load when dropdown opens
+  useEffect(() => {
+    if (isOpen && filteredVendors.length === 0 && !loading) {
+      loadVendors(1, searchQuery, true);
+    }
+  }, [isOpen, loadVendors, searchQuery, filteredVendors.length, loading]);
+
+  // Filter vendors based on input value (with debounce for API calls)
+  useEffect(() => {
+    const search = inputValue.trim();
+    setSearchQuery(search);
+    
+    if (providedVendors) {
+      // Client-side filtering for provided vendors
+      if (!search) {
+        setFilteredVendors(providedVendors.filter(v => v.isActive));
+      } else {
+        const filtered = providedVendors.filter(vendor => 
+          vendor.isActive && 
+          vendor.name.toLowerCase().includes(search.toLowerCase())
+        );
+        setFilteredVendors(filtered);
+      }
+      setHighlightedIndex(-1);
+    } else {
+      // API-based search with debounce
+      const timeoutId = setTimeout(() => {
+        if (isOpen) {
+          loadVendors(1, search, true);
+        }
+      }, 300);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [inputValue, providedVendors, loadVendors, isOpen]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!isOpen || providedVendors || !hasMore || loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) {
+          loadVendors(currentPage + 1, searchQuery, false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [isOpen, hasMore, loading, currentPage, searchQuery, loadVendors, providedVendors]);
 
   // Update input value when external value changes
   useEffect(() => {
@@ -85,6 +184,9 @@ const VendorAutocomplete: React.FC<VendorAutocompleteProps> = ({
   const selectVendor = (vendor: Vendor) => {
     setInputValue(vendor.name);
     onChange(vendor.name);
+    if (onVendorSelect) {
+      onVendorSelect(vendor);
+    }
     setIsOpen(false);
     setHighlightedIndex(-1);
   };
@@ -131,30 +233,49 @@ const VendorAutocomplete: React.FC<VendorAutocompleteProps> = ({
         `}
       />
       
-      {isOpen && filteredVendors.length > 0 && (
+      {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
+          className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-96 overflow-y-auto"
         >
-          {filteredVendors.map((vendor, index) => (
-            <div
-              key={vendor.id}
-              onClick={() => handleDropdownClick(vendor)}
-              className={`
-                px-3 py-2 cursor-pointer hover:bg-blue-50
-                ${highlightedIndex === index ? 'bg-blue-100' : ''}
-                ${index === 0 ? 'rounded-t-md' : ''}
-                ${index === filteredVendors.length - 1 ? 'rounded-b-md' : ''}
-              `}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-900">{vendor.name}</span>
-                {!vendor.isActive && (
-                  <span className="text-xs text-gray-500">(Inactive)</span>
-                )}
-              </div>
+          {filteredVendors.length > 0 ? (
+            <>
+              {filteredVendors.map((vendor, index) => (
+                <div
+                  key={vendor.id}
+                  onClick={() => handleDropdownClick(vendor)}
+                  className={`
+                    px-3 py-2 cursor-pointer hover:bg-blue-50
+                    ${highlightedIndex === index ? 'bg-blue-100' : ''}
+                    ${index === 0 ? 'rounded-t-md' : ''}
+                    ${index === filteredVendors.length - 1 && !hasMore && !loading ? 'rounded-b-md' : ''}
+                  `}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-900">{vendor.name}</span>
+                    {!vendor.isActive && (
+                      <span className="text-xs text-gray-500">(Inactive)</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {/* Loading indicator for infinite scroll */}
+              {hasMore && (
+                <div ref={loadMoreRef} className="px-3 py-2 text-center text-sm text-gray-500">
+                  {loading ? 'Loading...' : ''}
+                </div>
+              )}
+              {loading && (
+                <div className="px-3 py-2 text-center text-sm text-gray-500">
+                  Loading more vendors...
+                </div>
+              )}
+            </>
+          ) : loading ? (
+            <div className="px-3 py-2 text-center text-sm text-gray-500">
+              Loading vendors...
             </div>
-          ))}
+          ) : null}
         </div>
       )}
       

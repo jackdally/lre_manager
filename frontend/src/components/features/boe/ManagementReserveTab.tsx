@@ -1,42 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useBOEStore } from '../../../store/boeStore';
 import { useManagementReserve } from '../../../hooks/useManagementReserve';
 import { 
   ManagementReserveCalculator, 
-  ManagementReserveDisplay, 
-  ManagementReserveUtilization 
+  ManagementReserveDisplay
 } from './ManagementReserve';
-import { PencilIcon, EyeIcon, ChartBarIcon, CalculatorIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, EyeIcon, CalculatorIcon, CheckCircleIcon, InformationCircleIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { elementAllocationApi } from '../../../services/boeApi';
+import { BOECalculationService } from '../../../services/boeCalculationService';
+import type { BOEElementAllocation } from '../../../store/boeStore';
 
 interface ManagementReserveTabProps {
   programId: string;
 }
 
-type MRViewMode = 'calculator' | 'display' | 'utilization';
+type MRViewMode = 'calculator' | 'display';
 
 const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }) => {
-  const { currentBOE } = useBOEStore();
+  const { currentBOE, elements, elementAllocations, setElementAllocations } = useBOEStore();
   const [viewMode, setViewMode] = useState<MRViewMode>('display');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [allocationsLoading, setAllocationsLoading] = useState(false);
 
   const {
     managementReserve,
     mrLoading,
     mrError,
-    mrUtilizationHistory,
     loadManagementReserve,
     updateManagementReserve,
-    utilizeManagementReserve,
-    loadMRUtilizationHistory,
   } = useManagementReserve(currentBOE?.id);
+
+  // Check if BOE is baselined (MR utilization moved to R&O page)
+  const isBaselined = currentBOE?.status === 'Baseline' || currentBOE?.status === 'PushedToProgram';
 
   // Load MR data when BOE changes
   useEffect(() => {
     if (currentBOE?.id) {
       loadManagementReserve();
-      loadMRUtilizationHistory();
     }
-  }, [currentBOE?.id, loadManagementReserve, loadMRUtilizationHistory]);
+  }, [currentBOE?.id, loadManagementReserve]);
+
+  // Load element allocations
+  useEffect(() => {
+    const loadAllocations = async () => {
+      if (!currentBOE?.id) return;
+      
+      try {
+        setAllocationsLoading(true);
+        const allocations = await elementAllocationApi.getElementAllocations(currentBOE.id);
+        setElementAllocations(allocations);
+      } catch (error) {
+        console.error('Error loading allocations:', error);
+        setElementAllocations([]);
+      } finally {
+        setAllocationsLoading(false);
+      }
+    };
+
+    loadAllocations();
+  }, [currentBOE?.id, setElementAllocations]);
 
   const handleMRChange = async (mr: any) => {
     try {
@@ -52,24 +75,70 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
     }
   };
 
-  const handleUtilizeMR = async (amount: number, reason: string, description?: string) => {
-    try {
-      await utilizeManagementReserve(amount, reason, description);
-      // Refresh utilization history
-      loadMRUtilizationHistory();
-    } catch (error) {
-      console.error('Error utilizing MR:', error);
-    }
-  };
 
-  const totalCost = Number(currentBOE?.totalEstimatedCost) || 0;
+  // Calculate totals and check if all required allocations are complete
+  const { totalCost, totalAllocatedCost, allRequiredAllocated, usingEstimatedCost } = useMemo(() => {
+    // Use elements from store, or fall back to currentBOE.elements if store doesn't have them
+    const boeElements = elements && elements.length > 0 ? elements : (currentBOE?.elements || []);
+    
+    if (!currentBOE || !boeElements || boeElements.length === 0) {
+      return {
+        totalCost: Number(currentBOE?.totalEstimatedCost) || 0,
+        totalAllocatedCost: 0,
+        allRequiredAllocated: false,
+        usingEstimatedCost: true
+      };
+    }
+
+    // Build hierarchical structure for calculations
+    const hierarchicalElements = BOECalculationService.buildHierarchicalStructure(boeElements);
+    
+    // Calculate totals using BOECalculationService
+    const calculationResult = BOECalculationService.calculateBOETotals(
+      hierarchicalElements,
+      0, // MR percentage not needed for this calculation
+      elementAllocations || []
+    );
+
+    const totalEstimatedCost = calculationResult.totalEstimatedCost;
+    const totalAllocatedCost = calculationResult.totalAllocatedCost;
+
+    // Check if all required allocations are complete (same logic as BOEOverview)
+    const requiredLeaves: any[] = [];
+    const walk = (els: any[]) => {
+      els.forEach(el => {
+        const hasChildren = el.childElements && el.childElements.length > 0;
+        if (!hasChildren) {
+          if (el.isRequired) requiredLeaves.push(el);
+        } else {
+          walk(el.childElements);
+        }
+      });
+    };
+    walk(hierarchicalElements);
+
+    const allRequiredAllocated = requiredLeaves.length === 0 || requiredLeaves.every(leaf =>
+      (elementAllocations || []).some(a => a.boeElementId === leaf.id && (a.totalAmount || 0) > 0)
+    );
+
+    // Use allocated cost if all required allocations are complete, otherwise use estimated
+    const finalCost = allRequiredAllocated && totalAllocatedCost > 0 ? totalAllocatedCost : totalEstimatedCost;
+    const usingEstimatedCost = !allRequiredAllocated || totalAllocatedCost === 0;
+
+    return {
+      totalCost: finalCost,
+      totalAllocatedCost,
+      allRequiredAllocated,
+      usingEstimatedCost
+    };
+  }, [currentBOE, elements, elementAllocations, currentBOE?.elements]);
 
   if (!currentBOE) {
     return (
       <div className="p-6">
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
-            <ChartBarIcon className="h-12 w-12 mx-auto" />
+            <CurrencyDollarIcon className="h-12 w-12 mx-auto" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No BOE Available</h3>
           <p className="text-gray-600">
@@ -125,9 +194,9 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
               }`}
             >
               <EyeIcon className="h-4 w-4 inline mr-1" />
-              View
+              {isBaselined ? 'MR Summary' : 'View'}
             </button>
-            {!managementReserve ? (
+            {!managementReserve && !isBaselined ? (
               <button
                 onClick={() => setViewMode('calculator')}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
@@ -140,29 +209,20 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
                 Calculate
               </button>
             ) : (
-              <button
-                onClick={() => setViewMode('calculator')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  viewMode === 'calculator'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-blue-600 hover:text-blue-700'
-                }`}
-              >
-                <CalculatorIcon className="h-4 w-4 inline mr-1" />
-                Recalculate
-              </button>
+              !isBaselined && (
+                <button
+                  onClick={() => setViewMode('calculator')}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    viewMode === 'calculator'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-blue-600 hover:text-blue-700'
+                  }`}
+                >
+                  <CalculatorIcon className="h-4 w-4 inline mr-1" />
+                  Recalculate
+                </button>
+              )
             )}
-            <button
-              onClick={() => setViewMode('utilization')}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                viewMode === 'utilization'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <ChartBarIcon className="h-4 w-4 inline mr-1" />
-              Utilization
-            </button>
           </div>
         </div>
       </div>
@@ -185,16 +245,41 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
         {viewMode === 'display' && (
           <div>
             {managementReserve ? (
-              <ManagementReserveDisplay
-                managementReserve={managementReserve}
-                totalCost={totalCost}
-                showUtilization={true}
-                isEditable={currentBOE.status === 'Draft'}
-              />
+              <>
+                <ManagementReserveDisplay
+                  managementReserve={managementReserve}
+                  totalCost={totalCost}
+                  showUtilization={!isBaselined}
+                  isEditable={currentBOE.status === 'Draft'}
+                />
+                {isBaselined && (
+                  <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-blue-900 mb-1">MR Utilization on R&O Page</h4>
+                        <p className="text-sm text-blue-800 mb-3">
+                          MR utilization is managed from the Risks & Opportunities page. 
+                          This allows you to link MR utilization directly to materialized risks.
+                        </p>
+                        <Link
+                          to={`/programs/${programId}/risks?tab=mr`}
+                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                        >
+                          Go to R&O MR Tab
+                          <svg className="h-4 w-4 ml-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-12">
                 <div className="text-gray-400 mb-4">
-                  <ChartBarIcon className="h-12 w-12 mx-auto" />
+                  <CurrencyDollarIcon className="h-12 w-12 mx-auto" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Management Reserve</h3>
                 <p className="text-gray-600 mb-4">
@@ -220,41 +305,10 @@ const ManagementReserveTab: React.FC<ManagementReserveTabProps> = ({ programId }
               onMRChange={handleMRChange}
               isEditable={currentBOE.status === 'Draft'}
               showROIntegration={false} // Placeholder for future R&O integration
+              usingEstimatedCost={usingEstimatedCost}
             />
           </div>
         )}
-
-        {viewMode === 'utilization' && (
-          <div>
-            {managementReserve ? (
-              <ManagementReserveUtilization
-                managementReserve={managementReserve}
-                utilizationHistory={mrUtilizationHistory}
-                onUtilizeMR={handleUtilizeMR}
-                isEditable={currentBOE.status === 'Draft'}
-              />
-            ) : (
-              <div className="text-center py-12">
-                <div className="text-gray-400 mb-4">
-                  <ChartBarIcon className="h-12 w-12 mx-auto" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Management Reserve</h3>
-                <p className="text-gray-600">
-                  Management reserve must be calculated before tracking utilization.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* R&O Integration Notice */}
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h4 className="text-sm font-medium text-blue-800 mb-2">R&O Integration Coming Soon</h4>
-        <p className="text-sm text-blue-700">
-          Future versions will include integration with the Risks & Opportunities system for 
-          more sophisticated management reserve calculations based on actual risk analysis.
-        </p>
       </div>
     </div>
   );

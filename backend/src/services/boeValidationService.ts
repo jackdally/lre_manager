@@ -19,7 +19,6 @@ export interface BOEValidationResult {
     hasVendors: boolean;
     hasManagementReserve: boolean;
     missingAllocations: string[];
-    missingVendors: string[];
     incompleteElements: string[];
   };
 }
@@ -42,7 +41,6 @@ export class BOEValidationService {
         hasVendors: false,
         hasManagementReserve: false,
         missingAllocations: [],
-        missingVendors: [],
         incompleteElements: []
       }
     };
@@ -91,15 +89,24 @@ export class BOEValidationService {
       }
 
       // Check Management Reserve
-      const managementReserve = await managementReserveRepository.findOne({
+      // Query using the relationship - TypeORM will handle the join column
+      let managementReserve = await managementReserveRepository.findOne({
         where: { boeVersion: { id: boeVersionId } }
       });
+      
+      // Fallback: Try querying by the join column directly if relationship query fails
+      if (!managementReserve) {
+        managementReserve = await managementReserveRepository
+          .createQueryBuilder('mr')
+          .where('mr.boeVersionId = :boeVersionId', { boeVersionId })
+          .getOne();
+      }
 
       if (!managementReserve) {
-        result.errors.push('Missing Management Reserve: Calculation and justification required');
+        result.errors.push('Management Reserve is not addressed. Please calculate (0% allowed) and provide justification.');
         result.isValid = false;
       } else if (!managementReserve.justification || managementReserve.justification.trim() === '') {
-        result.errors.push('Missing Management Reserve: Justification required');
+        result.errors.push('Management Reserve is not addressed. Please calculate (0% allowed) and provide justification.');
         result.isValid = false;
       } else {
         result.validationDetails.hasManagementReserve = true;
@@ -143,12 +150,9 @@ export class BOEValidationService {
           }
         }
 
-        // Check vendor assignment (only for leaf elements)
-        if (!hasChildren && !element.vendor) {
-          result.validationDetails.missingVendors.push(element.name);
-          missingVendors.push(`${element.code} - ${element.name}`);
-          result.isValid = false;
-        }
+        // Vendor assignment is no longer required on elements
+        // Vendors are now assigned to allocations, not elements
+        // Removed vendor check per design decision
       }
 
       // Helper function to sort WBS elements by their codes
@@ -180,10 +184,7 @@ export class BOEValidationService {
         result.errors.push(`Missing Allocations: ${sortedAllocations.join(', ')}`);
       }
 
-      if (missingVendors.length > 0) {
-        const sortedVendors = sortWbsElements(missingVendors);
-        result.errors.push(`Missing Vendor Assignments: ${sortedVendors.join(', ')}`);
-      }
+      // Vendor assignment check removed - vendors are on allocations, not elements
 
       if (incompleteParentElements.length > 0) {
         const parentIssues = incompleteParentElements.map(item => {
@@ -193,9 +194,10 @@ export class BOEValidationService {
         result.errors.push(`Incomplete Parent Elements: ${parentIssues.join('; ')}`);
       }
 
-      // Check if any elements have vendors
-      const elementsWithVendors = elements.filter((e: BOEElement) => e.vendor);
-      if (elementsWithVendors.length > 0) {
+      // Vendors are now on allocations, not elements
+      // Check if any allocations have vendors
+      const allocationsWithVendors = allocations.filter((a: BOEElementAllocation) => a.vendorId);
+      if (allocationsWithVendors.length > 0) {
         result.validationDetails.hasVendors = true;
       }
 
@@ -236,7 +238,6 @@ export class BOEValidationService {
         hasVendors: false,
         hasManagementReserve: false,
         missingAllocations: [],
-        missingVendors: [],
         incompleteElements: []
       }
     };

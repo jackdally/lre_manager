@@ -40,7 +40,7 @@ export interface BOEVersion {
   versionNumber: string;
   name: string;
   description: string;
-  status: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived' | 'Baseline';
+  status: 'Draft' | 'Under Review' | 'Approved' | 'Rejected' | 'Archived' | 'Baseline' | 'PushedToProgram';
   templateId?: string;
   totalEstimatedCost: number;
   managementReserveAmount: number;
@@ -115,7 +115,7 @@ export interface ManagementReserve {
   utilizedAmount: number;
   remainingAmount: number;
   utilizationPercentage: number;
-  calculationMethod: 'Standard' | 'Risk-Based' | 'Custom';
+  calculationMethod: 'Standard' | 'Risk-Based' | 'Custom' | 'R&O-Driven';
   justification?: string;
   riskFactors?: string;
   notes?: string;
@@ -258,7 +258,7 @@ interface BOEState {
   activeTab: 'overview' | 'details' | 'management-reserve';
   wizardStep: number;
   wizardData: any;
-  
+
   // Global Wizard State
   showWizard: boolean;
   wizardProgramId: string | null;
@@ -302,7 +302,7 @@ interface BOEState {
   setActiveTab: (tab: 'overview' | 'details' | 'management-reserve') => void;
   setWizardStep: (step: number) => void;
   setWizardData: (data: any) => void;
-  
+
   // Global Wizard Actions
   openWizard: (programId: string) => void;
   closeWizard: () => void;
@@ -367,7 +367,7 @@ const initialState = {
   activeTab: 'overview' as const,
   wizardStep: 0,
   wizardData: {},
-  
+
   // Global Wizard State
   showWizard: false,
   wizardProgramId: null,
@@ -423,7 +423,7 @@ export const useBOEStore = create<BOEState>()(
       setActiveTab: (tab) => set({ activeTab: tab }),
       setWizardStep: (step) => set({ wizardStep: step }),
       setWizardData: (data) => set({ wizardData: data }),
-      
+
       // Global Wizard Actions
       openWizard: (programId) => set({ showWizard: true, wizardProgramId: programId }),
       closeWizard: () => set({ showWizard: false, wizardProgramId: null }),

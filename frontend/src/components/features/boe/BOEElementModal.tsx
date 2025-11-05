@@ -45,14 +45,54 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
     fetchCostCategories();
   }, [fetchCostCategories]);
 
-  // Calculate level based on parent
+  // Update formData when element or defaultCode changes (important for modal reuse)
   useEffect(() => {
-    if (parentId) {
-      setFormData(prev => ({ ...prev, level: 2 })); // Assuming parent is level 1
+    const calculatedLevel = parentId ? 2 : 1;
+    
+    if (element) {
+      setFormData({
+        code: element.code || defaultCode || '',
+        name: element.name || '',
+        description: element.description || '',
+        level: element.level || calculatedLevel,
+        estimatedCost: element.estimatedCost || 0,
+        actualCost: element.actualCost || 0,
+        variance: element.variance || 0,
+        managementReservePercentage: element.managementReservePercentage || 0,
+        managementReserveAmount: element.managementReserveAmount || 0,
+        isRequired: element.isRequired ?? true,
+        notes: element.notes || '',
+        assumptions: element.assumptions || '',
+        risks: element.risks || '',
+        costCategoryId: element.costCategoryId || ''
+      });
+    } else if (defaultCode) {
+      // New element with defaultCode
+      setFormData(prev => ({
+        ...prev,
+        code: defaultCode,
+        level: calculatedLevel
+      }));
     } else {
-      setFormData(prev => ({ ...prev, level: 1 }));
+      // Reset form when modal closes (element becomes null)
+      setFormData({
+        code: '',
+        name: '',
+        description: '',
+        level: calculatedLevel,
+        estimatedCost: 0,
+        actualCost: 0,
+        variance: 0,
+        managementReservePercentage: 0,
+        managementReserveAmount: 0,
+        isRequired: true,
+        notes: '',
+        assumptions: '',
+        risks: '',
+        costCategoryId: ''
+      });
     }
-  }, [parentId]);
+  }, [element, defaultCode, parentId]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -79,6 +119,7 @@ const BOEElementModal: React.FC<BOEElementModalProps> = ({
     e.preventDefault();
     
     if (!validateForm()) {
+      console.error('Form validation failed:', errors);
       return;
     }
 

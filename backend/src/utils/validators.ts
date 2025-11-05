@@ -9,7 +9,8 @@ export const programSchema = Joi.object({
   status: Joi.string().default("Active"),
   startDate: Joi.date().optional(),
   endDate: Joi.date().optional(),
-  program_manager: Joi.string().optional()
+  program_manager: Joi.string().optional(),
+  program_manager_email: Joi.string().email().optional().allow(null, '')
 });
 
 export const ledgerEntrySchema = Joi.object({

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../../../layout';
+import { programSetupApi } from '../../../../services/programSetupApi';
 import {
   useActualsSessions,
   useActualsCurrentSession,
@@ -71,9 +72,11 @@ import AddToLedgerModal from '../AddToLedgerModal/index';
 
 const ActualsUploadPage: React.FC = () => {
   const { id: programId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
   // Local state for file upload (not managed by store yet)
   const [file, setFile] = useState<File | null>(null);
+  const [checkingSetup, setCheckingSetup] = useState(true);
   const [description, setDescription] = useState('');
   const [config, setConfig] = useState<ActualsUploadConfig>({
     programCodeColumn: 'Program Code',
@@ -184,12 +187,37 @@ const ActualsUploadPage: React.FC = () => {
     toast
   } = ui;
 
-  // Initialize store when component mounts
+  // Check setup status before allowing access
   useEffect(() => {
-    if (programId) {
+    const checkSetupStatus = async () => {
+      if (!programId) {
+        setCheckingSetup(false);
+        return;
+      }
+
+      try {
+        const setupStatus = await programSetupApi.getSetupStatus(programId);
+        if (!setupStatus.setupComplete) {
+          navigate(`/programs/${programId}/setup`);
+          return;
+        }
+      } catch (error) {
+        // If setup status check fails, continue to page (might be old program without setup status)
+        console.warn('Could not check setup status, continuing to actuals page:', error);
+      } finally {
+        setCheckingSetup(false);
+      }
+    };
+
+    checkSetupStatus();
+  }, [programId, navigate]);
+
+  // Initialize store when component mounts (after setup check)
+  useEffect(() => {
+    if (programId && !checkingSetup) {
       initialize(programId);
     }
-  }, [programId, initialize]);
+  }, [programId, checkingSetup, initialize]);
 
   // Update session match counts when sessions change
   useEffect(() => {
@@ -348,6 +376,20 @@ const ActualsUploadPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Show loading while checking setup status
+  if (checkingSetup) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

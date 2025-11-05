@@ -28,7 +28,7 @@ export class ManagementReserve {
   utilizationPercentage!: number;
 
   @Column()
-  calculationMethod!: 'Standard' | 'Risk-Based' | 'Custom';
+  calculationMethod!: 'Standard' | 'Risk-Based' | 'Custom' | 'R&O-Driven';
 
   @Column('text', { nullable: true })
   justification!: string | null;

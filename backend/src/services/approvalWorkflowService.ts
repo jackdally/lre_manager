@@ -4,6 +4,7 @@ import { BOEApproval } from '../entities/BOEApproval';
 import { Program } from '../entities/Program';
 import { NotificationService } from './notificationService';
 import { BOEValidationService } from './boeValidationService';
+import { ProgramSetupService } from './programSetupService';
 
 const boeVersionRepository = AppDataSource.getRepository(BOEVersion);
 const boeApprovalRepository = AppDataSource.getRepository(BOEApproval);
@@ -201,7 +202,7 @@ export class ApprovalWorkflowService {
   ): Promise<BOEVersion> {
     const boeVersion = await boeVersionRepository.findOne({
       where: { id: boeVersionId },
-      relations: ['approvals']
+      relations: ['approvals', 'program']
     });
 
     if (!boeVersion) {
@@ -255,6 +256,16 @@ export class ApprovalWorkflowService {
       boeVersion.status = 'Approved';
       boeVersion.approvedBy = approverName;
       boeVersion.approvedAt = new Date();
+      
+      // Update setup status to mark BOE as approved
+      try {
+        if (boeVersion.program) {
+          await ProgramSetupService.markBOEApproved(boeVersion.program.id);
+        }
+      } catch (error) {
+        console.error('Error updating setup status after BOE approval:', error);
+        // Don't fail approval if setup status update fails
+      }
     }
 
     boeVersion.updatedAt = new Date();
