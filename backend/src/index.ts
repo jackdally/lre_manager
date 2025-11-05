@@ -14,6 +14,7 @@ import { importRouter } from './routes/import';
 import settingsRouter from './routes/settings';
 import wbsReportingRouter from './routes/wbsReporting';
 import costCategoriesRouter from './routes/costCategories';
+import riskCategoryRouter from './routes/riskCategory';
 import boeRouter from './routes/boe';
 
 import boeElementAllocationRouter from './routes/boeElementAllocation';
@@ -27,6 +28,7 @@ import * as XLSX from 'xlsx';
 import { Express } from 'express';
 import * as cron from 'node-cron';
 import { MonthlyActualsReminderService } from './services/monthlyActualsReminderService';
+import { RiskOpportunityService } from './services/riskOpportunityService';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -69,6 +71,7 @@ app.use('/api/programs', wbsReportingRouter);
 app.use('/api/import', importRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/cost-categories', costCategoriesRouter);
+app.use('/api/risk-categories', riskCategoryRouter);
 app.use('/api', boeRouter);
 
 app.use('/api', boeElementAllocationRouter);
@@ -131,8 +134,18 @@ function printRoutes(app: Express) {
 
 // Initialize database connection
 AppDataSource.initialize()
-  .then(() => {
+  .then(async () => {
     console.log('Database connection established');
+    
+    // Ensure standard risk categories exist
+    try {
+      await RiskOpportunityService.ensureStandardCategories();
+      console.log('Standard risk categories verified');
+    } catch (error) {
+      console.error('Error seeding risk categories:', error);
+      // Don't fail startup if seeding fails, but log the error
+    }
+    
     printRoutes(app); // Print all routes after DB is ready
     
     // Schedule monthly actuals reminder check (runs on 5th of each month at 9:00 AM)

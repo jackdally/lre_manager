@@ -2,15 +2,15 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDa
 import { Program } from './Program';
 import { RiskCategory } from './RiskCategory';
 import { WbsElement } from './WbsElement';
-import { RiskNote } from './RiskNote';
+import { OpportunityNote } from './OpportunityNote';
 
 /**
- * Risk entity - Full implementation for R&O management system
+ * Opportunity entity - Full implementation for opportunity management
  * 
- * Includes comprehensive risk assessment, tracking, and MR utilization fields
+ * Mirrors Risk entity structure but for positive outcomes (benefits, cost savings, etc.)
  */
 @Entity()
-export class Risk {
+export class Opportunity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -24,7 +24,7 @@ export class Risk {
   @Column('text', { nullable: true })
   description!: string | null;
 
-  // Category relationship
+  // Category relationship (shared with Risk)
   @Column({ nullable: true })
   categoryId?: string;
 
@@ -32,23 +32,23 @@ export class Risk {
   @JoinColumn({ name: 'categoryId' })
   category?: RiskCategory;
 
-  // Cost impact fields (required for MR calculation)
+  // Benefit fields (financial benefit estimation)
   @Column('decimal', { precision: 15, scale: 2 })
-  costImpactMin!: number;
+  benefitMin!: number;
 
   @Column('decimal', { precision: 15, scale: 2 })
-  costImpactMostLikely!: number;
+  benefitMostLikely!: number;
 
   @Column('decimal', { precision: 15, scale: 2 })
-  costImpactMax!: number;
+  benefitMax!: number;
 
   // Probability (0-100%)
   @Column('decimal', { precision: 5, scale: 2 })
   probability!: number;
 
-  // Severity (required for MR calculation)
+  // Benefit Severity
   @Column()
-  severity!: 'Low' | 'Medium' | 'High' | 'Critical';
+  benefitSeverity!: 'Low' | 'Medium' | 'High' | 'Critical';
 
   // Status and disposition tracking
   @Column({ default: 'Identified' })
@@ -58,7 +58,7 @@ export class Risk {
     type: 'varchar',
     default: 'Identified'
   })
-  disposition!: 'Identified' | 'In Progress' | 'Mitigated' | 'Realized' | 'Retired' | 'Transferred' | 'Accepted';
+  disposition!: 'Identified' | 'In Progress' | 'Realized' | 'Retired' | 'Deferred' | 'Lost';
 
   @Column({ type: 'timestamp', nullable: true })
   dispositionDate!: Date | null;
@@ -74,13 +74,17 @@ export class Risk {
   identifiedDate!: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  targetMitigationDate!: Date | null;
+  targetRealizationDate!: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  actualMitigationDate!: Date | null;
+  actualRealizationDate!: Date | null;
 
   @Column('text', { nullable: true })
-  mitigationStrategy!: string | null;
+  realizationStrategy!: string | null;
+
+  // Actual benefit when realized
+  @Column('decimal', { precision: 15, scale: 2, nullable: true })
+  actualBenefit!: number | null;
 
   // WBS Element linkage
   @Column({ nullable: true })
@@ -90,22 +94,9 @@ export class Risk {
   @JoinColumn({ name: 'wbsElementId' })
   wbsElement?: WbsElement;
 
-  // MR Utilization fields
-  @Column({ type: 'timestamp', nullable: true })
-  materializedAt!: Date | null;
-
-  @Column('decimal', { precision: 15, scale: 2, default: 0 })
-  mrUtilizedAmount!: number;
-
-  @Column({ type: 'timestamp', nullable: true })
-  mrUtilizationDate!: Date | null;
-
-  @Column('text', { nullable: true })
-  mrUtilizationReason!: string | null;
-
   // Notes relationship
-  @OneToMany(() => RiskNote, (note) => note.risk)
-  notes!: RiskNote[];
+  @OneToMany(() => OpportunityNote, (note) => note.opportunity)
+  notes!: OpportunityNote[];
 
   // Audit fields
   @CreateDateColumn()

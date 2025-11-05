@@ -296,7 +296,7 @@ const Sidebar: React.FC = () => {
               </div>
             )}
 
-            {/* Risks & Opportunities - Disabled if R&O register not initialized */}
+            {/* Risks & Opportunities & MR - Disabled if R&O register not initialized */}
             {isSetupComplete || (setupStatus?.riskOpportunityRegisterCreated) ? (
               <Link
                 to={`/programs/${programId}/risks`}
@@ -304,7 +304,7 @@ const Sidebar: React.FC = () => {
                 style={{ width: '100%' }}
               >
                 <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>⚠️</span>
-                {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Risks & Opportunities</span>}
+                {sidebarOpen && <span style={{ textAlign: 'left', width: '100%' }}>Risks, Opportunities & MR</span>}
               </Link>
             ) : (
               <div
@@ -316,7 +316,7 @@ const Sidebar: React.FC = () => {
                 <span className="text-xl" style={sidebarOpen ? { paddingLeft: 20 } : {}}>⚠️</span>
                 {sidebarOpen && (
                   <span style={{ textAlign: 'left', width: '100%' }}>
-                    Risks & Opportunities <span className="text-xs text-gray-400">(Setup Required)</span>
+                    Risks, Opportunities & MR <span className="text-xs text-gray-400">(Setup Required)</span>
                   </span>
                 )}
               </div>

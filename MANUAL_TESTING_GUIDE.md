@@ -370,24 +370,24 @@ After setup is complete, you should be redirected to `/programs/{id}/dashboard`.
 - [x] Redirected to setup page automatically
 - [x] Setup progress indicator shows 0/7 steps
 - [x] Step 1: BOE created successfully with WBS structure (3 elements)
-- [ ] Step 1: Allocations created for all 3 elements with vendors
-- [ ] Step 2: Initial Management Reserve configured with justification
-- [ ] Step 3: R&O register initialized
-- [ ] Step 4: R&O analysis completed (optional) or skipped
-- [ ] Step 5: Final Management Reserve finalized (with comparison to Initial MR)
-- [ ] Step 6: BOE submitted for approval
-- [ ] Step 6: BOE approved (or auto-approved if no workflow)
-- [ ] Step 7: Pre-baseline checklist verified
-- [ ] Step 7: BOE pushed to ledger successfully
-- [ ] All 7 setup steps marked complete
-- [ ] Redirected to dashboard after setup complete
+- [x] Step 1: Allocations created for all 3 elements with vendors
+- [x] Step 2: Initial Management Reserve configured with justification
+- [x] Step 3: R&O register initialized
+- [x] Step 4: R&O analysis completed (optional) or skipped
+- [x] Step 5: Final Management Reserve finalized (with comparison to Initial MR)
+- [x] Step 6: BOE submitted for approval
+- [x] Step 6: BOE approved (or auto-approved if no workflow)
+- [x] Step 7: Pre-baseline checklist verified
+- [x] Step 7: BOE pushed to ledger successfully
+- [x] All 7 setup steps marked complete
+- [x] Redirected to dashboard after setup complete
 
 ### Post-Setup Verification:
-- [ ] Dashboard accessible (no redirect loop)
-- [ ] All navigation tabs enabled
-- [ ] Program Manager Email field visible and editable
-- [ ] MR utilization available on R&O page (not on BOE page)
-- [ ] No errors in console
+- [x] Dashboard accessible (no redirect loop)
+- [x] All navigation tabs enabled
+- [x] Program Manager Email field visible and editable
+- [x] MR utilization available on R&O page (not on BOE page)
+- [x] No errors in console
 
 ---
 

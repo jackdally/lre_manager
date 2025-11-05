@@ -355,6 +355,11 @@ export class BOEElementAllocationService {
       throw new Error('Element allocation not found');
     }
 
+    // Load BOE version to get version number for notes
+    const boeVersion = allocation.boeVersion ? await boeVersionRepository.findOne({
+      where: { id: allocation.boeVersion.id }
+    }) : null;
+
     if (allocation.isLocked) {
       throw new Error('Element allocation is already locked and pushed to ledger');
     }
@@ -371,48 +376,124 @@ export class BOEElementAllocationService {
     );
 
     const createdLedgerEntries: LedgerEntry[] = [];
+    const updatedLedgerEntries: LedgerEntry[] = [];
+    const skippedLedgerEntries: LedgerEntry[] = [];
     const sessionId = `boe-push-${Date.now()}`;
 
-    // Create ledger entries for each month
+    // Create or update ledger entries for each month
     for (const [month, data] of Object.entries(monthlyBreakdown)) {
-      const ledgerEntry = ledgerRepository.create({
-        vendor_name: allocation.vendor?.name || allocation.name,
-        expense_description: `${allocation.boeElement.name}: ${allocation.description}`,
-        wbsElementId: wbsElement.id, // Use the WBS element ID instead of BOE element ID
-        costCategoryId: allocation.boeElement.costCategoryId,
-        vendorId: allocation.vendorId || undefined,
-        baseline_date: data.date,
-        baseline_amount: data.amount,
-        planned_date: data.date,
-        planned_amount: data.amount,
-        program: allocation.boeVersion.program,
-        notes: `Element allocation: ${allocation.name} - ${month}`,
-        // BOE Integration Fields
-        createdFromBOE: true,
-        boeElementAllocationId: allocation.id,
-        boeVersionId: allocation.boeVersionId
+      // Check if a ledger entry already exists for this WBS element and baseline date
+      // This prevents duplicates when re-baselining (e.g., Baseline 2, Baseline 3)
+      const existingEntry = await ledgerRepository.findOne({
+        where: {
+          wbsElementId: wbsElement.id,
+          baseline_date: data.date,
+          createdFromBOE: true,
+          program: { id: allocation.boeVersion.program.id }
+        }
       });
 
-      const savedEntry = await ledgerRepository.save(ledgerEntry);
-      createdLedgerEntries.push(savedEntry);
+      if (existingEntry) {
+        // Entry already exists - check if we can update it
+        const hasActuals = existingEntry.actual_amount !== null && existingEntry.actual_amount !== undefined;
+        const hasActualsDate = existingEntry.actual_date !== null && existingEntry.actual_date !== undefined;
+        
+        if (hasActuals || hasActualsDate) {
+          // Entry has actuals - don't update baseline, skip this entry
+          // This preserves actuals that may have been recorded
+          skippedLedgerEntries.push(existingEntry);
+          continue;
+        }
 
-      // Create audit trail entry for each ledger entry
-      await LedgerAuditTrailService.auditLedgerEntryCreation(
-        savedEntry,
-        AuditSource.BOE_ALLOCATION,
+        // No actuals - safe to update baseline amounts
+        // Store previous values for audit trail
+        const previousBaselineAmount = existingEntry.baseline_amount;
+        const previousBoeVersionId = existingEntry.boeVersionId;
+        const previousBoeElementAllocationId = existingEntry.boeElementAllocationId;
+
+        // Update existing entry with new baseline amounts
+        existingEntry.baseline_amount = data.amount;
+        existingEntry.planned_amount = data.amount; // Update planned to match new baseline
+        existingEntry.planned_date = data.date;
+        existingEntry.boeElementAllocationId = allocation.id; // Link to new allocation
+        existingEntry.boeVersionId = allocation.boeVersionId; // Link to new BOE version
+        existingEntry.vendor_name = allocation.vendor?.name || allocation.name;
+        existingEntry.expense_description = `${allocation.boeElement.name}: ${allocation.description}`;
+        existingEntry.notes = `Element allocation: ${allocation.name} - ${month} (Updated from BOE ${boeVersion?.versionNumber || 'new version'})`;
+
+        const updatedEntry = await ledgerRepository.save(existingEntry);
+        updatedLedgerEntries.push(updatedEntry);
+
+        // Create audit trail for the update
+        await LedgerAuditTrailService.auditLedgerEntryUpdate(
+          updatedEntry.id,
+          {
+            baseline_amount: previousBaselineAmount,
+            boeVersionId: previousBoeVersionId,
+            boeElementAllocationId: previousBoeElementAllocationId
+          },
+          {
+            baseline_amount: data.amount,
+            boeVersionId: allocation.boeVersionId,
+            boeElementAllocationId: allocation.id
+          },
+          AuditSource.BOE_ALLOCATION,
+          userId,
+          sessionId
+        );
+      } else {
+        // No existing entry - create new one
+        const ledgerEntry = ledgerRepository.create({
+          vendor_name: allocation.vendor?.name || allocation.name,
+          expense_description: `${allocation.boeElement.name}: ${allocation.description}`,
+          wbsElementId: wbsElement.id, // Use the WBS element ID instead of BOE element ID
+          costCategoryId: allocation.boeElement.costCategoryId,
+          vendorId: allocation.vendorId || undefined,
+          baseline_date: data.date,
+          baseline_amount: data.amount,
+          planned_date: data.date,
+          planned_amount: data.amount,
+          program: allocation.boeVersion.program,
+          notes: `Element allocation: ${allocation.name} - ${month}`,
+          // BOE Integration Fields
+          createdFromBOE: true,
+          boeElementAllocationId: allocation.id,
+          boeVersionId: allocation.boeVersionId
+        });
+
+        const savedEntry = await ledgerRepository.save(ledgerEntry);
+        createdLedgerEntries.push(savedEntry);
+
+        // Create audit trail entry for each ledger entry
+        await LedgerAuditTrailService.auditLedgerEntryCreation(
+          savedEntry,
+          AuditSource.BOE_ALLOCATION,
+          userId,
+          sessionId
+        );
+      }
+    }
+
+    // Create audit trail for BOE push operation
+    // Include both created and updated entries
+    const allLedgerEntryIds = [
+      ...createdLedgerEntries.map(entry => entry.id),
+      ...updatedLedgerEntries.map(entry => entry.id)
+    ];
+    
+    if (allLedgerEntryIds.length > 0) {
+      await LedgerAuditTrailService.auditBOEPushToLedger(
+        allLedgerEntryIds,
+        allocation.boeVersionId,
         userId,
         sessionId
       );
     }
 
-    // Create audit trail for BOE push operation
-    const ledgerEntryIds = createdLedgerEntries.map(entry => entry.id);
-    await LedgerAuditTrailService.auditBOEPushToLedger(
-      ledgerEntryIds,
-      allocation.boeVersionId,
-      userId,
-      sessionId
-    );
+    // Log skipped entries (entries with actuals that weren't updated)
+    if (skippedLedgerEntries.length > 0) {
+      console.log(`Skipped ${skippedLedgerEntries.length} ledger entries with existing actuals during BOE push for allocation ${allocation.id}`);
+    }
 
     // Lock the allocation
     allocation.isLocked = true;
