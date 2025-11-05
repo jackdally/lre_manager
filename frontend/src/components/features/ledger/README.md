@@ -4,7 +4,7 @@ This feature handles the management of program ledger entries, including viewing
 
 ## Components
 
-- **LedgerPage**: Main page for the ledger feature with filters and bulk import functionality
+- **LedgerPage**: Main page for the ledger feature with summary KPIs, guidance callout, filters, and bulk import
 - **LedgerTable**: Complex table component with inline editing, bulk operations, and filtering
   - **Header**: Table header with search and filter controls
   - **Table**: Main table component with pagination
@@ -15,6 +15,20 @@ This feature handles the management of program ledger entries, including viewing
   - **ErrorModal**: Modal for displaying errors
 - **BulkImport**: Bulk import functionality
   - **BulkImportModal**: Modal for bulk importing ledger entries via file upload
+
+## New Additions
+
+- Summary KPIs: Top-bar cards show total records, accounting month, in-month count, with/missing actuals.
+- Help Callout: Brief guidance on search, filters, presets, and risk linking.
+- Quick Filters: Buttons for All, Current Month Planned, and Missing Actuals.
+- Advanced Filters: Collapsible groups with active count and clear-all.
+- Presets: Save/apply/delete filter presets with server-backed storage and local cache.
+- Risk Linking: Row actions include Link to Risk; modal supports searching risks and creating a new risk inline.
+
+## Sample Actuals
+
+- A sample CSV is available at `public/samples/sample_actuals.csv`.
+- On the Actuals Upload page, click "Load sample actuals" to upload the sample and test matching.
 
 ## Purpose
 
