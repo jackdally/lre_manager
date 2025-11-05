@@ -15,12 +15,38 @@ interface Match {
 }
 
 // Enhanced interfaces for the LedgerTable component
+export interface DateRangeFilter {
+  start?: string;
+  end?: string;
+}
+
+export interface AmountRangeFilter {
+  min?: number;
+  max?: number;
+}
+
+export interface AdvancedFiltersState {
+  baselineDateRange?: DateRangeFilter;
+  plannedDateRange?: DateRangeFilter;
+  actualDateRange?: DateRangeFilter;
+  baselineAmountRange?: AmountRangeFilter;
+  plannedAmountRange?: AmountRangeFilter;
+  actualAmountRange?: AmountRangeFilter;
+  hasActuals?: boolean;
+  missingActuals?: boolean;
+  hasInvoiceLink?: boolean;
+  hasNotes?: boolean;
+  createdFromBOE?: boolean;
+  isOverdue?: boolean;
+}
+
 export interface LedgerFilters {
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
   wbsElementFilter?: string;
   costCategoryFilter?: string;
   search: string;
+  advanced?: AdvancedFiltersState;
 }
 
 export interface LedgerUIState {
@@ -86,6 +112,13 @@ interface LedgerStoreState {
   ui: LedgerUIState;
   programId: string | null;
   showAll: boolean;
+  summaryKpis?: {
+    totalRecords: number;
+    currentAccountingMonth: string;
+    inMonthCount: number;
+    withActualsCount: number;
+    missingActualsCount: number;
+  } | null;
 
   // Original actions (keeping for backward compatibility)
   setLedgerEntries: (entries: LedgerEntry[]) => void;
@@ -102,6 +135,7 @@ interface LedgerStoreState {
   // Enhanced actions for LedgerTable
   // Initialization
   initialize: (programId: string, showAll?: boolean) => void;
+  loadSummaryKpis: () => Promise<void>;
 
   // Data fetching
   fetchEntries: () => Promise<void>;
@@ -115,6 +149,7 @@ interface LedgerStoreState {
   setWbsElementFilter: (elementId: string | undefined) => void;
   setCostCategoryFilter: (categoryId: string | undefined) => void;
   setSearch: (search: string) => void;
+  setAdvancedFilters: (filters: AdvancedFiltersState | undefined) => void;
   setPage: (page: number) => void;
   setShowAll: (showAll: boolean) => void;
 
@@ -244,6 +279,7 @@ export const useLedgerStore = create<LedgerStoreState>()(
         },
         programId: null,
         showAll: false,
+        summaryKpis: null,
 
         // Original actions (keeping for backward compatibility)
         setLedgerEntries: (entries: LedgerEntry[]) => set({ ledgerEntries: entries }),
@@ -278,10 +314,31 @@ export const useLedgerStore = create<LedgerStoreState>()(
             set({ programId, showAll });
             get().fetchEntries();
             get().fetchDropdownOptions(); // Fetch all dropdown options
+            get().loadSummaryKpis();
           }
         },
 
         // Data fetching
+        loadSummaryKpis: async () => {
+          const { programId } = get();
+          if (!programId) return;
+          try {
+            const res = await axios.get(`/api/programs/${programId}/ledger/summary`);
+            if (res.data) {
+              const data = res.data as {
+                totalRecords: number;
+                currentAccountingMonth: string;
+                inMonthCount: number;
+                withActualsCount: number;
+                missingActualsCount: number;
+              };
+              set({ summaryKpis: data });
+            }
+          } catch (e) {
+            // non-blocking
+          }
+        },
+
         fetchEntries: async () => {
           const { programId, filters, ui, showAll } = get();
           if (!programId) return;
@@ -303,9 +360,67 @@ export const useLedgerStore = create<LedgerStoreState>()(
             const response = await axios.get(`/api/programs/${programId}/ledger?${params}`);
 
             if (response.data) {
-              const { entries: newEntries, total: newTotal } = response.data as { entries: LedgerEntry[]; total: number };
+              let { entries: newEntries, total: newTotal } = response.data as { entries: LedgerEntry[]; total: number };
 
+              // Apply advanced filters client-side
+              if (filters.advanced) {
+                const advanced = filters.advanced;
+                const filteredEntries = newEntries.filter(entry => {
+                  // Date range filters
+                  if (advanced.baselineDateRange?.start && entry.baseline_date && entry.baseline_date < advanced.baselineDateRange.start) return false;
+                  if (advanced.baselineDateRange?.end && entry.baseline_date && entry.baseline_date > advanced.baselineDateRange.end) return false;
+                  if (advanced.plannedDateRange?.start && entry.planned_date && entry.planned_date < advanced.plannedDateRange.start) return false;
+                  if (advanced.plannedDateRange?.end && entry.planned_date && entry.planned_date > advanced.plannedDateRange.end) return false;
+                  if (advanced.actualDateRange?.start && entry.actual_date && entry.actual_date < advanced.actualDateRange.start) return false;
+                  if (advanced.actualDateRange?.end && entry.actual_date && entry.actual_date > advanced.actualDateRange.end) return false;
 
+                  // Amount range filters
+                  if (advanced.baselineAmountRange?.min !== undefined && (entry.baseline_amount === null || entry.baseline_amount < advanced.baselineAmountRange.min)) return false;
+                  if (advanced.baselineAmountRange?.max !== undefined && (entry.baseline_amount === null || entry.baseline_amount > advanced.baselineAmountRange.max)) return false;
+                  if (advanced.plannedAmountRange?.min !== undefined && (entry.planned_amount === null || entry.planned_amount < advanced.plannedAmountRange.min)) return false;
+                  if (advanced.plannedAmountRange?.max !== undefined && (entry.planned_amount === null || entry.planned_amount > advanced.plannedAmountRange.max)) return false;
+                  if (advanced.actualAmountRange?.min !== undefined && (entry.actual_amount === null || entry.actual_amount < advanced.actualAmountRange.min)) return false;
+                  if (advanced.actualAmountRange?.max !== undefined && (entry.actual_amount === null || entry.actual_amount > advanced.actualAmountRange.max)) return false;
+
+                  // Status filters
+                  if (advanced.hasActuals !== undefined) {
+                    const hasActuals = entry.actual_amount !== null && entry.actual_amount !== undefined && entry.actual_date !== null && entry.actual_date !== undefined;
+                    if (advanced.hasActuals !== hasActuals) return false;
+                  }
+                  if (advanced.missingActuals !== undefined) {
+                    const missingActuals = entry.actual_amount === null || entry.actual_date === null;
+                    if (advanced.missingActuals !== missingActuals) return false;
+                  }
+                  if (advanced.hasInvoiceLink !== undefined) {
+                    const hasInvoiceLink = !!(entry.invoice_link_url || entry.invoice_link_text);
+                    if (advanced.hasInvoiceLink !== hasInvoiceLink) return false;
+                  }
+                  if (advanced.hasNotes !== undefined) {
+                    const hasNotes = !!entry.notes;
+                    if (advanced.hasNotes !== hasNotes) return false;
+                  }
+                  if (advanced.createdFromBOE !== undefined) {
+                    if (advanced.createdFromBOE !== entry.createdFromBOE) return false;
+                  }
+                  if (advanced.isOverdue !== undefined && advanced.isOverdue) {
+                    // Overdue: planned date is in the past and no actuals
+                    if (entry.planned_date) {
+                      const plannedDate = new Date(entry.planned_date);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const hasActuals = entry.actual_amount !== null && entry.actual_date !== null;
+                      if (plannedDate < today && !hasActuals) return true;
+                      return false;
+                    }
+                    return false;
+                  }
+
+                  return true;
+                });
+
+                newEntries = filteredEntries;
+                newTotal = filteredEntries.length;
+              }
 
               // Don't update dropdown options from filtered results
               set({
@@ -441,6 +556,12 @@ export const useLedgerStore = create<LedgerStoreState>()(
             set({ filters: { ...currentFilters, search } });
             // Debounced search will be handled in the component
           }
+        },
+
+        setAdvancedFilters: (advancedFilters: AdvancedFiltersState | undefined) => {
+          const currentFilters = get().filters;
+          set({ filters: { ...currentFilters, advanced: advancedFilters } });
+          get().fetchEntries();
         },
 
         setPage: (page) => {
@@ -997,6 +1118,7 @@ export const useLedgerSetVendorFilter = () => useLedgerStore(state => state.setV
 export const useLedgerSetWbsElementFilter = () => useLedgerStore(state => state.setWbsElementFilter);
 export const useLedgerSetCostCategoryFilter = () => useLedgerStore(state => state.setCostCategoryFilter);
 export const useLedgerSetSearch = () => useLedgerStore(state => state.setSearch);
+export const useLedgerSetAdvancedFilters = () => useLedgerStore(state => state.setAdvancedFilters);
 export const useLedgerSetPage = () => useLedgerStore(state => state.setPage);
 export const useLedgerSetShowAll = () => useLedgerStore(state => state.setShowAll);
 
