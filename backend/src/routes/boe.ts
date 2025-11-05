@@ -1635,7 +1635,15 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
       // Generate next version number
       versionNumber = await generateNextVersionNumber(id);
 
-      // Create new version using existing service method
+      // Get all allocations from the current BOE to copy them to the new version
+      const currentAllocations = await elementAllocationRepository.find({
+        where: { boeVersion: { id: currentBOE.id } },
+        relations: ['boeElement']
+      });
+
+      // Create new version - first create elements, then we'll map allocations
+      // The createBOEWithElements method will create new element IDs and map them
+      // We need to ensure allocations reference the correct (old) element IDs so they can be mapped
       newVersion = await BOEService.createBOEWithElements(
         id,
         {
@@ -1646,7 +1654,16 @@ router.post('/programs/:id/boe/create-version', async (req, res) => {
           justification: changeSummary
         },
         currentBOE.elements || [],
-        [] // No allocations for now - they'll be copied by the service
+        currentAllocations.map(allocation => ({
+          elementId: allocation.boeElement.id, // Old element ID - will be mapped to new ID in service
+          name: allocation.name,
+          description: allocation.description,
+          totalAmount: allocation.totalAmount,
+          allocationType: allocation.allocationType,
+          startDate: allocation.startDate,
+          endDate: allocation.endDate,
+          notes: allocation.notes
+        }))
       );
 
       // Update program's current BOE version

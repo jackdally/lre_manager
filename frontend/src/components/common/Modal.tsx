@@ -8,6 +8,7 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showCloseButton?: boolean;
   className?: string;
+  footer?: React.ReactNode;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -18,6 +19,7 @@ const Modal: React.FC<ModalProps> = ({
   size = 'md',
   showCloseButton = true,
   className = '',
+  footer,
 }) => {
   if (!isOpen) return null;
 
@@ -29,11 +31,11 @@ const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-      <div className={`bg-white rounded-xl shadow-lg p-8 w-full ${sizeClasses[size]} ${className}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4 overflow-y-auto">
+      <div className={`bg-white rounded-xl shadow-lg w-full ${sizeClasses[size]} ${className} my-auto max-h-[90vh] flex flex-col`}>
         {/* Header */}
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 border-b border-gray-200">
             {title && (
               <h2 className="text-xl font-bold text-gray-900">{title}</h2>
             )}
@@ -51,10 +53,17 @@ const Modal: React.FC<ModalProps> = ({
           </div>
         )}
         
-        {/* Content */}
-        <div className="mb-6">
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6">
           {children}
         </div>
+        
+        {/* Footer - Fixed at bottom */}
+        {footer && (
+          <div className="flex-shrink-0 border-t border-gray-200 p-6 bg-gray-50">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
