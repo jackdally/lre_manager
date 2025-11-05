@@ -1,11 +1,14 @@
-import React, { useCallback } from 'react';
-import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import React, { useCallback, useState } from 'react';
+import { InformationCircleIcon, DocumentMagnifyingGlassIcon, XCircleIcon, CheckCircleIcon, ClockIcon, EllipsisVerticalIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { Tooltip } from 'react-tooltip';
 import type { LedgerEntry } from '../../../../types/ledger';
 import { PotentialMatchData, RejectedMatchData } from '../../../../types/actuals';
 import { useLedgerUI } from '../../../../store/ledgerStore';
 import { Vendor } from '../../../../store/settingsStore';
 import LedgerMatchModal from './LedgerMatchModal';
+import LinkToRiskModal from '../LinkToRiskModal';
+import UtilizeMRModal from '../UtilizeMRModal';
+import RiskLinkIndicator from '../RiskLinkIndicator';
 
 
 interface LedgerTableTableProps {
@@ -86,6 +89,7 @@ interface LedgerTableTableProps {
   formatCurrency: (val: any) => string;
   highlightedRowRef: React.RefObject<HTMLTableRowElement>;
   programId: string;
+  searchTerm?: string;
   // Add filter props
   filterType: 'all' | 'currentMonthPlanned' | 'emptyActuals';
   vendorFilter?: string;
@@ -105,7 +109,179 @@ interface LedgerTableTableProps {
   
   // Audit Trail
   onAuditTrailClick?: (entryId: string, entry: LedgerEntry) => void;
+  
+  // Edit Modal
+  onEditEntry?: (entry: LedgerEntry) => void;
 }
+
+// Row Actions Menu Component
+interface RowActionsMenuProps {
+  entry: LedgerEntry;
+  onEdit: () => void;
+  onAuditTrail: () => void;
+  hasPotentialMatch: boolean;
+  hasRejectedMatches: boolean;
+  hasActuals: boolean;
+  actualsUploadTransaction?: any;
+  onShowPotentialMatches: () => void;
+  onViewUpload: () => void;
+  setPotentialTab: (tab: 'matched' | 'rejected') => void;
+  onLinkRisk: () => void;
+  onUtilizeMR: () => void;
+}
+
+const RowActionsMenu: React.FC<RowActionsMenuProps> = ({
+  entry,
+  onEdit,
+  onAuditTrail,
+  hasPotentialMatch,
+  hasRejectedMatches,
+  hasActuals,
+  actualsUploadTransaction,
+  onShowPotentialMatches,
+  onViewUpload,
+  setPotentialTab,
+  onLinkRisk,
+  onUtilizeMR,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+        aria-label="Row actions"
+      >
+        <EllipsisVerticalIcon className="h-5 w-5" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+          <div className="py-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+            >
+              <PencilIcon className="h-4 w-4" />
+              Edit Entry
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAuditTrail();
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+            >
+              <ClockIcon className="h-4 w-4" />
+              View Audit Trail
+            </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLinkRisk();
+                      setIsOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 flex items-center gap-2"
+                  >
+                    Link to Risk
+                  </button>
+
+                  {hasActuals && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUtilizeMR();
+                        setIsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-green-700 hover:bg-green-50 flex items-center gap-2"
+                    >
+                      Utilize MR
+                    </button>
+                  )}
+
+            {actualsUploadTransaction && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewUpload();
+                  setIsOpen(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <DocumentMagnifyingGlassIcon className="h-4 w-4" />
+                View Upload Details
+              </button>
+            )}
+
+            {!hasActuals && hasPotentialMatch && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowPotentialMatches();
+                  setIsOpen(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50 flex items-center gap-2"
+              >
+                <InformationCircleIcon className="h-4 w-4" />
+                Review Potential Match
+              </button>
+            )}
+
+            {!hasActuals && !hasPotentialMatch && hasRejectedMatches && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowPotentialMatches();
+                  setPotentialTab('rejected');
+                  setIsOpen(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center gap-2"
+              >
+                <XCircleIcon className="h-4 w-4" />
+                View Rejected Matches
+              </button>
+            )}
+
+            <div className="border-t border-gray-200 my-1"></div>
+
+            <div className="px-4 py-2 text-xs text-gray-500">
+              Double-click row to edit
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'> & { /* remove potentialMatchIds prop */ }> = (props) => {
   const { entriesWithRejectedMatches, ...rest } = props;
@@ -169,6 +345,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     formatCurrency,
     highlightedRowRef,
     programId,
+    searchTerm,
     filterType,
     vendorFilter,
     wbsElementFilter,
@@ -184,13 +361,27 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     confirmMatch,
     rejectMatch,
     undoReject,
+    onEditEntry,
   } = rest;
+  const [showLinkRiskModal, setShowLinkRiskModal] = useState(false);
+  const [linkRiskEntry, setLinkRiskEntry] = useState<any | null>(null);
+  const [showUtilizeMRModal, setShowUtilizeMRModal] = useState(false);
+  const [utilizeMREntry, setUtilizeMREntry] = useState<any | null>(null);
   // Filtered matches for the modal
   const filteredPotentialMatched = potentialMatched.filter(entry => entry.status !== 'replaced' && entry.status !== 'rejected');
   const filteredPotentialRejected = potentialRejected.filter(entry => entry.status !== 'replaced');
   const currentMatches = potentialTab === 'matched' ? filteredPotentialMatched : filteredPotentialRejected;
 
   // Function to refresh rejected match IDs from backend
+  const highlight = (text: string) => {
+    if (!searchTerm) return text;
+    try {
+      const re = new RegExp(`(${searchTerm.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'ig');
+      return text.split(re).map((part, i) => re.test(part) ? <mark key={i} className="bg-yellow-200">{part}</mark> : part);
+    } catch {
+      return text;
+    }
+  };
   const refreshRejectedMatchIds = async () => {
     try {
       const res = await fetch(`/api/programs/${programId}/ledger/rejected-match-ids`);
@@ -210,7 +401,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
   // Excel-like navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
     const rows = sortedEntries.length;
-    const cols = 14; // Number of columns in the table
+    const cols = 15; // Number of columns in the table (added Matches column)
     
     switch (e.key) {
       case 'ArrowUp':
@@ -274,9 +465,9 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
     <>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-gray-50">
             <tr className="bg-gray-50">
-              <th className="px-2 py-2"><input type="checkbox" checked={selectedRows.length === sortedEntries.length && sortedEntries.length > 0} onChange={handleSelectAll} /></th>
+              <th className="px-2 py-2 sticky left-0 bg-gray-50 z-20"><input type="checkbox" checked={selectedRows.length === sortedEntries.length && sortedEntries.length > 0} onChange={handleSelectAll} /></th>
               <th className="px-2 py-2">WBS Element</th>
               <th className="px-2 py-2">Vendor</th>
               <th className="px-2 py-2 w-64 max-w-xl">Description</th>
@@ -289,7 +480,9 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
               <th className="px-2 py-2 text-right">Actual Date</th>
               <th className="px-2 py-2 text-right">Actual Amount</th>
               <th className="px-2 py-2">Notes</th>
-              <th className="px-2 py-2">Upload</th>
+              <th className="px-2 py-2">Risk</th>
+              <th className="px-2 py-2 text-center">Matches</th>
+              <th className="px-2 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -326,117 +519,34 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   key={entry.id}
                   data-row-id={entry.id}
                   ref={entry.id === highlightId ? highlightedRowRef : null}
-                  className={
+                  className={`cursor-pointer hover:bg-gray-50 ${
                     entry.id === highlightId
                       ? 'bg-yellow-200 animate-pulse'
                       : entry.id === newRowId
                       ? 'bg-blue-50'
-                      : ''
-                  }
+                      : 'bg-white'
+                  }`}
+                  onDoubleClick={() => onEditEntry && onEditEntry(entry)}
+                  title="Double-click to edit"
                 >
-                  <td className="px-2 py-1"><input type="checkbox" checked={selectedRows.includes(entry.id)} onChange={() => handleSelectRow(entry.id)} /></td>
-                  {/* WBS Element (dropdown) */}
-                  <td 
-                    className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'wbsElementId', entry.wbsElementId)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 1)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'wbsElementId' ? (
-                      <select
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={(e) => {
-                          // For dropdowns, save immediately when selection changes
-                          handleCellInputBlur(entry.id, 'wbsElementId', e.target.value);
-                        }}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'wbsElementId')}
-                        autoFocus
-                      >
-                        <option value="">-- Select WBS Element --</option>
-                        {(dropdownOptions.wbsElements || []).map(element => (
-                          <option key={element.id} value={element.id}>
-                            {element.code} - {element.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      entry.wbsElement ? `${entry.wbsElement.code} - ${entry.wbsElement.name}` : '--'
-                    )}
+                  <td className="px-2 py-1 sticky left-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedRows.includes(entry.id)} onChange={() => handleSelectRow(entry.id)} />
                   </td>
-                  {/* Vendor (dropdown) */}
-                  <td 
-                    className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'vendor_name', entry.vendor_name)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 3)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'vendor_name' ? (
-                      <select
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={(e) => {
-                          // For dropdowns, save immediately when selection changes
-                          handleCellInputBlur(entry.id, 'vendor_name', e.target.value);
-                        }}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'vendor_name')}
-                        autoFocus
-                      >
-                        <option value="">-- Select --</option>
-                        {(vendorOptions || []).map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
-                      </select>
-                    ) : (
-                      entry.vendor_name
-                    )}
+                  {/* WBS Element */}
+                  <td className="px-2 py-1">
+                    {entry.wbsElement ? `${entry.wbsElement.code} - ${entry.wbsElement.name}` : '--'}
                   </td>
-                  {/* Description (textarea) */}
-                  <td 
-                    className="px-2 py-1 w-64 max-w-xl" 
-                    onClick={() => handleCellClick(entry.id, 'expense_description', entry.expense_description)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 4)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'expense_description' ? (
-                      <textarea
-                        className={`input input-xs w-full min-h-24 rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'expense_description', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'expense_description')}
-                        autoFocus
-                      />
-                    ) : (
-                      entry.expense_description
-                    )}
+                  {/* Vendor */}
+                  <td className="px-2 py-1">
+                    {searchTerm ? highlight(entry.vendor_name || '') : entry.vendor_name}
                   </td>
-                  {/* Cost Category (dropdown) */}
-                  <td 
-                    className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'costCategoryId', entry.costCategoryId)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 5)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'costCategoryId' ? (
-                      <select
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={(e) => {
-                          // For dropdowns, save immediately when selection changes
-                          handleCellInputBlur(entry.id, 'costCategoryId', e.target.value);
-                        }}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'costCategoryId')}
-                        autoFocus
-                      >
-                        <option value="">-- Select Cost Category --</option>
-                        {(dropdownOptions.costCategories || []).map(category => (
-                          <option key={category.id} value={category.id}>
-                            {category.code} - {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      entry.costCategory ? `${entry.costCategory.code} - ${entry.costCategory.name}` : '--'
-                    )}
+                  {/* Description */}
+                  <td className="px-2 py-1 w-64 max-w-xl">
+                    {searchTerm ? highlight(entry.expense_description || '') : entry.expense_description}
+                  </td>
+                  {/* Cost Category */}
+                  <td className="px-2 py-1">
+                    {entry.costCategory ? `${entry.costCategory.code} - ${entry.costCategory.name}` : '--'}
                   </td>
                   {/* Invoice Link (popover edit) */}
                   <td className="px-2 py-1 w-28 max-w-[7rem] relative" onClick={e => { e.stopPropagation(); handlePopoverOpen(entry.id, entry.invoice_link_text ?? '', entry.invoice_link_url ?? '', e); }} onKeyDown={(e) => handleKeyDown(e, idx, 6)} tabIndex={0}>
@@ -473,153 +583,123 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                     )}
                   </td>
                   {/* Baseline Date */}
-                  <td 
-                    className="px-2 py-1 text-right" 
-                    onClick={() => handleCellClick(entry.id, 'baseline_date', entry.baseline_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 8)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'baseline_date' ? (
-                      <input
-                        type="date"
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'baseline_date', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'baseline_date')}
-                        autoFocus
-                      />
-                    ) : (
-                      entry.baseline_date
-                    )}
+                  <td className="px-2 py-1 text-right">
+                    {entry.baseline_date || '--'}
                   </td>
                   {/* Baseline Amount */}
-                  <td 
-                    className="px-2 py-1 text-right" 
-                    onClick={() => handleCellClick(entry.id, 'baseline_amount', entry.baseline_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 9)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'baseline_amount' ? (
-                      <input
-                        type="number"
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'baseline_amount', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'baseline_amount')}
-                        autoFocus
-                      />
-                    ) : (
-                      formatCurrency(entry.baseline_amount)
-                    )}
+                  <td className="px-2 py-1 text-right">
+                    {formatCurrency(entry.baseline_amount)}
                   </td>
                   {/* Planned Date */}
-                  <td 
-                    className="px-2 py-1 text-right" 
-                    onClick={() => handleCellClick(entry.id, 'planned_date', entry.planned_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 11)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'planned_date' ? (
-                      <input
-                        type="date"
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'planned_date', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'planned_date')}
-                        autoFocus
-                      />
-                    ) : (
-                      entry.planned_date
-                    )}
+                  <td className="px-2 py-1 text-right">
+                    {entry.planned_date || '--'}
                   </td>
                   {/* Planned Amount */}
-                  <td 
-                    className="px-2 py-1 text-right" 
-                    onClick={() => handleCellClick(entry.id, 'planned_amount', entry.planned_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 12)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'planned_amount' ? (
-                      <input
-                        type="number"
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'planned_amount', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'planned_amount')}
-                        autoFocus
-                      />
-                    ) : (
-                      formatCurrency(entry.planned_amount)
-                    )}
+                  <td className="px-2 py-1 text-right">
+                    {formatCurrency(entry.planned_amount)}
                   </td>
                   {/* Actual Date */}
-                  <td 
-                    className="px-2 py-1 text-right" 
-                    onClick={() => handleCellClick(entry.id, 'actual_date', entry.actual_date)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 13)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'actual_date' ? (
-                      <input
-                        type="date"
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'actual_date', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'actual_date')}
-                        autoFocus
-                      />
-                    ) : (
-                      entry.actual_date
-                    )}
+                  <td className="px-2 py-1 text-right">
+                    {entry.actual_date || '--'}
                   </td>
                   {/* Actual Amount */}
-                  <td 
-                    className="px-2 py-1 text-right" 
-                    onClick={() => handleCellClick(entry.id, 'actual_amount', entry.actual_amount)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 14)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'actual_amount' ? (
-                      <input
-                        type="number"
-                        className={`input input-xs w-full rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'actual_amount', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'actual_amount')}
-                        autoFocus
-                      />
-                    ) : (
-                      formatCurrency(entry.actual_amount)
-                    )}
+                  <td className="px-2 py-1 text-right">
+                    {formatCurrency(entry.actual_amount)}
                   </td>
                   {/* Notes */}
-                  <td 
-                    className="px-2 py-1" 
-                    onClick={() => handleCellClick(entry.id, 'notes', entry.notes)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, 15)}
-                    tabIndex={0}
-                  >
-                    {editingCell && editingCell.rowId === entry.id && editingCell.field === 'notes' ? (
-                      <textarea
-                        className={`input input-xs w-full min-h-24 rounded-md ${cellEditValue ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'} border`}
-                        value={cellEditValue}
-                        onChange={handleCellInputChange}
-                        onBlur={(e) => handleCellInputBlur(entry.id, 'notes', e.target.value)}
-                        onKeyDown={e => handleCellInputKeyDown(e, entry.id, 'notes')}
-                        autoFocus
-                      />
-                    ) : (
-                      entry.notes
-                    )}
-                  </td>
-                  {/* Upload Column */}
                   <td className="px-2 py-1">
+                    {entry.notes || '--'}
+                  </td>
+                  {/* Risk */}
+                  <td className="px-2 py-1">
+                    <RiskLinkIndicator risk={entry.risk as any} />
+                  </td>
+                  {/* Matches Column */}
+                  <td className="px-2 py-1 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      {(() => {
+                        const hasPotentialMatch = potentialMatchIds.some(id => String(id).trim() === String(entry.id).trim());
+                        const hasRejectedMatches = entriesWithRejectedMatches.has(entry.id);
+                        const hasActuals = entry.actual_amount !== null && entry.actual_amount !== undefined && entry.actual_date !== null && entry.actual_date !== undefined;
+                        
+                        // 1. If an entry has a confirmed match (actualsUploadTransaction), show "View Upload"
+                        if (entry.actualsUploadTransaction) {
+                          return (
+                            <button
+                              className="px-3 py-2 rounded-md border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-600 transition-colors font-semibold shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUploadModalData(entry.actualsUploadTransaction);
+                                setShowUploadModal(true);
+                              }}
+                              title="View Upload Details"
+                            >
+                              <DocumentMagnifyingGlassIcon className="h-5 w-5" />
+                            </button>
+                          );
+                        }
+                        // 2. If an entry has no actuals entered, but has potential matches
+                        if (!hasActuals && hasPotentialMatch) {
+                          return (
+                            <button
+                              className="px-3 py-2 rounded-md border-2 border-yellow-500 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-600 transition-colors font-semibold shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowPotentialMatches(entry.id);
+                              }}
+                              title="Review Potential Match - Top Match Available"
+                            >
+                              <InformationCircleIcon className="h-5 w-5" />
+                            </button>
+                          );
+                        }
+                        // 3. If an entry has no actuals entered, and all potential matches have been rejected
+                        if (!hasActuals && !hasPotentialMatch && hasRejectedMatches) {
+                          return (
+                            <button
+                              className="px-3 py-2 rounded-md border-2 border-red-500 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-600 transition-colors font-semibold shadow-sm"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await handleShowPotentialMatches(entry.id);
+                                setPotentialTab('rejected');
+                              }}
+                              title="View Rejected Matches"
+                            >
+                              <XCircleIcon className="h-5 w-5" />
+                            </button>
+                          );
+                        }
+                        // Otherwise show nothing
+                        return null;
+                      })()}
+                    </div>
+                  </td>
+                  {/* Actions Column */}
+                  <td className="px-2 py-1">
+                    <RowActionsMenu
+                      entry={entry}
+                      onEdit={() => onEditEntry && onEditEntry(entry)}
+                      onAuditTrail={() => {
+                        if (props.onAuditTrailClick) {
+                          props.onAuditTrailClick(entry.id, entry);
+                        }
+                      }}
+                      hasPotentialMatch={potentialMatchIds.some(id => String(id).trim() === String(entry.id).trim())}
+                      hasRejectedMatches={entriesWithRejectedMatches.has(entry.id)}
+                      hasActuals={entry.actual_amount !== null && entry.actual_amount !== undefined && entry.actual_date !== null && entry.actual_date !== undefined}
+                      actualsUploadTransaction={entry.actualsUploadTransaction}
+                      onShowPotentialMatches={() => handleShowPotentialMatches(entry.id)}
+                      onViewUpload={() => {
+                        setUploadModalData(entry.actualsUploadTransaction);
+                        setShowUploadModal(true);
+                      }}
+                      setPotentialTab={setPotentialTab}
+                      onLinkRisk={() => { setLinkRiskEntry(entry); setShowLinkRiskModal(true); }}
+                      onUtilizeMR={() => { setUtilizeMREntry(entry); setShowUtilizeMRModal(true); }}
+                    />
+                  </td>
+                  {/* Upload Column - Legacy (keeping for now) */}
+                  <td className="px-2 py-1 hidden">
                     <div className="flex items-center justify-center">
                       {(() => {
                         // FIX #3: Clean potential match check without hardcoded fallback
@@ -681,24 +761,6 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                         // Otherwise show "--"
                         return <span className="text-gray-300 text-sm font-semibold">--</span>;
                       })()}
-                      <Tooltip id={`upload-tooltip-${entry.id}`}>View details of the upload that set these actuals</Tooltip>
-                      <Tooltip id={`potential-tooltip-${entry.id}`}>Review and confirm a potential match from an upload</Tooltip>
-                      
-                      {/* Audit Trail Button */}
-                      <button
-                        className="ml-2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label="View Audit Trail"
-                        data-tooltip-id={`audit-tooltip-${entry.id}`}
-                        onClick={() => {
-                          // This will be handled by the parent component
-                          if (props.onAuditTrailClick) {
-                            props.onAuditTrailClick(entry.id, entry);
-                          }
-                        }}
-                      >
-                        <ClockIcon className="h-4 w-4" />
-                      </button>
-                      <Tooltip id={`audit-tooltip-${entry.id}`}>View audit trail for this ledger entry</Tooltip>
                     </div>
                   </td>
                   {/* At the end of the row, if this is the new row, show Save/Cancel icons */}
@@ -744,6 +806,26 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
           formatCurrency={formatCurrency}
           ledgerEntryId={potentialLedgerEntryId || ''}
           programId={programId}
+        />
+      )}
+
+      {showLinkRiskModal && linkRiskEntry && (
+        <LinkToRiskModal
+          isOpen={showLinkRiskModal}
+          onClose={() => { setShowLinkRiskModal(false); setLinkRiskEntry(null); }}
+          programId={programId}
+          entry={linkRiskEntry}
+          onLinked={() => fetchEntries()}
+        />
+      )}
+
+      {showUtilizeMRModal && utilizeMREntry && (
+        <UtilizeMRModal
+          isOpen={showUtilizeMRModal}
+          onClose={() => { setShowUtilizeMRModal(false); setUtilizeMREntry(null); }}
+          programId={programId}
+          entry={utilizeMREntry}
+          onUtilized={() => fetchEntries()}
         />
       )}
     </>

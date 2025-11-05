@@ -37,6 +37,8 @@ export interface AdvancedFiltersState {
   hasInvoiceLink?: boolean;
   hasNotes?: boolean;
   createdFromBOE?: boolean;
+  matchedWithActuals?: boolean;
+  linkedToRisk?: boolean;
   isOverdue?: boolean;
 }
 
@@ -401,6 +403,14 @@ export const useLedgerStore = create<LedgerStoreState>()(
                   }
                   if (advanced.createdFromBOE !== undefined) {
                     if (advanced.createdFromBOE !== entry.createdFromBOE) return false;
+                  }
+                  if (advanced.matchedWithActuals !== undefined) {
+                    const matchedWithActuals = !!(entry as any).actualsUploadTransaction;
+                    if (advanced.matchedWithActuals !== matchedWithActuals) return false;
+                  }
+                  if (advanced.linkedToRisk !== undefined) {
+                    const linkedToRisk = !!(entry.riskId || entry.risk);
+                    if (advanced.linkedToRisk !== linkedToRisk) return false;
                   }
                   if (advanced.isOverdue !== undefined && advanced.isOverdue) {
                     // Overdue: planned date is in the past and no actuals

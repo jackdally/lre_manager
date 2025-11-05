@@ -222,6 +222,12 @@ export class ImportService {
       let noProgramCodeCount = 0;
 
       // Process each row
+      console.log(`[processNetSuiteFile] Processing ${rows.length} rows`);
+      if (rows.length > 0) {
+        console.log(`[processNetSuiteFile] First row sample:`, JSON.stringify(rows[0], null, 2));
+        console.log(`[processNetSuiteFile] Config columns:`, JSON.stringify(config, null, 2));
+      }
+      
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         try {
@@ -242,8 +248,9 @@ export class ImportService {
               noProgramCodeCount++;
             } else {
               // Check if it's a program mismatch (has program code but doesn't match)
-              const programCodeMatch = programCodeRaw.match(/([A-Z]{3}\.\d{4})/);
-              if (programCodeMatch && programCodeMatch[1] !== session.program.code) {
+              const trimmed = programCodeRaw.trim();
+              const programCodeMatch = trimmed.match(/([A-Za-z0-9\-]+\.\d{4})/) || (trimmed === session.program.code ? [trimmed] : null);
+              if (programCodeMatch && programCodeMatch[1] !== session.program.code && trimmed !== session.program.code) {
                 programMismatchCount++;
               } else {
                 // Invalid program code format
@@ -253,6 +260,8 @@ export class ImportService {
           }
         } catch (error) {
           errorCount++;
+          console.error(`[processNetSuiteFile] Error parsing row ${i + 1}:`, error instanceof Error ? error.message : String(error));
+          console.error(`[processNetSuiteFile] Row data:`, JSON.stringify(row, null, 2));
         }
       }
 
@@ -303,14 +312,27 @@ export class ImportService {
       return null;
     }
 
-    // Handle program code - extract ABC.1234 pattern if present
+    // Handle program code - extract flexible pattern (e.g., ABC.1234, Test.2025, etc.)
     let programCode = null;
     if (programCodeRaw && typeof programCodeRaw === 'string' && programCodeRaw.trim() !== '') {
-      // Extract program code using regex pattern ABC.1234 (3 letters + period + 4 numbers)
-      const programCodeMatch = programCodeRaw.match(/([A-Z]{3}\.\d{4})/);
-      if (programCodeMatch) {
-        programCode = programCodeMatch[1];
+      // Extract program code using flexible pattern: letters/digits + period + 4 digits
+      // Matches patterns like: ABC.1234, Test.2025, PRG-001.2025, etc.
+      const trimmed = programCodeRaw.trim();
+      // Try exact match first (for cases like "Test.2025")
+      if (trimmed === session.program.code) {
+        programCode = trimmed;
+      } else {
+        // Try to extract pattern: letters/digits + period + 4 digits
+        const programCodeMatch = trimmed.match(/([A-Za-z0-9\-]+\.\d{4})/);
+        if (programCodeMatch) {
+          programCode = programCodeMatch[1];
+        }
       }
+    }
+    
+    // Debug logging for program code matching
+    if (!programCode && programCodeRaw) {
+      console.log(`[parseTransactionRow] Program code extraction failed. Raw: "${programCodeRaw}", Program code: "${session.program.code}"`);
     }
 
     // Skip transactions without a valid program code
@@ -324,7 +346,13 @@ export class ImportService {
     }
 
     // Parse date
-    const transactionDate = this.parseDate(dateStr, config.dateFormat);
+    let transactionDate: string;
+    try {
+      transactionDate = this.parseDate(dateStr, config.dateFormat);
+    } catch (error) {
+      console.error(`[parseTransactionRow] Date parsing failed for dateStr: "${dateStr}", format: "${config.dateFormat}"`, error);
+      throw error;
+    }
     
     // Parse period if available
     let periodDate = null;
@@ -496,7 +524,27 @@ export class ImportService {
     throw new Error(`Unable to parse date: ${dateStr}`);
   }
 
-  private parsePeriod(periodStr: string): string {
+  private parsePeriod(periodStr: string | number): string {
+    // Handle Excel serial date numbers
+    if (typeof periodStr === 'number') {
+      // Convert Excel serial date to date, then extract YYYY-MM
+      const excelEpoch = new Date(1900, 0, 1);
+      const date = new Date(excelEpoch.getTime() + (periodStr - 2) * 24 * 60 * 60 * 1000);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      return `${year}-${month}-01`;
+    }
+
+    // Convert to string if not already
+    const periodStrValue = typeof periodStr === 'string' ? periodStr : String(periodStr);
+    
+    // Handle YYYY-MM format (e.g., "2025-01")
+    const yyyyMmMatch = periodStrValue.match(/^(\d{4})-(\d{1,2})$/);
+    if (yyyyMmMatch) {
+      const [, year, month] = yyyyMmMatch;
+      return `${year}-${month.padStart(2, '0')}-01`;
+    }
+
     // Parse period format like "Jun 2025" or "June 2025"
     const monthNames: { [key: string]: string } = {
       'jan': '01', 'january': '01',
@@ -513,7 +561,7 @@ export class ImportService {
       'dec': '12', 'december': '12'
     };
 
-    const parts = periodStr.trim().toLowerCase().split(' ');
+    const parts = periodStrValue.trim().toLowerCase().split(' ');
     if (parts.length === 2) {
       const month = monthNames[parts[0]];
       const year = parts[1];
@@ -523,7 +571,7 @@ export class ImportService {
       }
     }
 
-    return periodStr; // Return as-is if can't parse
+    return periodStrValue; // Return as-is if can't parse
   }
 
   async performSmartMatching(sessionId: string): Promise<void> {

@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import Layout from '../../../layout';
 import SummaryKpis from '../../../common/SummaryKpis';
-import HelpCallout from '../../../common/HelpCallout';
+import HelpModal from '../../../common/HelpModal';
 import LedgerTable from '../LedgerTable/LedgerTable';
 import BulkImportModal from '../BulkImport/BulkImportModal';
 import axios from 'axios';
@@ -10,6 +11,7 @@ import axios from 'axios';
 const LedgerPage: React.FC = () => {
   const { id } = useParams();
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'currentMonthPlanned' | 'emptyActuals'>('all');
   
   // New filter states for dropdown filters - initialize with undefined to match store
@@ -57,11 +59,24 @@ const LedgerPage: React.FC = () => {
     <Layout>
       <div className="p-8">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">Ledger Page</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Ledger</h1>
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className="text-gray-400 hover:text-blue-600 transition-colors"
+              title="How to use the Ledger"
+            >
+              <InformationCircleIcon className="h-5 w-5" />
+            </button>
+          </div>
           <button className="btn btn-primary" onClick={() => setShowBulkImportModal(true)}>Bulk Import</button>
         </div>
         <SummaryKpis programId={programId} />
-        <HelpCallout />
+        
+        <HelpModal
+          isOpen={showHelpModal}
+          onClose={() => setShowHelpModal(false)}
+        />
         
         <LedgerTable 
           programId={programId} 

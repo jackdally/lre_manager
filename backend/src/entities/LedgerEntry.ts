@@ -3,6 +3,7 @@ import { Program } from './Program';
 import { WbsElement } from './WbsElement';
 import { CostCategory } from './CostCategory';
 import { Vendor } from './Vendor';
+import { Risk } from './Risk';
 
 @Entity()
 export class LedgerEntry {
@@ -76,4 +77,12 @@ export class LedgerEntry {
 
   @Column('boolean', { default: false })
   createdFromBOE!: boolean;
+
+  // Risk linking
+  @Column({ name: 'risk_id', nullable: true })
+  riskId?: string | null;
+
+  @ManyToOne(() => Risk, { nullable: true })
+  @JoinColumn({ name: 'risk_id' })
+  risk?: Risk;
 } 

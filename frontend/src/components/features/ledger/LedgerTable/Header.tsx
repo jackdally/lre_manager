@@ -100,12 +100,24 @@ const LedgerTableHeader: React.FC<LedgerTableHeaderProps> = ({
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Search vendor..."
+              placeholder="Search vendor, description, notes, invoice..."
               className="input input-bordered input-sm w-full"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
             <button className="btn btn-primary btn-sm whitespace-nowrap" onClick={onAddEntry}>Add Entry</button>
+            <a
+              className="btn btn-outline btn-sm whitespace-nowrap"
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                // Simple client-side CSV export of current table (handled by page fetching all)
+                const event = new CustomEvent('ledger-export');
+                window.dispatchEvent(event);
+              }}
+            >
+              Export CSV
+            </a>
           </div>
         </div>
       </div>

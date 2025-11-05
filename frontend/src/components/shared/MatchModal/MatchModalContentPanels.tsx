@@ -19,11 +19,22 @@ export const UploadTransactionPanel: React.FC<{
   transaction: any;
   sessionFilename?: string;
 }> = ({ transaction, sessionFilename }) => {
-  const matchConfidence = formatConfidence(transaction.matchConfidence) * 100;
+  const matchConfidence = formatConfidence(transaction.matchConfidence || transaction.confidence) * 100;
   let confidenceColor = 'text-gray-500';
-  if (matchConfidence >= 80) confidenceColor = 'text-green-600';
-  else if (matchConfidence >= 60) confidenceColor = 'text-yellow-600';
-  else confidenceColor = 'text-red-600';
+  let confidenceBg = 'bg-gray-100';
+  if (matchConfidence >= 95) {
+    confidenceColor = 'text-green-600';
+    confidenceBg = 'bg-green-100';
+  } else if (matchConfidence >= 80) {
+    confidenceColor = 'text-green-600';
+    confidenceBg = 'bg-green-100';
+  } else if (matchConfidence >= 60) {
+    confidenceColor = 'text-yellow-600';
+    confidenceBg = 'bg-yellow-100';
+  } else {
+    confidenceColor = 'text-red-600';
+    confidenceBg = 'bg-red-100';
+  }
 
   return (
     <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
@@ -90,21 +101,34 @@ export const UploadTransactionPanel: React.FC<{
 
       {/* Match Confidence */}
       <div className="mt-4 pt-4 border-t border-blue-200">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-600">Match Confidence</span>
-          <span className={`text-lg font-bold ${confidenceColor}`}>
+          <span className={`px-3 py-1 rounded-full text-lg font-bold ${confidenceColor} ${confidenceBg}`}>
             {matchConfidence.toFixed(1)}%
           </span>
         </div>
-        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+        <div className="mt-2 w-full bg-gray-200 rounded-full h-3">
           <div 
-            className={`h-2 rounded-full transition-all duration-300 ${
-              matchConfidence >= 80 ? 'bg-green-500' : 
+            className={`h-3 rounded-full transition-all duration-300 ${
+              matchConfidence >= 95 ? 'bg-green-500' :
+              matchConfidence >= 80 ? 'bg-green-400' : 
               matchConfidence >= 60 ? 'bg-yellow-500' : 'bg-red-500'
             }`}
             style={{ width: `${matchConfidence}%` }}
           />
         </div>
+        {matchConfidence >= 95 && (
+          <p className="mt-2 text-xs text-green-700 font-medium">Excellent Match</p>
+        )}
+        {matchConfidence >= 80 && matchConfidence < 95 && (
+          <p className="mt-2 text-xs text-green-600 font-medium">Good Match</p>
+        )}
+        {matchConfidence >= 60 && matchConfidence < 80 && (
+          <p className="mt-2 text-xs text-yellow-600 font-medium">Review Recommended</p>
+        )}
+        {matchConfidence < 60 && (
+          <p className="mt-2 text-xs text-red-600 font-medium">Low Confidence - Manual Review Required</p>
+        )}
       </div>
     </div>
   );
@@ -118,13 +142,19 @@ export const LedgerEntryPanel: React.FC<{
   hasDateMismatch?: boolean;
   actualAmount?: number | string;
   actualDate?: string;
+  confidence?: number;
+  matchType?: string;
+  reasons?: string[];
 }> = ({ 
   ledgerEntry, 
   isRejected = false, 
   hasAmountMismatch = false, 
   hasDateMismatch = false,
   actualAmount,
-  actualDate
+  actualDate,
+  confidence,
+  matchType,
+  reasons
 }) => {
   return (
     <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
@@ -202,6 +232,33 @@ export const LedgerEntryPanel: React.FC<{
           </div>
         )}
       </div>
+
+      {/* Match Reasons */}
+      {reasons && reasons.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">Why This Match</h4>
+          <ul className="space-y-1">
+            {reasons.map((reason, idx) => (
+              <li key={idx} className="text-xs text-gray-600 flex items-start gap-2">
+                <span className="text-green-500 mt-1">✓</span>
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Match Type Indicator */}
+      {matchType && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-600">Match Type:</span>
+            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+              {matchType}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

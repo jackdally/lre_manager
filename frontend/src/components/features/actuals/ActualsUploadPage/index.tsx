@@ -398,9 +398,30 @@ const ActualsUploadPage: React.FC = () => {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Actuals Upload</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Upload and process NetSuite export files for program actuals
+            Upload and process NetSuite export files for program actuals. Use the sample file to test the matching functionality.
           </p>
-          <div className="mt-3">
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={async () => {
+                try {
+                  const resp = await fetch('/samples/matching_actuals.csv');
+                  if (!resp.ok) throw new Error('Failed to load matching actuals file');
+                  const blob = await resp.blob();
+                  const matchingFile = new File([blob], 'matching_actuals.csv', { type: 'text/csv' });
+                  await performUpload(config, matchingFile, 'Matching actuals upload - matches existing ledger entries');
+                  setToast({ message: 'Matching actuals uploaded successfully', type: 'success' });
+                } catch (e: any) {
+                  setToast({ message: e.message || 'Failed to upload matching actuals', type: 'error' });
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-md border border-green-200 transition-colors"
+              title="Load actuals that match existing ledger entries (11 entries)"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Load Matching Actuals
+            </button>
             <button
               onClick={async () => {
                 try {
@@ -409,14 +430,18 @@ const ActualsUploadPage: React.FC = () => {
                   const blob = await resp.blob();
                   const sampleFile = new File([blob], 'sample_actuals.csv', { type: 'text/csv' });
                   await performUpload(config, sampleFile, 'Sample actuals upload');
-                  setToast({ message: 'Sample actuals uploaded', type: 'success' });
+                  setToast({ message: 'Sample actuals uploaded successfully', type: 'success' });
                 } catch (e: any) {
                   setToast({ message: e.message || 'Failed to upload sample', type: 'error' });
                 }
               }}
-              className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
+              title="Load sample actuals data for testing the matching functionality"
             >
-              Load sample actuals
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Load Sample Data
             </button>
           </div>
         </div>

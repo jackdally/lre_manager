@@ -13,16 +13,19 @@ import LedgerBulkEditModal from './BulkEditModal';
 import LedgerBulkDeleteModal from './BulkDeleteModal';
 import LedgerErrorModal from './ErrorModal';
 import LedgerTableHeader from './Header';
+import OrganizedHeader from './OrganizedHeader';
 import LedgerTableTable from './Table';
 import LedgerMatchModal from './LedgerMatchModal';
 import LedgerAuditTrailSidebar from '../LedgerAuditTrailSidebar/LedgerAuditTrailSidebar';
 import ViewUploadModal from './ViewUploadModal';
+import LedgerEntryEditModal from './LedgerEntryEditModal';
+import AdvancedFilters from '../AdvancedFilters';
+import FilterPresetManager from '../../../shared/FilterPresetManager';
 import { LedgerEntry } from '../../../../types/ledger';
 
 // Import custom hooks
 import { usePotentialMatchModal } from '../../../../hooks/usePotentialMatchModal';
 import { useDebouncedApi } from '../../../../hooks/useDebouncedApi';
-import { usePerformanceMonitor } from '../../../../hooks/usePerformanceMonitor';
 
 // Import Zustand store hooks
 import {
@@ -40,6 +43,7 @@ import {
   useLedgerSetWbsElementFilter,
   useLedgerSetCostCategoryFilter,
   useLedgerSetSearch,
+  useLedgerSetAdvancedFilters,
   useLedgerSetPage,
   useLedgerSetShowAll,
   useLedgerSelectRow,
@@ -139,6 +143,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const setWbsElementFilterAction = useLedgerSetWbsElementFilter();
   const setCostCategoryFilterAction = useLedgerSetCostCategoryFilter();
   const setSearch = useLedgerSetSearch();
+  const setAdvancedFilters = useLedgerSetAdvancedFilters();
   const setPage = useLedgerSetPage();
   const setShowAllAction = useLedgerSetShowAll();
   const selectRow = useLedgerSelectRow();
@@ -185,6 +190,10 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const [auditTrailSidebarOpen, setAuditTrailSidebarOpen] = useState(false);
   const [selectedAuditTrailEntry, setSelectedAuditTrailEntry] = useState<any>(null);
 
+  // Edit Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedEntryForEdit, setSelectedEntryForEdit] = useState<LedgerEntry | null>(null);
+
   // Get URL search parameters for highlighting
   const [searchParams] = useSearchParams();
 
@@ -192,7 +201,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
   const potentialMatchModal = usePotentialMatchModal(programId);
   const debouncedApiResult = useDebouncedApi({ delay: 300 });
   const { debouncedCall } = debouncedApiResult || { debouncedCall: () => { } };
-  const performanceMonitor = usePerformanceMonitor();
+
 
   // Wrapper functions to handle type conversion
   const handleSetEntriesWithRejectedMatches = useCallback((set: Set<string> | ((prev: Set<string>) => Set<string>)) => {
@@ -407,6 +416,22 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
     setAuditTrailSidebarOpen(true);
   }, []);
 
+  // Edit Modal Handlers
+  const handleOpenEditModal = useCallback((entry: LedgerEntry) => {
+    setSelectedEntryForEdit(entry);
+    setEditModalOpen(true);
+  }, []);
+
+  const handleCloseEditModal = useCallback(() => {
+    setEditModalOpen(false);
+    setSelectedEntryForEdit(null);
+  }, []);
+
+  const handleSaveEntry = useCallback(async (id: string, updates: Partial<LedgerEntry>) => {
+    await updateEntry(id, updates);
+    onChange?.();
+  }, [updateEntry, onChange]);
+
   // BOE Navigation Handler
   const handleNavigateToBOE = useCallback((boeVersionId: string, allocationId?: string) => {
     // Close the audit trail sidebar
@@ -451,61 +476,64 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
 
 
 
-  return (
-    <div className="bg-white rounded-xl shadow p-4">
-      {/* Quick Filters Bar */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Quick Filters</h2>
-          {process.env.NODE_ENV === 'development' && performanceMonitor?.logPerformanceReport && (
-            <button
-              onClick={performanceMonitor.logPerformanceReport}
-              className="btn btn-xs btn-outline text-xs"
-              title="View performance metrics"
-            >
-              📊 Performance
-            </button>
-          )}
-        </div>
-        <div className="flex gap-4">
-          <button
-            className={`btn px-4 py-2 rounded-md ${filters.filterType === 'all' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
-            onClick={() => setFilterTypeAction('all')}
-          >
-            Show All
-          </button>
-          <button
-            className={`btn px-4 py-2 rounded-md ${filters.filterType === 'currentMonthPlanned' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
-            onClick={() => setFilterTypeAction('currentMonthPlanned')}
-          >
-            Show Current Month Planned Expenses
-          </button>
-          <button
-            className={`btn px-4 py-2 rounded-md ${filters.filterType === 'emptyActuals' ? 'btn-primary' : 'btn-ghost border border-gray-300 bg-gray-100 text-gray-700'}`}
-            onClick={() => setFilterTypeAction('emptyActuals')}
-          >
-            Show Empty Actuals
-          </button>
-        </div>
-      </div>
+  // Handle CSV export
+  const handleExportCSV = useCallback(() => {
+    const rows = entries.map((e: any) => ({
+      wbs: e.wbsElement ? `${e.wbsElement.code} - ${e.wbsElement.name}` : '',
+      vendor: e.vendor_name,
+      description: e.expense_description,
+      costCategory: e.costCategory ? `${e.costCategory.code} - ${e.costCategory.name}` : '',
+      baseline_date: e.baseline_date || '',
+      baseline_amount: e.baseline_amount ?? '',
+      planned_date: e.planned_date || '',
+      planned_amount: e.planned_amount ?? '',
+      actual_date: e.actual_date || '',
+      actual_amount: e.actual_amount ?? '',
+      notes: e.notes || '',
+      risk: e.risk ? (e.risk.title || e.risk.id) : ''
+    }));
+    const headers = Object.keys(rows[0] || {});
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => JSON.stringify((r as any)[h] ?? '')).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ledger_export_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [entries]);
 
-      <LedgerTableHeader
+  return (
+    <div className="bg-white rounded-xl shadow p-6 relative">
+      <OrganizedHeader
         search={filters.search}
         setSearch={handleSearchChange}
         setPage={setPage}
+        filterType={filters.filterType}
+        setFilterType={setFilterTypeAction}
+        advancedFilters={filters.advanced}
+        setAdvancedFilters={setAdvancedFilters}
+        programId={programId}
+        currentFilters={filters as any}
+        onApplyPreset={(f: any) => {
+          // Apply full filter object when loading preset
+          if (f.search !== undefined) setSearch(f.search);
+          if (f.filterType) setFilterTypeAction(f.filterType);
+          if (f.vendorFilter !== undefined) setVendorFilterAction(f.vendorFilter);
+          if (f.wbsElementFilter !== undefined) setWbsElementFilterAction(f.wbsElementFilter);
+          if (f.costCategoryFilter !== undefined) setCostCategoryFilter(f.costCategoryFilter);
+          setAdvancedFilters(f.advanced);
+          setPage(1);
+          fetchEntries();
+        }}
         onAddEntry={addEntry}
+        onExportCSV={handleExportCSV}
+        vendorOptions={dropdownOptions.vendors.map(v => ({ id: v.id, name: v.name }))}
+        wbsElementOptions={dropdownOptions.wbsElements}
+        costCategoryOptions={dropdownOptions.costCategories}
         selectedRows={ui.selectedRows}
         onBulkEdit={startBulkEdit}
         onBulkDelete={() => setShowBulkDeleteModal(true)}
-        vendorFilter={filters.vendorFilter}
-        setVendorFilter={setVendorFilterAction}
-        wbsElementFilter={filters.wbsElementFilter}
-        setWbsElementFilter={setWbsElementFilterAction}
-        costCategoryFilter={filters.costCategoryFilter}
-        setCostCategoryFilter={setCostCategoryFilter}
-        vendorOptions={dropdownOptions.vendors}
-        wbsElementOptions={dropdownOptions.wbsElements}
-        costCategoryOptions={dropdownOptions.costCategories}
       />
 
       {ui.showErrorModal && ui.error && (
@@ -622,6 +650,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         formatCurrency={formatCurrency}
         highlightedRowRef={React.useRef<HTMLTableRowElement | null>(null)}
         programId={programId}
+        searchTerm={filters.search}
         filterType={filters.filterType}
         vendorFilter={filters.vendorFilter}
         wbsElementFilter={filters.wbsElementFilter}
@@ -638,6 +667,7 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         rejectMatch={handleRejectMatch}
         undoReject={handleUndoReject}
         onAuditTrailClick={handleAuditTrailClick}
+        onEditEntry={handleOpenEditModal}
       />
 
       {/* Audit Trail Sidebar */}
@@ -657,6 +687,18 @@ const LedgerTable: React.FC<LedgerTableProps> = ({
         onRemoveMatch={removeMatch}
         formatCurrency={formatCurrency}
         setToast={setToast}
+      />
+
+      {/* Edit Entry Modal */}
+      <LedgerEntryEditModal
+        isOpen={editModalOpen}
+        onClose={handleCloseEditModal}
+        entry={selectedEntryForEdit}
+        programId={programId}
+        vendorOptions={dropdownOptions.vendors}
+        wbsElementOptions={dropdownOptions.wbsElements}
+        costCategoryOptions={dropdownOptions.costCategories}
+        onSave={handleSaveEntry}
       />
 
       {/* Toast Notification */}

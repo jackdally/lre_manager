@@ -19,6 +19,7 @@ import {
   UploadTransactionPanel,
   LedgerEntryPanel
 } from '../../../shared/MatchModal';
+import LinkToRiskModal from '../../ledger/LinkToRiskModal';
 
 interface LedgerEntry {
   id: string;
@@ -49,6 +50,8 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
 }) => {
   // Local state for unified adjustment modal
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
+  const [showLinkRiskModal, setShowLinkRiskModal] = useState(false);
+  const [linkRiskEntry, setLinkRiskEntry] = useState<any | null>(null);
 
   // Get state from store
   const ui = useActualsUI();
@@ -75,8 +78,15 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
   const filteredPotentialLedgerEntries = modalPotentialMatches.filter((entry: LedgerEntry) => entry.status !== 'replaced');
   const filteredRejectedLedgerEntries = modalRejectedMatches.filter((entry: LedgerEntry) => entry.status !== 'replaced');
 
+  // Sort potential matches by confidence (highest first)
+  const sortedPotentialLedgerEntries = [...filteredPotentialLedgerEntries].sort((a, b) => {
+    const aConf = (a as any).confidence || 0;
+    const bConf = (b as any).confidence || 0;
+    return bConf - aConf; // Descending order
+  });
+
   // Use filtered arrays for tab logic
-  const ledgerEntries = modalCurrentTab === 'potential' ? filteredPotentialLedgerEntries : filteredRejectedLedgerEntries;
+  const ledgerEntries = modalCurrentTab === 'potential' ? sortedPotentialLedgerEntries : filteredRejectedLedgerEntries;
   const ledgerEntry = ledgerEntries[modalCurrentIndex];
   const total = ledgerEntries.length;
 
@@ -92,6 +102,29 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
 
   const canReForecast = ledgerEntry && modalTransaction && (hasAmountMismatch || hasDateMismatch);
 
+  // Keyboard shortcuts
+  React.useEffect(() => {
+    if (!showMatchModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeMatchModal();
+      } else if (e.key === 'ArrowLeft' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === 'ArrowRight' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && ledgerEntry) {
+        e.preventDefault();
+        handleConfirm();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showMatchModal, modalCurrentIndex, total, ledgerEntry]);
+
   // Handlers
   const handlePrev = () => setModalIndex(Math.max(0, modalCurrentIndex - 1));
   const handleNext = () => setModalIndex(Math.min(total - 1, modalCurrentIndex + 1));
@@ -99,6 +132,9 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
   const handleConfirm = async () => {
     if (ledgerEntry) {
       await confirmMatch(ledgerEntry);
+      // Prompt to link to materialized risk after confirming match
+      setLinkRiskEntry(ledgerEntry);
+      setShowLinkRiskModal(true);
     }
   };
   const handleReject = async () => {
@@ -155,6 +191,9 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
       hasDateMismatch={hasDateMismatch}
       actualAmount={modalTransaction?.amount}
       actualDate={modalTransaction?.transactionDate}
+      confidence={ledgerEntry.confidence}
+      matchType={ledgerEntry.matchType}
+      reasons={ledgerEntry.reasons}
     />
   ) : null;
 
@@ -178,7 +217,7 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
         totalCount={total}
         onPrevious={handlePrev}
         onNext={handleNext}
-        potentialCount={filteredPotentialLedgerEntries.length}
+        potentialCount={sortedPotentialLedgerEntries.length}
         rejectedCount={filteredRejectedLedgerEntries.length}
         onConfirm={handleConfirm}
         onReject={handleReject}
@@ -217,6 +256,18 @@ const TransactionMatchModal: React.FC<TransactionMatchModalProps> = ({
           onAdjustmentComplete={handleAdjustmentComplete}
           onLedgerRefresh={onLedgerRefresh}
           programId={programId}
+        />
+      )}
+
+      {showLinkRiskModal && linkRiskEntry && (
+        <LinkToRiskModal
+          isOpen={showLinkRiskModal}
+          onClose={() => { setShowLinkRiskModal(false); setLinkRiskEntry(null); }}
+          programId={programId as string}
+          entry={linkRiskEntry}
+          onLinked={() => {
+            if (currentSession) loadSessionDetails(currentSession.id);
+          }}
         />
       )}
     </>

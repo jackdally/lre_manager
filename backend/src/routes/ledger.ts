@@ -293,7 +293,17 @@ router.get('/:programId/ledger/summary', async (req, res) => {
 
       const totalRecords = entries.length;
       const withActualsCount = entries.filter(e => e.actual_amount != null && e.actual_date != null).length;
-      const missingActualsCount = totalRecords - withActualsCount;
+      
+      // Missing actuals: only count entries that are planned on or before the current accounting month
+      // and don't have actuals yet
+      const missingActualsCount = entries.filter(e => {
+        if (e.actual_amount != null && e.actual_date != null) return false; // Has actuals, not missing
+        if (!e.planned_date) return false; // No planned date, can't determine if missing
+        const plannedDate = new Date(e.planned_date);
+        const currentMonthEnd = new Date(nextMonth.getTime() - 1); // Last day of current month
+        return plannedDate <= currentMonthEnd; // Only count if planned date is in or before current month
+      }).length;
+      
       const inMonthCount = entries.filter(e => !!e.planned_date && e.planned_date >= startStr && e.planned_date <= endStr).length;
 
       return res.json({
@@ -584,6 +594,7 @@ router.get('/:programId/ledger/:ledgerEntryId/potential-matches', async (req, re
 });
 
 // Get all ledger entry IDs with potential matches for a program
+// Only returns ledger entries that are the "top match" (highest confidence) for each transaction
 router.get('/:programId/ledger/potential-match-ids', async (req, res) => {
   const { programId } = req.params;
   try {
@@ -595,12 +606,34 @@ router.get('/:programId/ledger/potential-match-ids', async (req, res) => {
         ledgerEntry: { program: { id: programId } },
         status: 'potential'
       },
-      relations: ['ledgerEntry', 'ledgerEntry.program']
+      relations: ['transaction', 'ledgerEntry', 'ledgerEntry.program']
     });
     
-    // Extract unique ledger entry IDs
-    const matchIds = new Set(potentialMatches.map(pm => pm.ledgerEntry.id));
-    res.json(Array.from(matchIds));
+    // Group matches by transaction ID
+    const matchesByTransaction = new Map<string, typeof potentialMatches>();
+    for (const pm of potentialMatches) {
+      const txId = pm.transaction.id;
+      if (!matchesByTransaction.has(txId)) {
+        matchesByTransaction.set(txId, []);
+      }
+      matchesByTransaction.get(txId)!.push(pm);
+    }
+    
+    // For each transaction, find the top match (highest confidence)
+    // Only include matches with confidence >= 0.7 (70%) to reduce noise
+    const topMatchLedgerEntryIds = new Set<string>();
+    for (const [txId, matches] of matchesByTransaction.entries()) {
+      // Sort by confidence descending
+      const sortedMatches = matches.sort((a, b) => b.confidence - a.confidence);
+      const topMatch = sortedMatches[0];
+      
+      // Only include if confidence is at least 70%
+      if (topMatch && topMatch.confidence >= 0.7) {
+        topMatchLedgerEntryIds.add(topMatch.ledgerEntry.id);
+      }
+    }
+    
+    res.json(Array.from(topMatchLedgerEntryIds));
   } catch (err) {
     console.error('Error fetching potential match IDs:', err);
     res.status(500).json({ error: 'Failed to fetch potential match IDs' });
