@@ -11,8 +11,7 @@
     "useDefineForClassFields": false
   },
   "include": [
-    "backend/src/**/*.ts",
-    "scripts/**/*.ts"
+    "backend/src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
