@@ -1,0 +1,7 @@
+Program Code,Vendor Name,Description,Amount,Transaction Date,Period,Category,Subcategory,Invoice Number,Reference Number,Transaction ID
+PRG-001,Acme Supplies,Office chairs,1200.00,08/05/2025,2025-08,Materials,Furniture,INV-1001,REF-5001,TXN-0001
+PRG-001,Global Tech,Laptop purchase,2200.50,08/12/2025,2025-08,IT,Hardware,INV-1002,REF-5002,TXN-0002
+PRG-001,Acme Supplies,Desks,1800.00,08/18/2025,2025-08,Materials,Furniture,INV-1003,REF-5003,TXN-0003
+PRG-001,City Utilities,Electric bill,450.75,08/25/2025,2025-08,Utilities,Electric,INV-1004,REF-5004,TXN-0004
+PRG-001,Speedy Logistics,Freight charges,320.00,08/27/2025,2025-08,Logistics,Freight,INV-1005,REF-5005,TXN-0005
+

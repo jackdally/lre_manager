@@ -67,6 +67,7 @@ import ProgramSelector from './ProgramSelector';
 import UploadProgress from './UploadProgress';
 import SessionsList from './SessionsList';
 import TransactionMatchingTable from './TransactionMatchingTable';
+import UnifiedMatchingView from './UnifiedMatchingView';
 import TransactionMatchModal from '../TransactionMatchModal/index';
 import AddToLedgerModal from '../AddToLedgerModal/index';
 
@@ -399,6 +400,25 @@ const ActualsUploadPage: React.FC = () => {
           <p className="mt-2 text-sm text-gray-600">
             Upload and process NetSuite export files for program actuals
           </p>
+          <div className="mt-3">
+            <button
+              onClick={async () => {
+                try {
+                  const resp = await fetch('/samples/sample_actuals.csv');
+                  if (!resp.ok) throw new Error('Failed to load sample file');
+                  const blob = await resp.blob();
+                  const sampleFile = new File([blob], 'sample_actuals.csv', { type: 'text/csv' });
+                  await performUpload(config, sampleFile, 'Sample actuals upload');
+                  setToast({ message: 'Sample actuals uploaded', type: 'success' });
+                } catch (e: any) {
+                  setToast({ message: e.message || 'Failed to upload sample', type: 'error' });
+                }
+              }}
+              className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200"
+            >
+              Load sample actuals
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -540,20 +560,11 @@ const ActualsUploadPage: React.FC = () => {
 
         {/* Matching Tab */}
         {activeTab === 'matching' && currentSession && (
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">Transaction Matching</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Session: {currentSession.description || currentSession.originalFilename}
-              </p>
-            </div>
-
-            <TransactionMatchingTable
-              transactions={transactions}
-              currentSession={currentSession}
-              programId={programId!}
-            />
-          </div>
+          <UnifiedMatchingView
+            transactions={transactions}
+            currentSession={currentSession}
+            programId={programId!}
+          />
         )}
 
         {/* Match Review Modal */}
