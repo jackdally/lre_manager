@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, ManyToMany, JoinTable } from 'typeorm';
 import { Program } from './Program';
 import { WbsElement } from './WbsElement';
 import { CostCategory } from './CostCategory';
@@ -78,11 +78,17 @@ export class LedgerEntry {
   @Column('boolean', { default: false })
   createdFromBOE!: boolean;
 
-  // Risk linking
+  // Risk linking (legacy - deprecated, use risks relationship)
   @Column({ name: 'risk_id', nullable: true })
   riskId?: string | null;
 
   @ManyToOne(() => Risk, { nullable: true })
   @JoinColumn({ name: 'risk_id' })
   risk?: Risk;
+
+  // Multiple risk linking (new approach)
+  // Note: We use a custom junction entity (LedgerEntryRisk) instead of TypeORM's automatic ManyToMany
+  // This allows us to add metadata like createdAt to the junction table
+  // The risks relationship is loaded via the LedgerEntryRisk entity
+  risks?: Risk[];
 } 

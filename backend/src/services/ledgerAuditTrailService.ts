@@ -81,13 +81,18 @@ export class LedgerAuditTrailService {
     ledgerEntry: LedgerEntry,
     source: AuditSource = AuditSource.MANUAL,
     userId?: string,
-    sessionId?: string
+    sessionId?: string,
+    metadata?: Record<string, any>
   ): Promise<LedgerAuditTrail> {
     const description = source === AuditSource.BOE_PUSH
       ? 'Ledger entry created from BOE allocation'
       : source === AuditSource.BOE_ALLOCATION
         ? 'Ledger entry created from BOE element allocation'
-        : 'Ledger entry created manually';
+        : source === AuditSource.INVOICE_MATCH
+          ? 'Ledger entry created from unmatched transaction'
+          : source === AuditSource.SYSTEM
+            ? 'Ledger entry created from import'
+            : 'Ledger entry created manually';
 
     return await this.createAuditEntry(
       ledgerEntry.id,
@@ -109,7 +114,8 @@ export class LedgerAuditTrailService {
         },
         boeElementAllocationId: ledgerEntry.boeElementAllocationId,
         boeVersionId: ledgerEntry.boeVersionId,
-        sessionId
+        sessionId,
+        metadata
       }
     );
   }
@@ -231,30 +237,91 @@ export class LedgerAuditTrailService {
 
   /**
    * Audit invoice matching
+   * Enhanced to accept transaction ID and transaction metadata
    */
   static async auditInvoiceMatching(
     ledgerEntryId: string,
-    invoiceId: string,
+    transactionId: string,
     isMatched: boolean,
-    userId?: string,
-    sessionId?: string
+    options: {
+      userId?: string;
+      sessionId?: string;
+      transactionMetadata?: {
+        amount?: number;
+        date?: Date | string;
+        vendorName?: string;
+        description?: string;
+        invoiceNumber?: string;
+        referenceNumber?: string;
+      };
+      previousValues?: Record<string, any>;
+      newValues?: Record<string, any>;
+    } = {}
   ): Promise<LedgerAuditTrail> {
     const action = isMatched ? AuditAction.MATCHED_TO_INVOICE : AuditAction.UNMATCHED_FROM_INVOICE;
     const description = isMatched
-      ? `Ledger entry matched to invoice ${invoiceId}`
-      : `Ledger entry unmatched from invoice ${invoiceId}`;
+      ? `Ledger entry matched to transaction ${transactionId}`
+      : `Ledger entry unmatched from transaction ${transactionId}`;
 
     return await this.createAuditEntry(
       ledgerEntryId,
       action,
       AuditSource.INVOICE_MATCH,
       {
-        userId,
+        userId: options.userId,
         description,
+        previousValues: options.previousValues,
+        newValues: options.newValues,
         metadata: {
-          invoiceId,
-          isMatched
+          transactionId,
+          isMatched,
+          ...(options.transactionMetadata || {})
         },
+        sessionId: options.sessionId
+      }
+    );
+  }
+
+  /**
+   * Audit ledger entry deletion
+   */
+  static async auditLedgerEntryDeletion(
+    ledgerEntry: LedgerEntry,
+    source: AuditSource = AuditSource.MANUAL,
+    userId?: string,
+    sessionId?: string
+  ): Promise<LedgerAuditTrail> {
+    // Store complete entry snapshot in previousValues
+    const previousValues = {
+      vendor_name: ledgerEntry.vendor_name,
+      expense_description: ledgerEntry.expense_description,
+      baseline_amount: ledgerEntry.baseline_amount,
+      baseline_date: ledgerEntry.baseline_date,
+      planned_amount: ledgerEntry.planned_amount,
+      planned_date: ledgerEntry.planned_date,
+      actual_amount: ledgerEntry.actual_amount,
+      actual_date: ledgerEntry.actual_date,
+      wbsElementId: ledgerEntry.wbsElementId,
+      costCategoryId: ledgerEntry.costCategoryId,
+      vendorId: ledgerEntry.vendorId,
+      riskId: ledgerEntry.riskId,
+      notes: ledgerEntry.notes,
+      invoice_link_text: ledgerEntry.invoice_link_text,
+      invoice_link_url: ledgerEntry.invoice_link_url,
+      createdFromBOE: ledgerEntry.createdFromBOE,
+      boeElementAllocationId: ledgerEntry.boeElementAllocationId,
+      boeVersionId: ledgerEntry.boeVersionId,
+      programId: ledgerEntry.program?.id
+    };
+
+    return await this.createAuditEntry(
+      ledgerEntry.id,
+      AuditAction.DELETED,
+      source,
+      {
+        userId,
+        description: 'Ledger entry deleted',
+        previousValues,
         sessionId
       }
     );
