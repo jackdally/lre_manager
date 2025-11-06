@@ -210,9 +210,18 @@ const RowActionsMenu: React.FC<RowActionsMenuProps> = ({
                       onLinkRisk();
                       setIsOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 flex items-center gap-2 justify-between"
                   >
-                    Link to Risk
+                    <span>
+                      {entry.risks && entry.risks.length > 0 
+                        ? `Manage Risks (${entry.risks.length})` 
+                        : 'Link to Risk'}
+                    </span>
+                    {entry.risks && entry.risks.length > 0 && (
+                      <span className="ml-2 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">
+                        {entry.risks.length}
+                      </span>
+                    )}
                   </button>
 
                   {hasActuals && (
@@ -612,7 +621,7 @@ const LedgerTableTable: React.FC<Omit<LedgerTableTableProps, 'potentialMatchIds'
                   </td>
                   {/* Risk */}
                   <td className="px-2 py-1">
-                    <RiskLinkIndicator risk={entry.risk as any} />
+                    <RiskLinkIndicator risk={entry.risk as any} risks={entry.risks as any} />
                   </td>
                   {/* Matches Column */}
                   <td className="px-2 py-1 text-center">

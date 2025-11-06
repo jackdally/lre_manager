@@ -38,12 +38,20 @@ export interface LedgerEntry {
   boeElementAllocationId?: string;
   boeVersionId?: string;
   createdFromBOE?: boolean;
-  // Risk linking
+  // Risk linking (legacy - single risk)
   riskId?: string;
   risk?: {
     id: string;
     title?: string;
   } | null;
+  // Multiple risk linking (new)
+  risks?: Array<{
+    id: string;
+    title: string;
+    severity: string;
+    probability: number;
+    description?: string | null;
+  }>;
   actualsUploadTransaction?: {
     id: string;
     vendorName: string;
